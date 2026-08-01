@@ -282,7 +282,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // (`InstallAppModal.tsx`) açılır, gerçek native kurulum istemi/Safari talimatı
   // oradan tetiklenir. Zaten kurulu (standalone) modda çalışıyorsa madde hiç render
   // edilmez.
-  const { installed, canPrompt, isSafari, promptInstall } = useInstallPrompt();
+  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled } = useInstallPrompt();
   const [installModalOpen, setInstallModalOpen] = useState(false);
 
   // "Kim girdiyse onun ana sayfası" hedefi — hem logo hem "Ana Sayfa" nav öğesi aynı
@@ -666,7 +666,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </div>
 
       <ViewPinModal open={pinOpen} onClose={() => setPinOpen(false)} onVerified={onPinVerified} />
-      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} />
+      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} markAsInstalled={markAsInstalled} />
     </aside>
   );
 }

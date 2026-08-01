@@ -27,9 +27,10 @@ interface InstallAppModalProps {
   isSafari: boolean;
   canPrompt: boolean;
   promptInstall: () => Promise<void>;
+  markAsInstalled: () => void;
 }
 
-export default function InstallAppModal({ open, onClose, isSafari, canPrompt, promptInstall }: InstallAppModalProps) {
+export default function InstallAppModal({ open, onClose, isSafari, canPrompt, promptInstall, markAsInstalled }: InstallAppModalProps) {
   const handleInstall = async () => {
     if (isSafari) {
       toast.info("Safari'de kurmak için: Paylaş menüsü → \"Dock'a Ekle\".");
@@ -37,7 +38,12 @@ export default function InstallAppModal({ open, onClose, isSafari, canPrompt, pr
       return;
     }
     if (!canPrompt) {
-      toast.info("Kurulum şu an kullanılamıyor — adres çubuğundaki yükle simgesini deneyin.");
+      // Chrome/Edge `beforeinstallprompt`'ı bir sayfa/oturumda EN FAZLA bir kez verir —
+      // bir daha ateşlememesinin en olası sebebi ZATEN KURULU olması (2026-08-02
+      // kullanıcı bulgusu: eski "kullanılamıyor" mesajı yanıltıcıydı). Kendi kendini
+      // düzeltiyoruz: state'i kurulu işaretle (buton bir sonraki render'da gizlenir).
+      markAsInstalled();
+      toast.info("Flex zaten kurulu görünüyor — masaüstünde veya uygulamalar menüsünde bulabilirsin.");
       onClose();
       return;
     }

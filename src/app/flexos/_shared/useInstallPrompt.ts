@@ -134,10 +134,21 @@ export function useInstallPrompt() {
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
+  // 2026-08-02 kullanıcı bulgusu: `canPrompt` false iken (Chrome/Edge zaten kurulu
+  // olduğu için `beforeinstallprompt`'ı bir daha ateşlemiyor) buton hâlâ görünür
+  // kalıp tıklanınca kafa karıştırıcı bir "kullanılamıyor" mesajı veriyordu — halbuki
+  // en olası sebep TAM OLARAK "zaten kurulu". Modal bu duruma düşünce burayı çağırıp
+  // state'i kendi kendine düzeltiyor (buton bir sonraki render'da gizlenir).
+  const markAsInstalled = useCallback(() => {
+    setInstalled(true);
+    persistInstalled();
+  }, []);
+
   return {
     installed,
     canPrompt: !!deferredPrompt,
     isSafari: isSafari(),
     promptInstall,
+    markAsInstalled,
   };
 }

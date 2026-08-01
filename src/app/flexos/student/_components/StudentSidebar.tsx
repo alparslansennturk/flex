@@ -30,7 +30,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
   };
 
   // "Uygulamayı Kur" (2026-08-01) — FlexSidebar'daki AYNI mantık, bkz. orada bıraktığım yorum.
-  const { installed, canPrompt, isSafari, promptInstall } = useInstallPrompt();
+  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled } = useInstallPrompt();
   const [installModalOpen, setInstallModalOpen] = useState(false);
 
   const isHome = pathname === `/flexos/student/${personId}`;
@@ -61,7 +61,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
         <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>
-      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} />
+      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} markAsInstalled={markAsInstalled} />
     </aside>
   );
 }
