@@ -49,30 +49,30 @@ async function markBuffer(size, background) {
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
-// 2026-08-02 kullanıcı bulgusu: "any" ikonlar şeffaf zeminliydi — macOS/Chrome'un
-// PWA .app paketi oluştururken şeffaf kenarları otomatik kırpıp içeriği yeniden
-// tuvale sığdırdığı (böylece bizim eklediğimiz %75 boşluğu "yediği") görülüyor.
-// Opak (beyaz) zemin kırpılamaz, boşluk garanti kalır — favicon.ico BUNDAN
-// ETKİLENMİYOR (ayrı mekanizma), o hâlâ şeffaf.
+// 2026-08-02: beyaz zemin denendi ("any" ikon her zemine oturamıyor diye), kullanıcı
+// geri aldı — standart PWA pratiği "any" ikonun şeffaf olmasını öneriyor (her tema/
+// arka plana uyar). "maskable" da (kullanıcının bulduğu kaynağa göre) şeffaf kalmalı,
+// OS'un kendi mask'i zaten kenarları kırpıyor — biz ayrıca opak zemin eklemiyoruz.
 async function makeAny(size, filename) {
-  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, "#FFFFFF"));
-  console.log(`✓ ${filename} (${size}x${size}, beyaz zemin, %${ICON_CONTENT_RATIO * 100} içerik)`);
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, TRANSPARENT));
+  console.log(`✓ ${filename} (${size}x${size}, şeffaf, %${ICON_CONTENT_RATIO * 100} içerik)`);
 }
 
 // Maskable: OS ikon maskesi (daire/yuvarlak kare) kenarları kesebileceği için içerik
-// ortada ~%75'lik güvenli alanda kalmalı — beyaz zemine biraz küçültülmüş mark
-// bindiriliyor.
+// ortada ~%75'lik güvenli alanda kalmalı — şeffaf zemine küçültülmüş mark bindiriliyor.
 async function makeMaskable(size, filename) {
-  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, "#FFFFFF"));
-  console.log(`✓ ${filename} (${size}x${size}, maskable, beyaz zemin)`);
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, TRANSPARENT));
+  console.log(`✓ ${filename} (${size}x${size}, maskable, şeffaf)`);
 }
 
 await makeAny(192, "flexos-192.png");
 await makeAny(512, "flexos-512.png");
 await makeMaskable(192, "flexos-maskable-192.png");
 await makeMaskable(512, "flexos-maskable-512.png");
-// Safari "Dock'a Ekle" — apple-touch-icon şeffaflık desteklemez, beyaz zemin şart.
-await makeMaskable(180, "flexos-apple-touch-icon.png");
+// Safari "Dock'a Ekle" — apple-touch-icon ŞEFFAFLIK DESTEKLEMEZ (yukarıdakilerden
+// farklı, gerçek bir Safari kısıtı — bu tek dosya İSTİSNA olarak beyaz zeminli kalıyor).
+await writeFileSync(resolve(OUT_DIR, "flexos-apple-touch-icon.png"), await markBuffer(180, "#FFFFFF"));
+console.log("✓ flexos-apple-touch-icon.png (180x180, beyaz zemin — Safari kısıtı)");
 
 // Tarayıcı sekmesi favicon'u — 16/32/48px, tek .ico dosyasında (Next.js App Router
 // `src/app/favicon.ico` özel dosya konvansiyonu, otomatik algılanır).
