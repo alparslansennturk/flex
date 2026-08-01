@@ -31,12 +31,8 @@ const cropped = original.replace(
 const tmpSvgPath = resolve(OUT_DIR, "_tmp-mark.svg");
 writeFileSync(tmpSvgPath, cropped);
 
-// Mark, 2026-08-02 kullanıcı isteği öncesi tuvali kenara kadar dolduruyordu
-// ("çok büyük duruyor") — artık %75 içerik + boşluk, ortalanmış.
-const ICON_CONTENT_RATIO = 0.75;
-
-async function markBuffer(size, background) {
-  const contentSize = Math.round(size * ICON_CONTENT_RATIO);
+async function markBuffer(size, background, contentRatio) {
+  const contentSize = Math.round(size * contentRatio);
   const mark = await sharp(tmpSvgPath, { density: 72 * (contentSize / 46.91) })
     .resize(contentSize, contentSize)
     .png()
@@ -47,36 +43,46 @@ async function markBuffer(size, background) {
     .toBuffer();
 }
 
-const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+const WHITE = "#FFFFFF";
 
-// 2026-08-02: beyaz zemin denendi ("any" ikon her zemine oturamıyor diye), kullanıcı
-// geri aldı — standart PWA pratiği "any" ikonun şeffaf olmasını öneriyor (her tema/
-// arka plana uyar). "maskable" da (kullanıcının bulduğu kaynağa göre) şeffaf kalmalı,
-// OS'un kendi mask'i zaten kenarları kırpıyor — biz ayrıca opak zemin eklemiyoruz.
+// "any": OS kendi köşe yuvarlatmasını (squircle/rounded-square) UYGULAR ama tuvali
+// KIRPMAZ — o yüzden zemin opak olmalı (şeffaf olursa masaüstünde/dock'ta logo
+// "havada" görünür, kart gibi durmaz — YouTube/Slack gibi gerçek app ikonlarında
+// zemin her zaman dolu). İçerik %90 (kullanıcı isteği) — kırpılmadığı için güvenli.
+const ANY_CONTENT_RATIO = 0.9;
+
+// "maskable": spec GEREĞİ zemin opak OLMAK ZORUNDA — OS tuvalin tamamını alıp kendi
+// şekline (daire/squircle) göre KIRPAR; zemin şeffaf bırakılırsa kırpılan şekil ile
+// içerik arasında kalan alan BOŞLUK/DELİK olarak görünür (küçük+eksik görünmesinin
+// asıl sebebi buydu). Teorik güvenli sınır %57 (kare köşegeni %80 güvenli daireye
+// sığsın diye) — kullanıcı bilinçli olarak %85 istedi, köşeler OS maskesine göre
+// belirgin kırpılabilir, kabul edilen ödünleşim.
+const MASKABLE_CONTENT_RATIO = 0.85;
+
 async function makeAny(size, filename) {
-  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, TRANSPARENT));
-  console.log(`✓ ${filename} (${size}x${size}, şeffaf, %${ICON_CONTENT_RATIO * 100} içerik)`);
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, WHITE, ANY_CONTENT_RATIO));
+  console.log(`✓ ${filename} (${size}x${size}, beyaz zemin, %${ANY_CONTENT_RATIO * 100} içerik)`);
 }
 
-// Maskable: OS ikon maskesi (daire/yuvarlak kare) kenarları kesebileceği için içerik
-// ortada ~%75'lik güvenli alanda kalmalı — şeffaf zemine küçültülmüş mark bindiriliyor.
 async function makeMaskable(size, filename) {
-  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, TRANSPARENT));
-  console.log(`✓ ${filename} (${size}x${size}, maskable, şeffaf)`);
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, WHITE, MASKABLE_CONTENT_RATIO));
+  console.log(`✓ ${filename} (${size}x${size}, maskable, beyaz zemin, %${MASKABLE_CONTENT_RATIO * 100} içerik)`);
 }
 
 await makeAny(192, "flexos-192.png");
 await makeAny(512, "flexos-512.png");
 await makeMaskable(192, "flexos-maskable-192.png");
 await makeMaskable(512, "flexos-maskable-512.png");
-// Safari "Dock'a Ekle" — apple-touch-icon ŞEFFAFLIK DESTEKLEMEZ (yukarıdakilerden
-// farklı, gerçek bir Safari kısıtı — bu tek dosya İSTİSNA olarak beyaz zeminli kalıyor).
-await writeFileSync(resolve(OUT_DIR, "flexos-apple-touch-icon.png"), await markBuffer(180, "#FFFFFF"));
-console.log("✓ flexos-apple-touch-icon.png (180x180, beyaz zemin — Safari kısıtı)");
+// Safari "Dock'a Ekle" — apple-touch-icon şeffaflık desteklemez, zaten beyaz zeminliydi.
+await writeFileSync(resolve(OUT_DIR, "flexos-apple-touch-icon.png"), await markBuffer(180, WHITE, ANY_CONTENT_RATIO));
+console.log("✓ flexos-apple-touch-icon.png (180x180, beyaz zemin)");
 
 // Tarayıcı sekmesi favicon'u — 16/32/48px, tek .ico dosyasında (Next.js App Router
 // `src/app/favicon.ico` özel dosya konvansiyonu, otomatik algılanır).
-const faviconSizes = await Promise.all([16, 32, 48].map((s) => markBuffer(s, TRANSPARENT)));
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+const faviconSizes = await Promise.all(
+  [16, 32, 48].map((s) => markBuffer(s, TRANSPARENT, ANY_CONTENT_RATIO)),
+);
 const icoBuffer = await toIco(faviconSizes);
 writeFileSync(resolve("src/app/favicon.ico"), icoBuffer);
 console.log("✓ src/app/favicon.ico (16/32/48px)");
