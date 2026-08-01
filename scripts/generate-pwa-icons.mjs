@@ -25,19 +25,30 @@ const cropped = original.replace(
 const tmpSvgPath = resolve(OUT_DIR, "_tmp-mark.svg");
 writeFileSync(tmpSvgPath, cropped);
 
+// Mark, 2026-08-02 kullanıcı isteği öncesi tuvali kenara kadar dolduruyordu
+// ("çok büyük duruyor") — artık %75 içerik + şeffaf boşluk, ortalanmış.
+const ICON_CONTENT_RATIO = 0.75;
+
 async function makeAny(size, filename) {
-  await sharp(tmpSvgPath, { density: 72 * (size / 46.91) })
-    .resize(size, size)
+  const contentSize = Math.round(size * ICON_CONTENT_RATIO);
+  const mark = await sharp(tmpSvgPath, { density: 72 * (contentSize / 46.91) })
+    .resize(contentSize, contentSize)
+    .png()
+    .toBuffer();
+  await sharp({
+    create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: mark, gravity: "center" }])
     .png()
     .toFile(resolve(OUT_DIR, filename));
-  console.log(`✓ ${filename} (${size}x${size}, transparent)`);
+  console.log(`✓ ${filename} (${size}x${size}, transparent, %${ICON_CONTENT_RATIO * 100} içerik)`);
 }
 
 // Maskable: OS ikon maskesi (daire/yuvarlak kare) kenarları kesebileceği için içerik
-// ortada ~%80'lik güvenli alanda kalmalı — beyaz zemine biraz küçültülmüş mark
+// ortada ~%75'lik güvenli alanda kalmalı — beyaz zemine biraz küçültülmüş mark
 // bindiriliyor.
 async function makeMaskable(size, filename) {
-  const contentSize = Math.round(size * 0.72);
+  const contentSize = Math.round(size * ICON_CONTENT_RATIO);
   const mark = await sharp(tmpSvgPath, { density: 72 * (contentSize / 46.91) })
     .resize(contentSize, contentSize)
     .png()
