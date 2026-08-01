@@ -47,7 +47,9 @@ export default function InstallAppModal({ open, onClose, isSafari, canPrompt, pr
       // `appinstalled` event'i zaten `installed`'ı günceleyip sidebar'daki butonu
       // gizliyor (bkz. `useInstallPrompt.ts`) — burada sadece kullanıcıya açık bir
       // onay mesajı veriyoruz.
-      toast.success("✅ Flex başarıyla kuruldu.");
+      toast.success("✅ Flex başarıyla kuruldu.", {
+        description: "Kaldırmak için sağ üstteki ⋮ menüsünden \"Kaldır\"ı seçebilirsiniz.",
+      });
     } catch {
       // Kullanıcı native pencerede "İptal" dedi veya tarayıcı reddetti — sessizce
       // geç, zaten native pencerenin kendisi kullanıcıya görsel geri bildirim verdi.
