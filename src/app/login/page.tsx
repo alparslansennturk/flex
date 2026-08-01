@@ -72,6 +72,9 @@ function LoginForm() {
       // sekme bug riski).
       const cookieAge = rememberMe ? "; max-age=2592000" : "";
       document.cookie = `flex-token=${idToken}; path=/${cookieAge}; SameSite=Lax`;
+      // `UserContext.tsx` token yenilendikçe bu çerezi kendisi de yeniden yazıyor —
+      // tercihi orada da uygulayabilmesi için localStorage'a kaydediyoruz.
+      try { localStorage.setItem("flexRememberMe", rememberMe ? "true" : "false"); } catch {}
 
       if (userDoc.exists()) {
         const userData = userDoc.data();

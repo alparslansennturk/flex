@@ -99,9 +99,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.log(`[AUTH][${_t()}] USER: uid=${firebaseUser.uid} activeUid=${activeUid}`);
           }
 
-          // Cookie 30 gün ömürlü; Firebase SDK saatte bir token'ı yeniler, bu satır da günceller
+          // Firebase SDK saatte bir token'ı yeniler, bu satır da çerezi günceller —
+          // 2026-08-02 GERÇEK BULGU (kullanıcı raporladı, "Beni Hatırla çalışmıyor"):
+          // burası eskiden KOŞULSUZ 30 gün yazıyordu, login sayfasındaki "Beni
+          // Hatırla" işaretsizken set edilen session-çerezini birkaç dakika içinde
+          // sessizce eziyordu. Artık login'de kaydedilen `flexRememberMe` tercihine
+          // uyuyor (kayıt yoksa — eski oturumlar/diğer giriş yolları için — eski
+          // davranışla uyumlu olsun diye varsayılan hâlâ 30 gün).
+          const remembered = (() => {
+            try { return localStorage.getItem("flexRememberMe") !== "false"; } catch { return true; }
+          })();
+          const cookieAge = remembered ? "; max-age=2592000" : "";
           firebaseUser.getIdToken().then(token => {
-            document.cookie = `flex-token=${token}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `flex-token=${token}; path=/${cookieAge}; SameSite=Lax`;
           });
 
           // Aynı kullanıcının token refresh'i → yeni listener açma, mevcut çalışmaya devam etsin

@@ -81,6 +81,11 @@ function LoginForm() {
       const token = await userCredential.user.getIdToken();
       const cookieAge = rememberMe ? "; max-age=2592000" : "";
       document.cookie = `flex-token=${token}; path=/${cookieAge}; SameSite=Lax`;
+      // `UserContext.tsx` token yenilendikçe (saatte bir) bu çerezi KENDİSİ de
+      // yeniden yazıyor — tercihi orada da uygulayabilmesi için localStorage'a
+      // kaydediyoruz, yoksa birkaç dakika içinde 30 güne sessizce geri dönüyordu
+      // (gerçek bulgu — kullanıcı raporladı, "Beni Hatırla çalışmıyor").
+      try { localStorage.setItem("flexRememberMe", rememberMe ? "true" : "false"); } catch {}
       router.push(await resolveFlexosLanding(token));
     } catch (error: unknown) {
       const e = error as { code?: string };
