@@ -49,9 +49,14 @@ async function markBuffer(size, background) {
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
+// 2026-08-02 kullanıcı bulgusu: "any" ikonlar şeffaf zeminliydi — macOS/Chrome'un
+// PWA .app paketi oluştururken şeffaf kenarları otomatik kırpıp içeriği yeniden
+// tuvale sığdırdığı (böylece bizim eklediğimiz %75 boşluğu "yediği") görülüyor.
+// Opak (beyaz) zemin kırpılamaz, boşluk garanti kalır — favicon.ico BUNDAN
+// ETKİLENMİYOR (ayrı mekanizma), o hâlâ şeffaf.
 async function makeAny(size, filename) {
-  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, TRANSPARENT));
-  console.log(`✓ ${filename} (${size}x${size}, transparent, %${ICON_CONTENT_RATIO * 100} içerik)`);
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, "#FFFFFF"));
+  console.log(`✓ ${filename} (${size}x${size}, beyaz zemin, %${ICON_CONTENT_RATIO * 100} içerik)`);
 }
 
 // Maskable: OS ikon maskesi (daire/yuvarlak kare) kenarları kesebileceği için içerik
