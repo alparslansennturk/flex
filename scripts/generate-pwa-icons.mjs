@@ -1,13 +1,19 @@
 /**
- * generate-pwa-icons.mjs — FlexOS'un site geneli PWA manifest'i için ikonları
- * `public/assets/flex-logo.svg`'deki (170.5x46.91 viewBox) sol kare "mark" kısmından
- * (4 renkli yuvarlatılmış kare, "flex" yazısı OLMADAN) üretir — bu, sidebar/login'de
- * de kullanılan gerçek marka işareti. (`Mobile-Desktop-Icon.svg` bu iş için YANLIŞ
- * kaynaktı — o Connect'in konuşma balonu ikonu, `connect-icon-*.png` ile birebir aynı.)
+ * generate-pwa-icons.mjs — FlexOS'un site geneli PWA manifest'i VE tarayıcı sekmesi
+ * favicon'u için ikonları `public/assets/flex-logo.svg`'deki (170.5x46.91 viewBox)
+ * sol kare "mark" kısmından (4 renkli yuvarlatılmış kare, "flex" yazısı OLMADAN)
+ * üretir — bu, sidebar/login'de de kullanılan gerçek marka işareti.
+ * (`Mobile-Desktop-Icon.svg` bu iş için YANLIŞ kaynaktı — o Connect'in konuşma
+ * balonu ikonu, `connect-icon-*.png` ile birebir aynı.)
+ *
+ * 2026-08-02 kullanıcı bulgusu: `src/app/favicon.ico` hiç değiştirilmemişti,
+ * hâlâ Next.js/Vercel'in varsayılan şablon ikonuydu (siyah daire + beyaz üçgen) —
+ * bu script artık ONU da (aynı kaynaktan) üretiyor.
  *
  * Tek seferlik script — `node scripts/generate-pwa-icons.mjs`.
  */
 import sharp from "sharp";
+import toIco from "to-ico";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { resolve } from "path";
 
@@ -26,21 +32,25 @@ const tmpSvgPath = resolve(OUT_DIR, "_tmp-mark.svg");
 writeFileSync(tmpSvgPath, cropped);
 
 // Mark, 2026-08-02 kullanıcı isteği öncesi tuvali kenara kadar dolduruyordu
-// ("çok büyük duruyor") — artık %75 içerik + şeffaf boşluk, ortalanmış.
+// ("çok büyük duruyor") — artık %75 içerik + boşluk, ortalanmış.
 const ICON_CONTENT_RATIO = 0.75;
 
-async function makeAny(size, filename) {
+async function markBuffer(size, background) {
   const contentSize = Math.round(size * ICON_CONTENT_RATIO);
   const mark = await sharp(tmpSvgPath, { density: 72 * (contentSize / 46.91) })
     .resize(contentSize, contentSize)
     .png()
     .toBuffer();
-  await sharp({
-    create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  })
+  return sharp({ create: { width: size, height: size, channels: 4, background } })
     .composite([{ input: mark, gravity: "center" }])
     .png()
-    .toFile(resolve(OUT_DIR, filename));
+    .toBuffer();
+}
+
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+
+async function makeAny(size, filename) {
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, TRANSPARENT));
   console.log(`✓ ${filename} (${size}x${size}, transparent, %${ICON_CONTENT_RATIO * 100} içerik)`);
 }
 
@@ -48,17 +58,7 @@ async function makeAny(size, filename) {
 // ortada ~%75'lik güvenli alanda kalmalı — beyaz zemine biraz küçültülmüş mark
 // bindiriliyor.
 async function makeMaskable(size, filename) {
-  const contentSize = Math.round(size * ICON_CONTENT_RATIO);
-  const mark = await sharp(tmpSvgPath, { density: 72 * (contentSize / 46.91) })
-    .resize(contentSize, contentSize)
-    .png()
-    .toBuffer();
-  await sharp({
-    create: { width: size, height: size, channels: 4, background: "#FFFFFF" },
-  })
-    .composite([{ input: mark, gravity: "center" }])
-    .png()
-    .toFile(resolve(OUT_DIR, filename));
+  await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, "#FFFFFF"));
   console.log(`✓ ${filename} (${size}x${size}, maskable, beyaz zemin)`);
 }
 
@@ -68,5 +68,12 @@ await makeMaskable(192, "flexos-maskable-192.png");
 await makeMaskable(512, "flexos-maskable-512.png");
 // Safari "Dock'a Ekle" — apple-touch-icon şeffaflık desteklemez, beyaz zemin şart.
 await makeMaskable(180, "flexos-apple-touch-icon.png");
+
+// Tarayıcı sekmesi favicon'u — 16/32/48px, tek .ico dosyasında (Next.js App Router
+// `src/app/favicon.ico` özel dosya konvansiyonu, otomatik algılanır).
+const faviconSizes = await Promise.all([16, 32, 48].map((s) => markBuffer(s, TRANSPARENT)));
+const icoBuffer = await toIco(faviconSizes);
+writeFileSync(resolve("src/app/favicon.ico"), icoBuffer);
+console.log("✓ src/app/favicon.ico (16/32/48px)");
 
 rmSync(tmpSvgPath);
