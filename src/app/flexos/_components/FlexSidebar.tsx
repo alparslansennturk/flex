@@ -18,6 +18,7 @@ import FlexLogo from "@/app/components/ui/FlexLogo";
 import ViewPinModal from "./ViewPinModal";
 import { FlexSpinner, isAppBooted, markAppBooted } from "./FlexSpinner";
 import { useInstallPrompt } from "../_shared/useInstallPrompt";
+import InstallAppModal from "../_shared/InstallAppModal";
 
 /**
  * Core/Full — SADECE `/api/flexos/me`'nin `mode` alanından okunur (bkz. o route'taki
@@ -277,18 +278,12 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     router.push("/flexos/giris");
   };
 
-  // "Uygulamayı Kur" (2026-08-01, site geneli PWA) — Chrome/Edge'de native kurulum
-  // istemi, Safari'de (hiçbir zaman `beforeinstallprompt` ateşlemediği için) kısa bir
-  // talimat. Zaten kurulu (standalone) modda çalışıyorsa madde hiç render edilmez.
+  // "Uygulamayı Kur" (2026-08-01, site geneli PWA) — önce değeri anlatan bir modal
+  // (`InstallAppModal.tsx`) açılır, gerçek native kurulum istemi/Safari talimatı
+  // oradan tetiklenir. Zaten kurulu (standalone) modda çalışıyorsa madde hiç render
+  // edilmez.
   const { installed, canPrompt, isSafari, promptInstall } = useInstallPrompt();
-  const handleInstallClick = async () => {
-    if (isSafari) {
-      toast.info("Safari'de kurmak için: Paylaş menüsü → \"Dock'a Ekle\".");
-      return;
-    }
-    if (canPrompt) { await promptInstall(); return; }
-    toast.info("Kurulum şu an kullanılamıyor — adres çubuğundaki yükle simgesini deneyin.");
-  };
+  const [installModalOpen, setInstallModalOpen] = useState(false);
 
   // "Kim girdiyse onun ana sayfası" hedefi — hem logo hem "Ana Sayfa" nav öğesi aynı
   // hedefe gider (bkz. aşağıdaki nav öğesindeki uzun açıklama).
@@ -665,12 +660,13 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.settings} label="Ayarlar" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
         {/* 2026-08-01: zaten kurulu (standalone) modda çalışıyorsa madde hiç görünmez. */}
-        {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={handleInstallClick} />}
+        {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={() => setInstallModalOpen(true)} />}
         <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>
 
       <ViewPinModal open={pinOpen} onClose={() => setPinOpen(false)} onVerified={onPinVerified} />
+      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} />
     </aside>
   );
 }

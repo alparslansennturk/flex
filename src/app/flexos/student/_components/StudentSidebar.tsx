@@ -10,13 +10,14 @@
  * KULLANMAMALI (FlexSidebar'ın kullanıldığı sayfalarla aynı desen).
  */
 
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 import { Item, S, IC, css } from "../../_components/FlexSidebar";
 import { useInstallPrompt } from "../../_shared/useInstallPrompt";
+import InstallAppModal from "../../_shared/InstallAppModal";
 
 export default function StudentSidebar({ personId }: { personId: string }) {
   const router = useRouter();
@@ -30,14 +31,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
 
   // "Uygulamayı Kur" (2026-08-01) — FlexSidebar'daki AYNI mantık, bkz. orada bıraktığım yorum.
   const { installed, canPrompt, isSafari, promptInstall } = useInstallPrompt();
-  const handleInstallClick = async () => {
-    if (isSafari) {
-      toast.info("Safari'de kurmak için: Paylaş menüsü → \"Dock'a Ekle\".");
-      return;
-    }
-    if (canPrompt) { await promptInstall(); return; }
-    toast.info("Kurulum şu an kullanılamıyor — adres çubuğundaki yükle simgesini deneyin.");
-  };
+  const [installModalOpen, setInstallModalOpen] = useState(false);
 
   const isHome = pathname === `/flexos/student/${personId}`;
   const homeHref = `/flexos/student/${personId}`;
@@ -63,10 +57,11 @@ export default function StudentSidebar({ personId }: { personId: string }) {
 
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.settings} label="Ayarlar" active={isAyarlar} onClick={() => router.push(ayarlarHref)} />
-        {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={handleInstallClick} />}
+        {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={() => setInstallModalOpen(true)} />}
         <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>
+      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} />
     </aside>
   );
 }
