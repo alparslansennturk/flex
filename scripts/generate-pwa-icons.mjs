@@ -45,19 +45,24 @@ async function markBuffer(size, background, contentRatio) {
 
 const WHITE = "#FFFFFF";
 
+// 2026-08-02: kullanıcı bir PNG'yi elle .icns'e çevirip macOS'ta kurulu PWA
+// ikonu olarak denedi ve bu doğru göründü — o dosyadan ölçülen gerçek içerik
+// oranı %79.7 (512px tuvalde 408px mark) idi, önceki %90/%85'ten belirgin
+// daha fazla boşluklu. macOS Dock zaten squircle+gölge uyguluyor; kenara
+// yakın içerik "taşmış/kırpılmış" görünüyordu. İkisini de %80'e çektik.
+//
 // "any": OS kendi köşe yuvarlatmasını (squircle/rounded-square) UYGULAR ama tuvali
 // KIRPMAZ — o yüzden zemin opak olmalı (şeffaf olursa masaüstünde/dock'ta logo
 // "havada" görünür, kart gibi durmaz — YouTube/Slack gibi gerçek app ikonlarında
-// zemin her zaman dolu). İçerik %90 (kullanıcı isteği) — kırpılmadığı için güvenli.
-const ANY_CONTENT_RATIO = 0.9;
+// zemin her zaman dolu).
+const ANY_CONTENT_RATIO = 0.8;
 
 // "maskable": spec GEREĞİ zemin opak OLMAK ZORUNDA — OS tuvalin tamamını alıp kendi
 // şekline (daire/squircle) göre KIRPAR; zemin şeffaf bırakılırsa kırpılan şekil ile
-// içerik arasında kalan alan BOŞLUK/DELİK olarak görünür (küçük+eksik görünmesinin
-// asıl sebebi buydu). Teorik güvenli sınır %57 (kare köşegeni %80 güvenli daireye
-// sığsın diye) — kullanıcı bilinçli olarak %85 istedi, köşeler OS maskesine göre
-// belirgin kırpılabilir, kabul edilen ödünleşim.
-const MASKABLE_CONTENT_RATIO = 0.85;
+// içerik arasında kalan alan BOŞLUK/DELİK olarak görünür. Spec'in önerdiği "safe
+// zone" zaten tuvalin ortasındaki %80 çaplı daire — %80 hem spec'e hem kullanıcının
+// doğrulanmış icns'ine uyuyor (önceki %85'te köşeler agresif maskelerde kırpılıyordu).
+const MASKABLE_CONTENT_RATIO = 0.8;
 
 async function makeAny(size, filename) {
   await writeFileSync(resolve(OUT_DIR, filename), await markBuffer(size, WHITE, ANY_CONTENT_RATIO));
