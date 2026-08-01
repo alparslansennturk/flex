@@ -9,6 +9,8 @@ interface FilterBarProps {
   fDurum: string; setFDurum: (v: string) => void;
   fSorumlu: string; setFSorumlu: (v: string) => void;
   sorumluList: string[];
+  fSube: string; setFSube: (v: string) => void;
+  subeList: string[];
   openDd: string | null; setOpenDd: (v: string | null) => void;
   anyFilter: boolean;
   onClear: () => void;
@@ -16,9 +18,10 @@ interface FilterBarProps {
   onAddClick: () => void;
 }
 
-/** Aktivite Merkezi filtre şeridi — Kanal/Tip/Durum/Sorumlu dropdown'ları + Temizle + Aktivite Ekle. */
+/** Aktivite Merkezi filtre şeridi — Kanal/Tip/Durum/Sorumlu/Şube dropdown'ları + Temizle + Aktivite Ekle. */
 export function FilterBar({
   fKanal, setFKanal, fTip, setFTip, fDurum, setFDurum, fSorumlu, setFSorumlu, sorumluList,
+  fSube, setFSube, subeList,
   openDd, setOpenDd, anyFilter, onClear, onPageReset, onAddClick,
 }: FilterBarProps) {
   return (
@@ -79,6 +82,18 @@ export function FilterBar({
           {["Tümü", ...sorumluList].map(v => (
             <DdItem key={v} label={v === "Tümü" ? "Tüm Sorumlular" : v} active={fSorumlu === v}
               onClick={() => { setFSorumlu(v); setOpenDd(null); onPageReset(); }} />
+          ))}
+        </Dd>
+
+        {/* Şube */}
+        <Dd
+          label={fSube === "Tümü" ? "Tüm Şubeler" : fSube}
+          open={openDd === "sube"}
+          onToggle={() => setOpenDd(openDd === "sube" ? null : "sube")}
+        >
+          {["Tümü", ...subeList].map(v => (
+            <DdItem key={v} label={v === "Tümü" ? "Tüm Şubeler" : v} active={fSube === v}
+              onClick={() => { setFSube(v); setOpenDd(null); onPageReset(); }} />
           ))}
         </Dd>
 

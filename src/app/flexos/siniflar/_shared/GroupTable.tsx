@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, CSSProperties
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { FlexSpinner } from "../../_components/FlexSpinner";
-import { useCapabilities } from "../../_components/useCapabilities";
+import { useOfficeFilterDefault } from "../../_shared/useOfficeFilterDefault";
 import { authHeaders } from "@/app/lib/client/auth-headers";
 import {
   type DisplayGroup, type GroupStatus,
@@ -66,9 +66,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
   // ön-seçili gelir, "Tümü"ne ya da başka bir şubeye serbestçe geçilebilir — erişim
   // kısıtlaması DEĞİL, sadece varsayılan filtre. SADECE `mode==="full"` (byGroup)
   // — Core'da (eğitmen standalone) Şube kolonu zaten gizli, filtreye de gerek yok.
-  const { officeName: myOfficeName } = useCapabilities();
-  const [subeFilter, setSubeFilter] = useState("Tümü");
-  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  const { subeFilter, setSubeFilter } = useOfficeFilterDefault({ allValue: "Tümü" });
   const [subeDD, setSubeDD] = useState(false);
   const subeDDRef = useRef<HTMLDivElement>(null);
   // Şube seçenekleri (2026-07-25 kullanıcı bulgusu: sadece o an YÜKLÜ gruplardan
@@ -91,15 +89,6 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
       }
     })();
   }, [mode]);
-  useEffect(() => {
-    if (!subeFilterInitialized && myOfficeName) {
-      // Sadece İLK yüklemede kendi şubeye set edilir (`subeFilterInitialized` guard),
-      // sonra kullanıcı seçimi asla ezilmez — `satis-liste/page.tsx`'teki AYNI desen.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSubeFilter(myOfficeName);
-      setSubeFilterInitialized(true);
-    }
-  }, [myOfficeName, subeFilterInitialized]);
   useEffect(() => {
     if (!subeDD) return;
     const onClick = (e: MouseEvent) => { if (!subeDDRef.current?.contains(e.target as Node)) setSubeDD(false); };

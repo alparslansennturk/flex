@@ -1,0 +1,16 @@
+{
+  "name": "FlexOS",
+  "short_name": "FlexOS",
+  "description": "Eğitim kurumu yönetim paneli",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EEF0F3",
+  "theme_color": "#2867bd",
+  "icons": [
+    { "src": "/icons/flexos-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/flexos-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/flexos-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/flexos-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

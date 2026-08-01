@@ -18,7 +18,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
-import { useCapabilities } from "../../_components/useCapabilities";
+import { useOfficeFilterDefault } from "../../_shared/useOfficeFilterDefault";
 import { StudentDetailTabsPanel } from "../../ogrenciler/_shared/StudentDetailTabsPanel";
 import { authHeaders } from "@/app/lib/client/auth-headers";
 
@@ -129,18 +129,10 @@ export default function SatisListePage() {
   const [bransOpen, setBransOpen] = useState(false);
   // Şube filtresi (2026-07-22 kullanıcı isteği) — varsayılan KENDİ şubem (satış
   // otomatik olarak satıcının şubesine yazılıyor artık), "Tüm Şubeler"/başka bir
-  // şube seçilebilir. Sadece İLK yüklemede kendi şubeye set edilir, sonra kullanıcı
-  // seçimi ezilmez.
-  const { officeName: myOfficeName } = useCapabilities();
-  const [subeFilter, setSubeFilter] = useState<string>("__all__");
-  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  // şube seçilebilir. Rolü `defaultAllBranches` ise varsayılan "Tüm Şubeler" olur
+  // (bkz. `useOfficeFilterDefault`).
+  const { subeFilter, setSubeFilter } = useOfficeFilterDefault();
   const [subeOpen, setSubeOpen] = useState(false);
-  useEffect(() => {
-    if (!subeFilterInitialized && myOfficeName) {
-      setSubeFilter(myOfficeName);
-      setSubeFilterInitialized(true);
-    }
-  }, [myOfficeName, subeFilterInitialized]);
   // "Grup Değiştir" (transfer) akışı otomatik 0 TL'lik bir Sale (`type:"transfer"`)
   // bırakıyor — gerçek satış değil, audit izi (2026-07-22 kullanıcı bulgusu: bunlar
   // gerçek satışlarla karışınca "satış çok, ciro az" gibi yanıltıcı görünüyordu).

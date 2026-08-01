@@ -27,10 +27,41 @@
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
 - **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
   kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).
-- **Uzun süredir bekleyen, hâlâ sıfır kod (öncelik değil):** Finans modülü, Şube Aşama-2
-  (yetki filtresi), Randevu Takvimi'nin bazı kısımları, Sistem Ayarları süper-admin paneli,
-  Sertifika Bastır akışı, Öğrenci Profili tam-sayfa hub. Detay + gerekçe → memory
-  (`flexos_roadmap_priority`, `flexos_bekleyen_tasarimlar`) ve arşiv dosyası.
+- **Uzun süredir bekleyen, hâlâ sıfır kod (öncelik değil):** Finans modülü, Sistem
+  Ayarları süper-admin paneli (kapsam: admin verme paneli + Backup Kontrol + Log sistemi,
+  3 ayrı alt parça — detay archive satır ~3453/3459), Sertifika Bastır akışı.
+  Detay + gerekçe → memory (`flexos_roadmap_priority`, `flexos_bekleyen_tasarimlar`) ve
+  arşiv dosyası.
+- ~~Öğrenci Profili tam-sayfa hub~~ — **KISMEN STALE, KÜÇÜLTÜLDÜ (2026-08-01 doğrulandı).**
+  `/flexos/ogrenciler/[id]/page.tsx` zaten VAR (2026-07-16'dan beri) — Genel/Eğitim/Ödeme
+  3 sekmeli, `StudentDetailTabsPanel` üzerinden; yoklama donut'u + sertifika/not kartları +
+  ödeme bilgisi hepsi zaten görüntüleniyor (sadece görüntüleme, düzenleme formu yok).
+  2026-06-25'te planlanan asıl "hub" tasarımı (enrollment seçici → seçilen eğitime özel
+  Yoklama/Notlar/Ödeme/Sertifika alt sekmeleri, "Grafik'te mezun, Web'de aktif" gibi
+  durumları ayrıştırma) hiç uygulanmadı — ama içerik zaten var, eksik olan sadece UI'ın
+  enrollment-bazlı yeniden organizasyonu (yeni backend/veri gerekmiyor). Sanıldığından
+  küçük bir iş, ~yarım oturum.
+- ~~Randevu Takvimi'nin bazı kısımları~~ — **✅ TAMAMEN BİTTİ (2026-08-01).** Bu satır
+  eski "placeholder" döneminden kalmıştı; özellik `19d7db6`/`72d26d8`/`a6405da`
+  (2026-07-21/22) ile fiilen tamamlanmıştı: `randevu-takvimi/page.tsx` tam işlevsel
+  (Hafta/Gün görünümü, çakışma yerleşimi, oluştur/düzenle/iptal), backend tamamen gerçek
+  (`/api/flexos/appointments`, `flexos_appointments`), Aktivite Merkezi'yle çift yönlü SSE
+  senkron. Kalan tek eksik (mesai saati dışı/geçmiş tarihe randevu engeli) de 2026-08-01'de
+  kapatıldı: hem Randevu Takvimi modalında hem Aktivite Merkezi'nin "Randevu Oluşturulacak"
+  akışında (`ActivityRow.tsx`) tarih/saat input'larına `min`/`max` + sunucuya gitmeden önce
+  JS validasyonu (geçmiş tarih/09:00-19:00 dışı → toast hata, kayıt engellenir) eklendi;
+  hafta görünümünde geçmiş günler artık soluk (opacity) gösteriliyor. Tarayıcıda gerçek
+  oturumla uçtan uca doğrulandı (geçerli kayıt + 2 geçersiz senaryo).
+- ~~Şube Aşama-2 (yetki filtresi)~~ — **✅ KARAR DEĞİŞTİ + UYGULANDI (2026-08-01).**
+  Eski madde gerçek erişim kısıtlaması varsayıyordu (branch-scope capability); kullanıcı
+  netleştirdi: **kısıtlama YOK** — herkes her şubeyi görüp işlem yapabilir (ör. Şirinevler
+  satışçısı Kadıköy'de satış yapabilir), sadece **varsayılan görünüm** kendi şubesi olsun.
+  Uygulandı: `RoleDef.defaultAllBranches` (Kullanıcı Ayarları'nda rol bazlı toggle) +
+  `useOfficeFilterDefault()` ortak hook'u → Satış Listesi/Öğrenci Havuzu/Sınıflar'daki
+  mevcut "kendi şubem varsayılan" deseni buraya taşındı + Aktivite Merkezi'ne de (yeni)
+  şube filtresi eklendi (talebi işleyen personelin şubesinden türetiliyor, atanmamış talep
+  her filtrede görünür). Eski dormant `Actor.branchIds`/`can()` "branch" scope altyapısı
+  (`access/types.ts`, `access/can.ts`) hâlâ kullanılmıyor — bu iş ona dokunmadı, ayrı konu.
 - **Beta hata bildirim sistemi (henüz kod yazılmadı, ŞİMDİ YAPILMAYACAK — 2026-07-29
   kullanıcı kararı):** Sistem gerçek kullanıcılara (beta) açılınca, bugün kullanılan
   "geliştirici notları" defterine benzer bir hata bildirme arayüzü HERKESE (sadece
@@ -52,6 +83,33 @@
 
 ### En son tamamlanan büyük işler (özet, tam detay arşivde)
 
+- **FlexOS site geneli PWA (2026-08-01)** — FlexOS'un TAMAMI (Connect dahil, Connect
+  Mobile HARİÇ — o ayrı/bitmiş) artık Windows'ta Başlat Menüsü/Masaüstü/Görev Çubuğu,
+  Mac'te Dock/Applications'a kurulabilen tek bir PWA. `public/manifest.json`
+  (`start_url:"/"` — zaten role göre doğru sayfaya yönlendiren akıllı router),
+  `public/sw-flexos.js` (SADECE statik asset cache + `skipWaiting`/`clients.claim` ile
+  otomatik güncelleme — navigasyon/`/api/`/cross-origin HER ZAMAN ağdan, Firestore/canlı
+  veri asla cache'lenmiyor), ikonlar gerçek "flex" 4-renk markasından üretildi
+  (`scripts/generate-pwa-icons.mjs`, `public/assets/flex-logo.svg`'nin sol kare kısmı —
+  `Mobile-Desktop-Icon.svg` YANLIŞ kaynaktı, o Connect'in konuşma balonu ikonu).
+  `FlexSidebar.tsx` + `StudentSidebar.tsx`'e "Uygulamayı Kur" butonu (Chrome/Edge native
+  prompt, Safari'de "Dock'a Ekle" talimatı, kuruluysa hiç görünmez). Connect'in kendi
+  push-bildirimi SW'leri (`sw-connect-desktop.js`/`sw-connect-mobile.js`) dokunulmadan
+  yan yana çalışıyor (tarayıcı en spesifik scope'u seçiyor, çakışma yok — 3 SW aynı anda
+  `activated` doğrulandı). **Ek özellik:** paylaşımlı sınıf bilgisayarları için 15dk
+  hareketsizlikte otomatik `signOut()` (`useIdleAutoLogout.ts`, `PwaBootstrap.tsx`
+  üzerinden kök layout'ta tek noktadan tüm FlexOS'ta aktif).
+- **Randevu Takvimi — mesai saati/geçmiş tarih validasyonu (2026-08-01)** — bkz. yukarıdaki
+  ~~Randevu Takvimi'nin bazı kısımları~~ notu. Özellik zaten tamamdı, sadece bu son cila
+  eksikti; artık hem `randevu-takvimi/page.tsx` hem Aktivite Merkezi'nin randevu akışı aynı
+  kurala (09:00-19:00, geçmiş tarih yok) uyuyor.
+- **Şube bazlı varsayılan filtre + rol bazlı "Tüm Şubeler" override (2026-08-01)** —
+  bkz. yukarıdaki ~~Şube Aşama-2~~ notu. Satış Listesi/Öğrenci Havuzu/Sınıflar/Aktivite
+  Merkezi'nde ortak `useOfficeFilterDefault()` hook'u, `RoleDef.defaultAllBranches` +
+  Kullanıcı Ayarları'nda toggle. Yan bulgu: Kullanıcı Ayarları'ndaki `permModules`
+  checklist'inde (henüz gerçek capability'e bağlı değil, sadece görsel) 2 rolde
+  (Finans Sorumlusu, Satış Temsilcisi) geçmiş anahtar-yeniden-adlandırmalarından kalma
+  stale key'ler bulundu ve rolü kaydederek temizlendi.
 - **Eğitmen Takvimi backend'i gerçek veriye bağlandı (2026-07-31)** — ders blokları artık
   `Group.schedule` (gün/saat/tarih aralığı) + gerçek salon (Lab)/grup/öğrenci sayısından,
   rezerve/müsaitlik `Trainer.availability`'den, resmi tatil `Holiday` koleksiyonundan

@@ -21,4 +21,7 @@ export interface RoleDef extends Audit {
   color?: string; // hex, rozet rengi
   permModules: string[];
   isBuiltIn: boolean; // 6 yerleşik rol — silinemez, id'si değiştirilemez
+  /** true ise bu rolün kullanıcıları liste ekranlarında (Satış/Öğrenci/Grup/Aktivite
+   * Merkezi) varsayılan olarak "Tüm Şubeler" görür — normalde varsayılan kendi şubesidir. */
+  defaultAllBranches?: boolean;
 }

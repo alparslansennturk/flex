@@ -28,6 +28,7 @@ import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { useOfficeFilterDefault } from "../../_shared/useOfficeFilterDefault";
 import { StudentDetailTabsPanel } from "../_shared/StudentDetailTabsPanel";
 import { authHeaders } from "@/app/lib/client/auth-headers";
 import {
@@ -50,7 +51,7 @@ export default function OgrenciHavuzuPage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [subeList, setSubeList] = useState<string[]>(["Tümü"]);
-  const { caps, officeName: myOfficeName } = useCapabilities();
+  const { caps } = useCapabilities();
   const canAssignGroup = caps.has("group.assign_student");
   // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
   // UI-only gate, ikisinden biri varsa buton görünür, gerçek kural sunucuda `transferEnrollment`'ta.
@@ -70,7 +71,6 @@ export default function OgrenciHavuzuPage() {
   const [query, setQuery] = useState("");
   // applied filtreler
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
-  const [subeFilter, setSubeFilter] = useState("Tümü");
   const [bransFilter, setBransFilter] = useState("Tümü");
   const [egitimFilter, setEgitimFilter] = useState("Tümü");
   // pending (Filtrele'ye basılana kadar)
@@ -80,18 +80,11 @@ export default function OgrenciHavuzuPage() {
   const [pEgitim, setPEgitim] = useState("Tümü");
 
   // Şube filtresi varsayılanı (2026-07-25 kullanıcı isteği — Satış Listesi'ndeki
-  // AYNI desen, bkz. satis-liste/page.tsx aynı tarihli yorum): açılışta kullanıcının
-  // KENDİ şubesi ön-seçili gelir, "Tüm Şubeler"e ya da başka bir şubeye serbestçe
-  // geçilebilir — bu bir erişim kısıtlaması DEĞİL, sadece varsayılan filtre; sadece
-  // İLK yüklemede set edilir, sonra kullanıcı seçimi asla ezilmez.
-  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
-  useEffect(() => {
-    if (!subeFilterInitialized && myOfficeName) {
-      setSubeFilter(myOfficeName);
-      setPSube(myOfficeName);
-      setSubeFilterInitialized(true);
-    }
-  }, [myOfficeName, subeFilterInitialized]);
+  // AYNI desen, bkz. `useOfficeFilterDefault`): açılışta kullanıcının KENDİ şubesi
+  // ön-seçili gelir (rolü `defaultAllBranches` ise "Tümü"), "Tüm Şubeler"e ya da
+  // başka bir şubeye serbestçe geçilebilir — bu bir erişim kısıtlaması DEĞİL,
+  // sadece varsayılan filtre.
+  const { subeFilter, setSubeFilter } = useOfficeFilterDefault({ allValue: "Tümü", alsoSet: setPSube });
 
   const [openDropdown, setOpenDropdown] = useState<null | "sube" | "brans" | "egitim">(null);
   const [page, setPage] = useState(1);

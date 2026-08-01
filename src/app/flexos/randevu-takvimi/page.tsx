@@ -227,8 +227,11 @@ export default function RandevuTakvimiPage() {
 
   function openCreate() {
     const def = view === "day" ? selDate : iso(addDays(monday(new Date()), weekOffset * 7 + 1));
+    // Geçmişte gezinirken (Gün görünümünde geriye gidip) "Randevu Oluştur"a basılırsa
+    // form geçmiş bir tarihle açılmasın — bugüne sabitlenir.
+    const flooredDef = def < todayISO ? todayISO : def;
     setEditing(null);
-    setForm({ ...EMPTY_FORM, consultant: meName, date: def });
+    setForm({ ...EMPTY_FORM, consultant: meName, date: flooredDef });
     setModalOpen(true);
   }
   function openEdit(a: AppointmentItem) {
@@ -245,8 +248,18 @@ export default function RandevuTakvimiPage() {
 
   async function saveModal() {
     if (!form.customer.trim() || !form.date || !form.time || saving) return;
+    const when = new Date(`${form.date}T${form.time}`);
+    if (when.getTime() < Date.now()) {
+      toast.error("Geçmiş bir tarih/saate randevu oluşturulamaz.");
+      return;
+    }
+    const [h] = form.time.split(":").map(Number);
+    if (h < DAY_START || h >= DAY_END) {
+      toast.error(`Randevu saati mesai saatleri (${String(DAY_START).padStart(2, "0")}:00–${String(DAY_END).padStart(2, "0")}:00) dışında olamaz.`);
+      return;
+    }
     setSaving(true);
-    const scheduledAt = new Date(`${form.date}T${form.time}`).toISOString();
+    const scheduledAt = when.toISOString();
     try {
       if (editing) {
         const res = await fetch(`/api/flexos/appointments/${editing.id}`, {
@@ -333,7 +346,7 @@ export default function RandevuTakvimiPage() {
     const dayAppts = visible
       .filter((a) => iso(new Date(a.scheduledAt)) === dISO)
       .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
-    return { date: d, dISO, isToday: dISO === todayISO, appts: dayAppts };
+    return { date: d, dISO, isToday: dISO === todayISO, isPast: dISO < todayISO, appts: dayAppts };
   }), [weekDates, visible, todayISO]);
 
   const rangeLabel = useMemo(() => {
@@ -414,7 +427,7 @@ export default function RandevuTakvimiPage() {
                 <div style={{ display: "flex", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
                   <div style={{ width: 62, flex: "0 0 62px" }} />
                   {weekCols.map((col, i) => (
-                    <div key={col.dISO} style={{ flex: 1, minWidth: 0, padding: "11px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, borderLeft: i === 0 ? "none" : "1px solid #F2F4F7", background: col.isToday ? "#EFF5FE" : "transparent" }}>
+                    <div key={col.dISO} style={{ flex: 1, minWidth: 0, padding: "11px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, borderLeft: i === 0 ? "none" : "1px solid #F2F4F7", background: col.isToday ? "#EFF5FE" : "transparent", opacity: col.isPast ? 0.5 : 1 }}>
                       <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: col.isToday ? "#2867bd" : "#AEB4C0" }}>{DOW[i]}</span>
                       {col.isToday
                         ? <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#2867bd", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>{col.date.getDate()}</span>
@@ -436,8 +449,9 @@ export default function RandevuTakvimiPage() {
                         key={col.dISO}
                         style={{
                           flex: 1, minWidth: 0, position: "relative", borderLeft: i === 0 ? "none" : "1px solid #F2F4F7",
-                          background: col.isToday ? "rgba(40,103,189,.03)" : "transparent",
+                          background: col.isToday ? "rgba(40,103,189,.03)" : col.isPast ? "#FAFBFC" : "transparent",
                           backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 59px, #F2F4F7 59px, #F2F4F7 60px)",
+                          opacity: col.isPast ? 0.6 : 1,
                         }}
                       >
                         {layoutDayAppointments(col.appts).map(({ a, startMin, col: apCol, cols: apCols }) => {
@@ -609,11 +623,11 @@ export default function RandevuTakvimiPage() {
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Tarih</label>
-              <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
+              <input type="date" min={todayISO} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Başlangıç Saati</label>
-              <input type="time" value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} step={900} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
+              <input type="time" min={`${String(DAY_START).padStart(2, "0")}:00`} max={`${String(DAY_END - 1).padStart(2, "0")}:00`} value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} step={900} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Not <span style={{ color: "#AEB4C0", fontWeight: 500 }}>(opsiyonel)</span></label>

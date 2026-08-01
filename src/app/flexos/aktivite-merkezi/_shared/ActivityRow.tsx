@@ -47,6 +47,7 @@ function ActivityRowImpl({
     tarih: draftTarih, saat: draftSaat, sorumlu: draftSorumlu,
     savingAct, savedAct, durumError, shakeDropdown, showDatetime,
   } = draft;
+  const todayISODate = new Date().toISOString().slice(0, 10);
   const k = KANALS[a.kanal];
   const t = TIPLER[a.tip];
   const d = DURUMLAR[a.durum];
@@ -268,12 +269,12 @@ function ActivityRowImpl({
 
                 {/* Tarih + Saat — her zaman görünür, ilgisizse disabled */}
                 <LabeledField label="Tarih">
-                  <input ref={dateInputRef} type="date" value={draftTarih} onChange={e => setDraftTarih(e.target.value)} onClick={e => e.stopPropagation()}
+                  <input ref={dateInputRef} type="date" min={todayISODate} value={draftTarih} onChange={e => setDraftTarih(e.target.value)} onClick={e => e.stopPropagation()}
                     disabled={!showDatetime}
                     style={{ ...S.sel, minWidth: 160, padding: "10px 14px", opacity: showDatetime ? 1 : 0.38, cursor: showDatetime ? "auto" : "not-allowed" }} />
                 </LabeledField>
                 <LabeledField label="Saat">
-                  <input type="time" value={draftSaat} onChange={e => setDraftSaat(e.target.value)} onClick={e => e.stopPropagation()}
+                  <input type="time" min="09:00" max="18:00" value={draftSaat} onChange={e => setDraftSaat(e.target.value)} onClick={e => e.stopPropagation()}
                     disabled={!showDatetime}
                     style={{ ...S.sel, minWidth: 120, padding: "10px 14px", opacity: showDatetime ? 1 : 0.38, cursor: showDatetime ? "auto" : "not-allowed" }} />
                 </LabeledField>

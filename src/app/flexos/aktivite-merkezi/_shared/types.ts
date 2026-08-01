@@ -114,6 +114,8 @@ export interface AktiviteRow {
   sonrakiSaat: string;
   gelecekRandevu: string;
   aktiviteSayisi: number;
+  /** Sorumlunun (`assignedToUid`) kendi şubesi — atanmamış talepte null (bkz. caseAdapter). */
+  officeName: string | null;
 }
 
 export interface EkleForm {

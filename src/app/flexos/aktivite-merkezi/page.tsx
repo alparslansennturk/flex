@@ -30,7 +30,8 @@ import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import { FLEX_MESSAGES } from "@/app/lib/messages";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
-import { authHeadersJson } from "@/app/lib/client/auth-headers";
+import { useOfficeFilterDefault } from "../_shared/useOfficeFilterDefault";
+import { authHeadersJson, authHeaders } from "@/app/lib/client/auth-headers";
 import {
   AktiviteRow, COMPLETED_TO_SONRAKI, DraftBundle, DurumKey, EMPTY_DRAFT, EMPTY_EKLE, EkleForm, GONDERILECEK, PAGE_SIZE, SONRAKI, SONRAKI_DURUM, SORUMLU_LIST,
 } from "./_shared/types";
@@ -116,6 +117,20 @@ export default function AktiviteMerkeziPage() {
   const [fTip,     setFTip]     = useState("Tümü");
   const [fDurum,   setFDurum]   = useState("Tümü");
   const [fSorumlu, setFSorumlu] = useState("Tümü");
+  // Şube filtresi (2026-08-01 kullanıcı isteği — Satış Listesi/Öğrenci Havuzu/Sınıflar'daki
+  // AYNI desen, bkz. `useOfficeFilterDefault`): açılışta sorumlunun kendi şubesi ön-seçili
+  // gelir (rolü `defaultAllBranches` ise "Tümü"), serbestçe değiştirilebilir.
+  const { subeFilter: fSube, setSubeFilter: setFSube } = useOfficeFilterDefault({ allValue: "Tümü" });
+  const [subeList, setSubeList] = useState<string[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/flexos/branch-offices", { headers: await authHeaders() });
+        const json = res.ok ? await res.json() : { items: [] };
+        setSubeList((json.items ?? []).map((o: { name: string }) => o.name));
+      } catch { /* sessiz */ }
+    })();
+  }, []);
   const [openDd,   setOpenDd]   = useState<string | null>(null);
 
   // pagination
@@ -210,6 +225,23 @@ export default function AktiviteMerkeziPage() {
     const a = allActs.find((x) => x.id === id);
     if (!a) return;
     if (!draftSonrakiTip) { setDurumError(true); setShakeDropdown(true); return; }
+    const dtEnabled = draftSonrakiTip === "Randevu Oluşturulacak";
+    const nextDate  = (dtEnabled && draftTarih)
+      ? new Date(`${draftTarih}T${draftSaat || "00:00"}`).toISOString()
+      : undefined;
+    // Randevu Takvimi'ndeki AYNI kural (mesai saati 09:00-19:00 + geçmiş tarih engeli) —
+    // buradan oluşan randevu da AYNI `flexos_appointments` koleksiyonuna yazılıyor.
+    if (dtEnabled && nextDate) {
+      const d = new Date(nextDate);
+      if (d.getTime() < Date.now()) {
+        toast.error("Geçmiş bir tarih/saate randevu oluşturulamaz.");
+        return;
+      }
+      if (d.getHours() < 9 || d.getHours() >= 19) {
+        toast.error("Randevu saati mesai saatleri (09:00–19:00) dışında olamaz.");
+        return;
+      }
+    }
     setDurumError(false);
     setSavingAct(true);
     const gonderildiMap = GONDERILECEK[draftSonrakiTip];
@@ -224,10 +256,6 @@ export default function AktiviteMerkeziPage() {
       const finalDurum: DurumKey = (newDurum as DurumKey) || a.durum;   // değişiklik yoksa mevcudu koru
       const closing   = CLOSED_DURUMS.includes(finalDurum);
       const canonical = DURUM_TO_CASESTATUS[finalDurum] || "iletisimde";
-      const dtEnabled = draftSonrakiTip === "Randevu Oluşturulacak";
-      const nextDate  = (dtEnabled && draftTarih)
-        ? new Date(`${draftTarih}T${draftSaat || "00:00"}`).toISOString()
-        : undefined;
       const patchCase = async (payload: Record<string, unknown>) =>
         fetch(`/api/flexos/cases/${caseId}`, {
           method: "PATCH", headers: await authHeadersJson(), body: JSON.stringify(payload),
@@ -353,8 +381,11 @@ export default function AktiviteMerkeziPage() {
     if (fTip     !== "Tümü") r = r.filter(a => a.tipCat  === fTip);
     if (fDurum   !== "Tümü") r = r.filter(a => a.durum   === fDurum);
     if (fSorumlu !== "Tümü") r = r.filter(a => a.sorumlu === fSorumlu);
+    // Atanmamış talebin (officeName null) şubesi belirlenemez — her şube filtresinde
+    // görünmeye devam eder (biri claim edene kadar hiçbir şubeye kilitlenmemeli).
+    if (fSube    !== "Tümü") r = r.filter(a => !a.officeName || a.officeName === fSube);
     return r;
-  }, [allActs, fKanal, fTip, fDurum, fSorumlu]);
+  }, [allActs, fKanal, fTip, fDurum, fSorumlu, fSube]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
@@ -364,7 +395,7 @@ export default function AktiviteMerkeziPage() {
     () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [filtered, safePage],
   );
-  const anyFilter  = fKanal !== "Tümü" || fTip !== "Tümü" || fDurum !== "Tümü" || fSorumlu !== "Tümü";
+  const anyFilter  = fKanal !== "Tümü" || fTip !== "Tümü" || fDurum !== "Tümü" || fSorumlu !== "Tümü" || fSube !== "Tümü";
   const showDatetime = draftSonrakiTip === "Randevu Oluşturulacak";
 
   // Genişletilmiş satırın taslak alanları TEK nesnede — bkz. DraftBundle/EMPTY_DRAFT notu
@@ -398,9 +429,11 @@ export default function AktiviteMerkeziPage() {
             fDurum={fDurum} setFDurum={setFDurum}
             fSorumlu={fSorumlu} setFSorumlu={setFSorumlu}
             sorumluList={sorumluList}
+            fSube={fSube} setFSube={setFSube}
+            subeList={subeList}
             openDd={openDd} setOpenDd={setOpenDd}
             anyFilter={anyFilter}
-            onClear={() => { setFKanal("Tümü"); setFTip("Tümü"); setFDurum("Tümü"); setFSorumlu("Tümü"); setPage(1); setOpenDd(null); }}
+            onClear={() => { setFKanal("Tümü"); setFTip("Tümü"); setFDurum("Tümü"); setFSorumlu("Tümü"); setFSube("Tümü"); setPage(1); setOpenDd(null); }}
             onPageReset={() => setPage(1)}
             onAddClick={() => { setExpandedId(null); setEkleOpen(true); }}
           />

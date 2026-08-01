@@ -13,13 +13,15 @@ let capsCache: Set<string> | null = null;
 let templateManageScopeCache: string | null | undefined; // undefined = henüz çekilmedi
 let roleLabelCache: string | null | undefined; // undefined = henüz çekilmedi
 let officeNameCache: string | null | undefined; // undefined = henüz çekilmedi
+let defaultAllBranchesCache: boolean | undefined; // undefined = henüz çekilmedi
 
-export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null; roleLabel: string | null; officeName: string | null } {
+export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null; roleLabel: string | null; officeName: string | null; defaultAllBranches: boolean } {
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
   const [loaded, setLoaded] = useState(capsCache !== null);
   const [templateManageScope, setTemplateManageScope] = useState<string | null>(() => templateManageScopeCache ?? null);
   const [roleLabel, setRoleLabel] = useState<string | null>(() => roleLabelCache ?? null);
   const [officeName, setOfficeName] = useState<string | null>(() => officeNameCache ?? null);
+  const [defaultAllBranches, setDefaultAllBranches] = useState<boolean>(() => defaultAllBranchesCache ?? false);
 
   useEffect(() => {
     if (capsCache) return; // lazy initializer yukarıda zaten caps/loaded'ı doldurdu
@@ -31,17 +33,19 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean; templat
         if (!user) return;
         const token = await user.getIdToken();
         const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null, roleLabel: null, officeName: null };
+        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null, roleLabel: null, officeName: null, defaultAllBranches: false };
         const next = new Set<string>(json.capabilities ?? []);
         capsCache = next;
         templateManageScopeCache = json.templateManageScope ?? null;
         roleLabelCache = json.roleLabel ?? null;
         officeNameCache = json.officeName ?? null;
+        defaultAllBranchesCache = json.defaultAllBranches ?? false;
         if (!cancelled) {
           setCaps(next);
           setTemplateManageScope(templateManageScopeCache ?? null);
           setRoleLabel(roleLabelCache ?? null);
           setOfficeName(officeNameCache ?? null);
+          setDefaultAllBranches(defaultAllBranchesCache ?? false);
           setLoaded(true);
         }
       } catch {
@@ -51,5 +55,5 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean; templat
     return () => { cancelled = true; };
   }, []);
 
-  return { caps, loaded, templateManageScope, roleLabel, officeName };
+  return { caps, loaded, templateManageScope, roleLabel, officeName, defaultAllBranches };
 }

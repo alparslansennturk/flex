@@ -46,15 +46,14 @@ async function resolveLanding(flexosUser: FlexosUser | null, uid: string, tenant
  * Admin modda Admin yazsın" — kullanıcının kendi isteği, statik bir role.manage/RoleDef
  * eşlemesi değil).
  */
-async function resolveRoleLabel(
+function resolveRoleLabel(
   isOwner: boolean,
   mode: "core" | "full",
   flexosUser: FlexosUser | null,
-  tenantId: string,
-): Promise<string> {
+  roleDefs: Awaited<ReturnType<typeof firestoreRoleDefRepo.list>>,
+): string {
   if (isOwner) return mode === "core" ? "Eğitmen" : "Admin";
   if (!flexosUser || flexosUser.roles.length === 0) return "Yönetici";
-  const roleDefs = await firestoreRoleDefRepo.list(tenantId);
   const labels = flexosUser.roles
     .map((r) => roleDefs.find((d) => d.id === r)?.label)
     .filter((l): l is string => !!l);
@@ -82,7 +81,14 @@ export async function buildMeInfo(actor: Actor) {
   // Artık `caps` ile AYNI istekten, tek kaynaktan geliyor — asla birbirinden bağımsız kayamaz.
   const isOwner = capabilities.includes("view.toggle");
   const mode: "core" | "full" = isOwner && !capabilities.includes("role.manage") ? "core" : "full";
-  const roleLabel = await resolveRoleLabel(isOwner, mode, flexosUser, actor.tenantId);
+  const roleDefs = flexosUser && !isOwner ? await firestoreRoleDefRepo.list(actor.tenantId) : [];
+  const roleLabel = resolveRoleLabel(isOwner, mode, flexosUser, roleDefs);
+  // Rol bazlı "varsayılan Tüm Şubeler" override'ı (Kullanıcı Ayarları'ndan atanır) — herhangi
+  // bir rolü bunu istiyorsa (ör. Satış Müdürü), liste ekranları kendi şubesi yerine tüm
+  // şubelerle açılır. Görünüm Anahtarı sahibi (owner) rolü Firestore'da tutulmadığından hariç.
+  const defaultAllBranches = flexosUser
+    ? roleDefs.some((d) => flexosUser.roles.includes(d.id) && d.defaultAllBranches)
+    : false;
   // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
   // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
   // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
@@ -95,6 +101,7 @@ export async function buildMeInfo(actor: Actor) {
     mode,
     officeId: flexosUser?.officeId ?? null,
     officeName: office?.name ?? null,
+    defaultAllBranches,
     roleLabel: office?.name ? `${roleLabel} - ${office.name}` : roleLabel,
   };
 }

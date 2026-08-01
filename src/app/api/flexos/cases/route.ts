@@ -6,6 +6,8 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { firestoreCaseRepo } from "@/app/lib/server/case-repo.firestore";
 import { firestoreActivityRepo } from "@/app/lib/server/activity-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createCase, type CreateCaseInput } from "@/app/lib/domain/services/case-service";
 import type { CaseChannel, CaseType } from "@/app/lib/domain/crm/case";
 import type { Person } from "@/app/lib/domain/core/person";
@@ -30,6 +32,22 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   const personMap = new Map(persons.filter(Boolean).map((p) => [p!.id, p!]));
   const showPII = can(actor, "person.read.pii");
 
+  // Şube filtresi için (Aktivite Merkezi'nin varsayılan "kendi şubem" görünümü) — talebin
+  // kendi şubesi yok, sorumlu personelin (`assignedToUid`) şubesinden türetilir. Atanmamış
+  // talep (assignedToUid yok) → officeName null, her şube filtresinde görünmeye devam eder.
+  const assignedUids = [...new Set(cases.map((c) => c.assignedToUid).filter((u): u is string => !!u))];
+  const assignedUsers = await Promise.all(
+    assignedUids.map((uid) => firestoreFlexosUserRepo.findByAuthUid(uid, actor.tenantId)),
+  );
+  const officeIdByUid = new Map<string, string>(
+    assignedUsers
+      .filter((u): u is NonNullable<typeof u> => !!u && !!u.officeId)
+      .map((u) => [u.authUid!, u.officeId!]),
+  );
+  const officeIds = [...new Set(officeIdByUid.values())];
+  const offices = await Promise.all(officeIds.map((id) => firestoreBranchOfficeRepo.getById(id, actor.tenantId)));
+  const officeNameById = new Map(offices.filter(Boolean).map((o) => [o!.id, o!.name]));
+
   // Liste satırı için her talebin İLK (müşteri mesajı) + SON (özet/sonraki-aksiyon) aktivitesi.
   const activityLists = await Promise.all(
     cases.map((c) => firestoreActivityRepo.listByCase(c.id, actor.tenantId)),
@@ -48,11 +66,13 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     const log = logMap.get(c.id) ?? [];
     const first = log[0];
     const last = log[log.length - 1];
+    const officeId = c.assignedToUid ? officeIdByUid.get(c.assignedToUid) : undefined;
     return {
       ...c,
       personName: person ? `${person.firstName} ${person.lastName}` : "—",
       personPhone: showPII ? (person?.pii?.phone ?? null) : null,
       personEmail: showPII ? (person?.pii?.email ?? null) : null,
+      officeName: officeId ? (officeNameById.get(officeId) ?? null) : null,
       firstActivityNote: first?.note ?? null,  // müşteri mesajı (ilk temas)
       lastActivityNote: last?.note ?? null,
       lastActivityType: last?.type ?? null,

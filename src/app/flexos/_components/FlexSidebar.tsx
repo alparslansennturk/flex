@@ -17,6 +17,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 import ViewPinModal from "./ViewPinModal";
 import { FlexSpinner, isAppBooted, markAppBooted } from "./FlexSpinner";
+import { useInstallPrompt } from "../_shared/useInstallPrompt";
 
 /**
  * Core/Full — SADECE `/api/flexos/me`'nin `mode` alanından okunur (bkz. o route'taki
@@ -274,6 +275,19 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/flexos/giris");
+  };
+
+  // "Uygulamayı Kur" (2026-08-01, site geneli PWA) — Chrome/Edge'de native kurulum
+  // istemi, Safari'de (hiçbir zaman `beforeinstallprompt` ateşlemediği için) kısa bir
+  // talimat. Zaten kurulu (standalone) modda çalışıyorsa madde hiç render edilmez.
+  const { installed, canPrompt, isSafari, promptInstall } = useInstallPrompt();
+  const handleInstallClick = async () => {
+    if (isSafari) {
+      toast.info("Safari'de kurmak için: Paylaş menüsü → \"Dock'a Ekle\".");
+      return;
+    }
+    if (canPrompt) { await promptInstall(); return; }
+    toast.info("Kurulum şu an kullanılamıyor — adres çubuğundaki yükle simgesini deneyin.");
   };
 
   // "Kim girdiyse onun ana sayfası" hedefi — hem logo hem "Ana Sayfa" nav öğesi aynı
@@ -650,6 +664,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           değişti. */}
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.settings} label="Ayarlar" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
+        {/* 2026-08-01: zaten kurulu (standalone) modda çalışıyorsa madde hiç görünmez. */}
+        {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={handleInstallClick} />}
         <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>
@@ -720,6 +736,7 @@ export const IC = {
   barChart: sv('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>'),
   settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'),
   logout: sv('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>'),
+  download: sv('<path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M2 17v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2"/>'),
   chat: sv('<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>'),
 };
 

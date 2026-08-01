@@ -56,6 +56,7 @@ export interface CreateRoleDefInput {
   description?: string;
   color?: string;
   permModules?: string[];
+  defaultAllBranches?: boolean;
 }
 
 /** Yeni (kurum-özel) rol tanımla — gated `role.manage`. */
@@ -80,6 +81,7 @@ export async function createRoleDef(actor: Actor, input: CreateRoleDefInput, rep
     color: input.color || "#475569",
     permModules,
     isBuiltIn: false,
+    defaultAllBranches: input.defaultAllBranches || undefined,
     createdAt: nowISO(),
     createdBy: actor.uid,
   };
@@ -92,6 +94,7 @@ export interface UpdateRoleDefInput {
   description?: string;
   color?: string;
   permModules?: string[];
+  defaultAllBranches?: boolean;
 }
 
 /** Rol güncelle (yetki modülleri dahil) — gated `role.manage`. Yerleşik rollerde de
@@ -112,6 +115,9 @@ export async function updateRoleDef(actor: Actor, id: string, input: UpdateRoleD
   if (input.color !== undefined) updated.color = input.color;
   if (input.permModules !== undefined) {
     updated.permModules = input.permModules.filter((m) => ALL_PERM_MODULE_KEYS.includes(m));
+  }
+  if (input.defaultAllBranches !== undefined) {
+    updated.defaultAllBranches = input.defaultAllBranches || undefined;
   }
 
   updated.updatedAt = nowISO();

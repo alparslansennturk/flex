@@ -142,6 +142,7 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
   const [description, setDescription] = useState(roleDef?.description ?? "");
   const [color, setColor] = useState(roleDef?.color ?? COLOR_PRESETS[0]);
   const [permModules, setPermModules] = useState<string[]>(roleDef?.permModules ?? []);
+  const [defaultAllBranches, setDefaultAllBranches] = useState(roleDef?.defaultAllBranches ?? false);
   const [saving, setSaving] = useState(false);
 
   const togglePerm = (key: string) => {
@@ -156,8 +157,8 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
       const url = mode === "create" ? "/api/flexos/role-defs" : `/api/flexos/role-defs/${roleDef!.id}`;
       const method = mode === "create" ? "POST" : "PATCH";
       const body = mode === "create"
-        ? { label: label.trim(), description: description.trim() || undefined, color, permModules }
-        : { description: description.trim() || undefined, color, permModules, ...(roleDef!.isBuiltIn ? {} : { label: label.trim() }) };
+        ? { label: label.trim(), description: description.trim() || undefined, color, permModules, defaultAllBranches }
+        : { description: description.trim() || undefined, color, permModules, defaultAllBranches, ...(roleDef!.isBuiltIn ? {} : { label: label.trim() }) };
       const res = await fetch(url, {
         method,
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -206,6 +207,20 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
               cursor: "pointer", padding: 0, boxShadow: "0 0 0 1px rgba(0,0,0,.06)",
             }} />
           ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, border: "1px solid #F2F4F7", background: "#FAFBFC" }}>
+        <ToggleSwitch active={defaultAllBranches} onClick={() => setDefaultAllBranches((v) => !v)} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 13.5, fontWeight: defaultAllBranches ? 700 : 500, color: defaultAllBranches ? "#1E222B" : "#8E95A3" }}>
+            Varsayılan olarak Tüm Şubeleri görsün
+          </span>
+          <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500, marginTop: 1 }}>
+            Kapalıysa bu roldeki kullanıcılar liste ekranlarını (Satış/Öğrenci/Grup/Aktivite
+            Merkezi) kendi şubesiyle açar — üstten değiştirip her şubeyi yine görebilir. Açıksa
+            varsayılan doğrudan &ldquo;Tüm Şubeler&rdquo; olur.
+          </div>
         </div>
       </div>
 

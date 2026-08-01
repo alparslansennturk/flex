@@ -56,6 +56,8 @@ export interface CaseApiItem {
   assignedToName?: string;
   uiDurum?: string;
   uiSonrakiTip?: string;
+  /** Sorumlunun (`assignedToUid`) kendi şubesi — atanmamış talepte null. */
+  officeName: string | null;
   firstActivityNote: string | null;
   lastActivityNote: string | null;
   lastActivityType: string | null;
@@ -114,5 +116,6 @@ export function caseToRow(c: CaseApiItem): AktiviteRow {
     sonrakiSaat: nextSaat,
     gelecekRandevu,
     aktiviteSayisi: c.activityCount,
+    officeName: c.officeName,
   };
 }

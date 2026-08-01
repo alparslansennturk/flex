@@ -11,6 +11,7 @@ export interface RoleDefDTO {
   color?: string;
   permModules: string[];
   isBuiltIn: boolean;
+  defaultAllBranches?: boolean;
 }
 
 /** `GET /api/flexos/role-defs`'i çeken paylaşımlı hook — Ekle/Düzenle/Ayarlar sayfalarının ortak kaynağı. */
