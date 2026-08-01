@@ -15,6 +15,7 @@
  */
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 
 interface InstallAppModalProps {
   open: boolean;
@@ -41,7 +42,7 @@ export default function InstallAppModal({ open, onClose, isSafari, canPrompt, pr
     // `appinstalled` event'i zaten `installed`'ı günceleyip sidebar'daki butonu
     // gizliyor (bkz. `useInstallPrompt.ts`) — burada sadece kullanıcıya açık bir
     // onay mesajı veriyoruz, gerçek kurulup kurulmadığını `appinstalled` belirler.
-    toast.success("✅ FlexOS başarıyla yüklendi. Artık FlexOS'u masaüstünüzden veya uygulamalar menüsünden açabilirsiniz.");
+    toast.success("✅ Flex başarıyla yüklendi. Artık Flex'i masaüstünüzden veya uygulamalar menüsünden açabilirsiniz.");
   };
 
   return (
@@ -61,22 +62,20 @@ export default function InstallAppModal({ open, onClose, isSafari, canPrompt, pr
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            style={{ position: "relative", width: "100%", maxWidth: 580, background: "#fff", borderRadius: 20, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden", padding: "40px 36px 32px" }}
+            style={{ position: "relative", width: "100%", maxWidth: 580, background: "#fff", borderRadius: 20, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden", padding: "60px 44px 48px" }}
           >
-            <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87" }}>
+            <button onClick={onClose} style={{ position: "absolute", top: 18, right: 18, width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
             </button>
 
-            <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3" /><path d="m7 10 5 5 5-5" /><path d="M2 17v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2" /></svg>
-            </div>
+            <FlexLogo variant="dark" width={84} />
 
-            <h3 style={{ margin: "22px 0 0", fontSize: 20, fontWeight: 800, color: "#1E222B", letterSpacing: -0.3 }}>FlexOS&apos;u Masaüstüne Kur</h3>
-            <p style={{ margin: "10px 0 0", fontSize: 14.5, lineHeight: 1.6, color: "#6F7B87" }}>
-              FlexOS&apos;u uygulama olarak yükleyerek daha hızlı ve pratik kullanabilirsiniz.
+            <h3 style={{ margin: "40px 0 0", fontSize: 22, fontWeight: 800, color: "#1E222B", letterSpacing: -0.3 }}>Flex&apos;i Masaüstüne Kur</h3>
+            <p style={{ margin: "8px 0 0", fontSize: 14.5, lineHeight: 1.7, color: "#414B59" }}>
+              Flex&apos;i uygulama olarak yükleyerek daha hızlı ve pratik kullanabilirsiniz.
             </p>
 
-            <div style={{ marginTop: 32, display: "flex", gap: 11, justifyContent: "flex-end" }}>
+            <div style={{ marginTop: 52, display: "flex", gap: 11, justifyContent: "flex-end" }}>
               <button onClick={onClose} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                 Daha Sonra
               </button>
