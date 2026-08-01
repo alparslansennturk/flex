@@ -8,7 +8,10 @@
 // çağrıları) her zaman doğrudan ağdan, cache'e hiç dokunulmadan geçer. SADECE
 // aynı origin'deki statik build asset'leri (`_next/static/…`, `/icons/…`,
 // `/manifest.json`, favicon) cache'lenir.
-const CACHE_VERSION = "flexos-static-v1";
+// 2026-08-02: ikon PNG'leri içerik değişince (dosya adı AYNI kaldığı için) eski SW
+// cache-first sürümü hâlâ ESKİ baytları servis ediyordu — versiyon artırılınca
+// `activate()` eski cache'i siler, herkes yeni ikonu ağdan bir kez daha çeker.
+const CACHE_VERSION = "flexos-static-v2";
 
 const PRECACHE_URLS = [
   "/manifest.json",
@@ -34,9 +37,18 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-function isCacheableStatic(url) {
-  return url.pathname.startsWith("/_next/static/")
-    || url.pathname.startsWith("/icons/")
+// `_next/static/…` dosya adları içerik-hash'li — build değişince URL de değişir,
+// AYNI URL asla farklı içerik taşımaz, bu yüzden cache-first güvenli.
+function isHashedStatic(url) {
+  return url.pathname.startsWith("/_next/static/");
+}
+
+// İkonlar/manifest/favicon AYNI dosya adıyla kalıp içeriği değişebiliyor (2026-08-02
+// gerçek bulgu — ikon güncellemesi CACHE_VERSION artırılana kadar eski baytları
+// servis etmeye devam etti). Bunlar için ağ ÖNCELİKLİ: varsa her zaman taze içerik,
+// ağ yoksa (offline) cache'e düşülür — bir daha "eski ikon takıldı" olmasın diye.
+function isRevalidatingStatic(url) {
+  return url.pathname.startsWith("/icons/")
     || url.pathname === "/manifest.json"
     || url.pathname === "/favicon.ico";
 }
@@ -55,18 +67,38 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (!isCacheableStatic(url)) return; // diğer her şey (fonts, resimler vb.) normal ağ akışında kalır
+  if (isHashedStatic(url)) {
+    // Cache-first — içerik hash'e bağlı, asla bayatlamaz.
+    event.respondWith(
+      caches.open(CACHE_VERSION).then(async (cache) => {
+        const cached = await cache.match(req);
+        const networkFetch = fetch(req).then((res) => {
+          if (res.ok) cache.put(req, res.clone());
+          return res;
+        }).catch(() => cached);
+        return cached || networkFetch;
+      }),
+    );
+    return;
+  }
 
-  // Statik asset: cache-first + arka planda tazele (Next.js hash'li dosyalar
-  // içerik değişmeden asla aynı isimde tekrar gelmez, bu yüzden cache-first güvenli).
-  event.respondWith(
-    caches.open(CACHE_VERSION).then(async (cache) => {
-      const cached = await cache.match(req);
-      const networkFetch = fetch(req).then((res) => {
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-      }).catch(() => cached);
-      return cached || networkFetch;
-    }),
-  );
+  if (isRevalidatingStatic(url)) {
+    // Network-first — ağ varsa her zaman taze içerik + cache güncellenir,
+    // ağ yoksa (offline) son bilinen cache'e düşülür.
+    event.respondWith(
+      caches.open(CACHE_VERSION).then(async (cache) => {
+        try {
+          const res = await fetch(req);
+          if (res.ok) cache.put(req, res.clone());
+          return res;
+        } catch {
+          const cached = await cache.match(req);
+          if (cached) return cached;
+          throw new Error("offline ve cache'de yok");
+        }
+      }),
+    );
+    return;
+  }
+  // diğer her şey (fonts, resimler vb.) normal ağ akışında kalır
 });
