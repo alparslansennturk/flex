@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Rubik } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/app/context/UserContext";
@@ -64,6 +65,22 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${rubik.variable} antialiased`}
         suppressHydrationWarning
       >
+        {/* "Uygulamayı Kur" butonu (2026-08-01) — `beforeinstallprompt` tarayıcı HTML'i
+            parse eder etmez, React hydrate olmadan ÖNCE ateşleyebiliyor. Dinleyici
+            `useInstallPrompt.ts` hook'unda (bir `useEffect` içinde, yani hydration
+            SONRASI) kayıtlıysa event kaçırılıp buton kalıcı "kullanılamıyor" kalıyordu
+            (gerçek bulgu — kullanıcı raporladı). `strategy="beforeInteractive"` bu
+            script'i React'ten önce çalıştırıp event'i `window.__flexosInstallPrompt`'a
+            yakalıyor + `flexos-install-available` custom event'iyle React'e haber
+            veriyor; hook artık ne zaman ateşlerse ateşlesin kaçırmıyor. */}
+        <Script id="pwa-install-capture" strategy="beforeInteractive">
+          {`window.__flexosInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", function (e) {
+  e.preventDefault();
+  window.__flexosInstallPrompt = e;
+  window.dispatchEvent(new Event("flexos-install-available"));
+});`}
+        </Script>
         {/* İŞTE ÇÖZÜM: Tüm uygulamayı UserProvider ile sarmalıyoruz */}
         <Toaster position="bottom-right" richColors />
         <UserProvider>
