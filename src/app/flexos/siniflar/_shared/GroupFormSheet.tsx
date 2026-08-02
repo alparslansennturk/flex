@@ -110,7 +110,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
       }
     })();
     return () => ac.abort();
-  }, [open, authHeaders]);
+  }, [open]);
 
   const resetForm = useCallback(() => {
     setFŞube(""); setFLab(""); setFBrans(""); setFEğitim(""); setFBölüm(""); setFKod("");

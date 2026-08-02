@@ -264,7 +264,7 @@ export default function SatisDashboardPage() {
     } finally {
       if (!signal?.aborted) { setLoading(false); setInitialLoadDone(true); }
     }
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     const ac = new AbortController();

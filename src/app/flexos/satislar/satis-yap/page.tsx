@@ -121,7 +121,7 @@ export default function SatisYapPage() {
       }
     })();
     return () => ac.abort();
-  }, [router, authHeaders]);
+  }, [router]);
 
   // branş seçilince → o branşın eğitimleri
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function SatisYapPage() {
       }
     })();
     return () => ac.abort();
-  }, [authed, brans, authHeaders]);
+  }, [authed, brans]);
 
   // TC 11 hane tamamlanınca → kişi var mı? Ek Kayıt İndirimi kampanyası otomatik uygula
   // + satıcıya "bu kişi zaten kayıtlı, hangi eğitim(ler)de" bilgisini göster (2026-07-23)
@@ -172,7 +172,7 @@ export default function SatisYapPage() {
       } catch { /* AbortError vb. yoksay */ }
     })();
     return () => ac.abort();
-  }, [tcNo, authed, campaigns, authHeaders, kampanya]);
+  }, [tcNo, authed, campaigns, kampanya]);
 
   // eğitim seçilince → bölüm + track ağacı (sectioned ise)
   useEffect(() => {
@@ -196,7 +196,7 @@ export default function SatisYapPage() {
       }
     })();
     return () => ac.abort();
-  }, [egitim, authHeaders]);
+  }, [egitim]);
 
   // branş değişince eğitim + seçimleri sıfırla
   const onBransChange = (id: string) => { setBrans(id); setEgitim(""); setSections([]); setTracks([]); setTrackSel({}); setSatisModeli("full"); setTeslimSekli("in_person"); };

@@ -103,7 +103,7 @@ export default function EgitmenlerPage() {
     } finally {
       setLoading(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   /* ── auth ── */
   useEffect(() => {

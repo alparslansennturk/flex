@@ -461,7 +461,7 @@ function RuleTab({ pool, onSave }: { pool: SocialPool; onSave: (globalPurposes: 
 
       <div className="bg-white rounded-2xl border border-surface-100 shadow-sm p-5">
         <p className="text-[14px] font-extrabold text-text-primary mb-1">Paylaşılan Kural (Yapılacaklar)</p>
-        <p className="text-[12px] text-surface-400 mb-3">Markanın özel kuralı boşsa PDF/mail'de bu metin gösterilir (her satır bir madde).</p>
+        <p className="text-[12px] text-surface-400 mb-3">Markanın özel kuralı boşsa PDF/mail&apos;de bu metin gösterilir (her satır bir madde).</p>
         <textarea value={ruleDraft} onChange={(e) => setRuleDraft(e.target.value)} rows={6} placeholder="Her satır ayrı bir madde olarak PDF'e yansır."
           className="w-full px-3 py-2.5 text-[13px] font-medium border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors resize-none text-text-primary placeholder:text-surface-400 mb-3" />
         <button onClick={saveRule} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-50 cursor-pointer">

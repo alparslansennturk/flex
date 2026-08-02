@@ -164,7 +164,7 @@ export default function SatisListePage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   // Şube dropdown'ının GERÇEK katalogdan gelmesi gerekiyor (2026-07-22 kullanıcı
   // düzeltmesi: "diğer şubeleri de seçebilmeli") — `sales` verisinden türetilen
@@ -188,7 +188,7 @@ export default function SatisListePage() {
       }
     })();
     return () => ac.abort();
-  }, [router, loadSales, authHeaders]);
+  }, [router, loadSales]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı satış yaptığında/iptal
   // ettiğinde SSE üzerinden haber alınır, liste tekrar çekilir.
@@ -253,7 +253,7 @@ export default function SatisListePage() {
     } finally {
       setCancelling(false);
     }
-  }, [cancelTarget, cancelReason, authHeaders, loadSales]);
+  }, [cancelTarget, cancelReason, loadSales]);
 
   useEffect(() => setPage(1), [donem, customStart, customEnd, saleKind, search, bransFilter, subeFilter]);
 

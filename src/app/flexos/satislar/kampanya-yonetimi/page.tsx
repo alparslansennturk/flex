@@ -345,7 +345,7 @@ export default function KampanyaYonetimiPage() {
               </thead>
               <tbody>
                 {loading && <tr><td colSpan={6} style={{ padding: "48px 20px", textAlign: "center" as const, color: "#8E95A3" }}>Yükleniyor…</td></tr>}
-                {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ padding: "48px 20px", textAlign: "center" as const, color: "#8E95A3", fontSize: 14 }}>Kampanya bulunamadı. "Kampanya Oluştur" ile başlayın.</td></tr>}
+                {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ padding: "48px 20px", textAlign: "center" as const, color: "#8E95A3", fontSize: 14 }}>Kampanya bulunamadı. &quot;Kampanya Oluştur&quot; ile başlayın.</td></tr>}
                 {!loading && filtered.map((c) => {
                   const ds  = derivedStatus(c);
                   const ss  = STATUS_STYLE[ds];

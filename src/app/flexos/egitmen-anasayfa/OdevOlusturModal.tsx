@@ -589,7 +589,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
             <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
             {tur === "proje" ? (
               <p className="text-[11.5px] font-medium text-[#8E95A3] italic">
-                Proje ödevlerinde puan kullanılmaz — not Sertifika Notu'ndan elle girilir.
+                Proje ödevlerinde puan kullanılmaz — not Sertifika Notu&apos;ndan elle girilir.
               </p>
             ) : (
               <div className="flex items-center gap-2.5 flex-wrap">

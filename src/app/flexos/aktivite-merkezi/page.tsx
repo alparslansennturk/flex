@@ -70,7 +70,7 @@ export default function AktiviteMerkeziPage() {
         return row;
       }));
     } catch { /* sessiz — dummy liste yine de görünür */ }
-  }, [authHeadersJson]);
+  }, []);
 
   // Sahte demo veri (flexos_prospects) kaldırıldı (2026-07-22) — TEK kaynak backend.
   // `expand`/`saveAct` id ile satır aradığı için `allActs` bu ikisinden ÖNCE tanımlı olmalı.
@@ -316,7 +316,7 @@ export default function AktiviteMerkeziPage() {
         toast.error(e instanceof Error ? e.message : FLEX_MESSAGES['system/save-failed'].text);
       }
     }
-  }, [allActs, draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi, meName, authHeadersJson, loadBackend]);
+  }, [allActs, draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi, meName, loadBackend]);
 
   const handleEkle = async () => {
     if (!ekleForm.ad.trim() || !ekleForm.soyad.trim()) {

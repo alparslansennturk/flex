@@ -104,7 +104,7 @@ export default function PaketYonetimiPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   const loadEducations = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -130,7 +130,7 @@ export default function PaketYonetimiPage() {
     } catch (e) {
       if ((e as Error)?.name !== "AbortError") toast.error("Eğitimler yüklenemedi.");
     }
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -325,7 +325,7 @@ export default function PaketYonetimiPage() {
                   <tr><td colSpan={7} style={{ padding: "48px 20px", textAlign: "center" as const, color: "#8E95A3", fontSize: 14 }}>Yükleniyor…</td></tr>
                 )}
                 {!loading && filtered.length === 0 && (
-                  <tr><td colSpan={7} style={{ padding: "48px 20px", textAlign: "center" as const, color: "#8E95A3", fontSize: 14 }}>Paket bulunamadı. "Paket Oluştur" ile başlayın.</td></tr>
+                  <tr><td colSpan={7} style={{ padding: "48px 20px", textAlign: "center" as const, color: "#8E95A3", fontSize: 14 }}>Paket bulunamadı. &quot;Paket Oluştur&quot; ile başlayın.</td></tr>
                 )}
                 {!loading && filtered.map((b) => {
                   const total = b.items.reduce((a, i) => a + i.listPrice, 0);

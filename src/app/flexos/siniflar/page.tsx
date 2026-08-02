@@ -71,7 +71,7 @@ function SınıflarPageInner() {
     } finally {
       if (!signal?.aborted) setLoadingGroups(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   // -- auth + gruplar yükle --
   useEffect(() => {
@@ -100,7 +100,7 @@ function SınıflarPageInner() {
       await loadGroups(ac.signal);
     })();
     return () => ac.abort();
-  }, [router, authHeaders, loadGroups]);
+  }, [router, loadGroups]);
 
   // 2026-07-11/12 — grup gerçek-zamanlı senkron: başka bir kullanıcı grup oluşturduğunda/
   // düzenlediğinde/sildiğinde ya da yeni eğitmen/eğitim eklendiğinde SSE üzerinden haber

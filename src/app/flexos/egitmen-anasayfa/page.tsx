@@ -952,7 +952,7 @@ export default function EgitmenAnaSayfaPage() {
     if (pendingCodes.length === 0) { setAttendMeta(""); setAttendPulse(false); }
     else if (pendingCodes.length === 1) { setAttendMeta(pendingCodes[0]); setAttendPulse(true); }
     else { setAttendMeta(`${pendingCodes.length} grup`); setAttendPulse(true); }
-  }, [authHeaders]);
+  }, []);
 
   // 2026-07-14 KOTA/HIZ FİX (3. tur — bootstrap endpoint): groups/assignment-templates/
   // holidays/assignments + me/settings (sidebar'ın kendi çağırdığı) toplam 6 ayrı HTTP
@@ -1000,7 +1000,7 @@ export default function EgitmenAnaSayfaPage() {
     } finally {
       if (!signal?.aborted) setSharedLoaded(true);
     }
-  }, [authHeaders, computeAttendPulse]);
+  }, [computeAttendPulse]);
 
   // "Ödevi Bitir"/"Ödevi İptal Et" gibi SIK olabilecek aksiyonlarda tüm bootstrap'i
   // (groups+templates+holidays dahil) yeniden çekmek gereksiz — sadece `assignments`
@@ -1010,7 +1010,7 @@ export default function EgitmenAnaSayfaPage() {
     const headers = await authHeaders();
     const res = await fetch("/api/flexos/assignments", { headers });
     if (res.ok) setAssignments((await res.json()).items ?? []);
-  }, [authHeaders]);
+  }, []);
 
   // Yoklama başlat/bitir + not verme SIK olabilir — tüm bootstrap yerine sadece
   // aktivite logu hafifçe yenilenir (`refetchAssignments` ile AYNI desen).
@@ -1018,7 +1018,7 @@ export default function EgitmenAnaSayfaPage() {
     const headers = await authHeaders();
     const res = await fetch("/api/flexos/egitmen-anasayfa/activity-log", { headers });
     if (res.ok) setActivityLog((await res.json()).items ?? []);
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     const ac = new AbortController();

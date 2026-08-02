@@ -586,7 +586,7 @@ export default function EgitimEklePage() {
 
   const modalCfg = {
     save: { title: "Kaydet", message: <>Değişiklikler kaydedilecek. Satışa başlatmadığın sürece eğitim <strong>taslak</strong> olarak kalır.</>, confirmLabel: "Kaydet", tone: "primary" as const },
-    publish: { title: "Satışa başlat", message: <>Eğitim <strong>satışa açılacak</strong> ve satış kataloğunda "Satışta" görünecek. Emin misin?</>, confirmLabel: "Satışa Başlat", tone: "publish" as const },
+    publish: { title: "Satışa başlat", message: <>Eğitim <strong>satışa açılacak</strong> ve satış kataloğunda &quot;Satışta&quot; görünecek. Emin misin?</>, confirmLabel: "Satışa Başlat", tone: "publish" as const },
     unpublish: { title: "Satışı kapat", message: <>Eğitim satıştan kaldırılıp <strong>taslağa</strong> alınacak. Devam edilsin mi?</>, confirmLabel: "Satışı Kapat", tone: "danger" as const },
   };
 

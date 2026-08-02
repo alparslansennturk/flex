@@ -134,7 +134,7 @@ export default function SinifDetayPage() {
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, groupId]);
+  }, [groupId]);
 
   useEffect(() => {
     (async () => {

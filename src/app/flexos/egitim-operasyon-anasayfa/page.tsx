@@ -190,7 +190,7 @@ export default function EgitimOperasyonAnasayfaPage() {
     } finally {
       if (!signal?.aborted) setInitialLoadDone(true);
     }
-  }, [authHeaders]);
+  }, []);
 
   // 2026-07-12 ACİL fix: `/api/flexos/groups` tenant'taki TÜM enrollment kayıtlarını
   // sınırsız okuyor (doluluk hesabı için) — Firestore kota olayına sebep oldu, çünkü
@@ -206,7 +206,7 @@ export default function EgitimOperasyonAnasayfaPage() {
     } catch {
       // sessiz — aktivite şeridi kozmetik bir yeniden çekim
     }
-  }, [authHeaders]);
+  }, []);
 
   // 2026-07-11 — polling mimarisi TAMAMEN kaldırıldı. Aktiviteler `loadAll` ile sayfa
   // açılışında TEK SEFER çekiliyor (yukarıda). Bu sayfada aktivite mutasyonu (checkbox

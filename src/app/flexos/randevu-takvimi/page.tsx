@@ -198,7 +198,7 @@ export default function RandevuTakvimiPage() {
     } finally {
       setReady(true);
     }
-  }, [authHeadersJson]);
+  }, []);
   useEffect(() => { load(); }, [load]);
   useRealtimeSync(["activities.changed"], load);
 

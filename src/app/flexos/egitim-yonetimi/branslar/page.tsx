@@ -147,7 +147,7 @@ export default function BransHavuzuPage() {
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 760, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
           <p style={{ margin: "0 0 20px", fontSize: 13.5, color: "#64748b", fontWeight: 500 }}>
-            Branşlar tüm eğitimlerin üst kategorisidir (Grafik Tasarım, Yazılım…). Buradan tanımladığınız branşlar “Eğitim Ekle” formundaki dropdown'da çıkar.
+            Branşlar tüm eğitimlerin üst kategorisidir (Grafik Tasarım, Yazılım…). Buradan tanımladığınız branşlar “Eğitim Ekle” formundaki dropdown&apos;da çıkar.
           </p>
 
           {/* Branş Ekle */}

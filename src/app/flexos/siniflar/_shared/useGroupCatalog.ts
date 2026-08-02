@@ -48,7 +48,7 @@ export function useGroupCatalog(branchId: string, educationId: string, enabled: 
       } catch { /* sessiz — form boş katalogla açılır */ }
     })();
     return () => ac.abort();
-  }, [authHeaders, enabled]);
+  }, [enabled]);
 
   // -- branş seçilince eğitimler --
   useEffect(() => {
@@ -67,7 +67,7 @@ export function useGroupCatalog(branchId: string, educationId: string, enabled: 
       }
     })();
     return () => ac.abort();
-  }, [branchId, authHeaders, enabled]);
+  }, [branchId, enabled]);
 
   const selEdu = educations.find((e) => e.id === educationId);
   const isSectioned = selEdu?.structure === "sectioned";
@@ -89,7 +89,7 @@ export function useGroupCatalog(branchId: string, educationId: string, enabled: 
       }
     })();
     return () => ac.abort();
-  }, [educationId, isSectioned, authHeaders, enabled]);
+  }, [educationId, isSectioned, enabled]);
 
   return { branches, educations, sections, seanslar, loadingEdu, loadingSec, isSectioned, selEdu, setEducations, setSections };
 }

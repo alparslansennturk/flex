@@ -46,7 +46,7 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
     } finally {
       setLoading(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     if (!group) { setItems([]); return; }

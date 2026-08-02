@@ -86,7 +86,7 @@ export default function SeanslarPage() {
       setSeanslar(json.items ?? []);
     } catch { toast.error("Seanslar yüklenemedi."); }
     finally { setLoading(false); }
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     (async () => {

@@ -137,7 +137,7 @@ export default function EgitmenSiniflarPanel() {
     } finally {
       if (!signal?.aborted) setLoadingGroups(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   const loadStudents = useCallback(async (signal?: AbortSignal) => {
     setLoadingStudents(true);
@@ -173,7 +173,7 @@ export default function EgitmenSiniflarPanel() {
     } finally {
       if (!signal?.aborted) setLoadingStudents(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     const ac = new AbortController();
