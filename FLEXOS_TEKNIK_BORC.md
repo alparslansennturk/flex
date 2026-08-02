@@ -555,3 +555,76 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
   (hata wrapper) düşük riskli, hızlı kazanımlar olduğu için erken alındı.
 - Otomatik test yok (bkz. madde 1) — her madde işaretlenmeden önce tarayıcıda gerçek
   senaryoyla elle doğrulanmalı (dev server + Claude in Chrome).
+
+## Yeniden inceleme (2026-08-02) — 20/20 sonrası güncel durum
+
+> 20 madde de 2026-07-31'de tamamlanmış işaretlendikten yaklaşık 2 gün sonra yapılan
+> bağımsız yeniden değerlendirme. Yöntem: her maddenin iddiası spot-check edildi (dosya
+> satır sayıları, `npm test`, `tsc --noEmit`, `eslint`, hedefli `grep` taramaları),
+> `git log` ile son commit'ler incelendi, `connect/page.tsx`/`connect/mobile/page.tsx`
+> ayrıca derinlemesine okundu.
+
+**Yeni puan: 6.5/10** (önceki: 5.5-6/10). Gerekçe: test/hata-yönetimi/domain-temizliği
+altyapısı kalıcı ve doğrulanabilir şekilde oturmuş (107/107 test geçiyor, domain katmanı
+büyümeyle bozulmadan temiz kalmış, yeni API route'lar `apiError` desenini takip ediyor),
+ama checklist'in asıl hedefi olan "mega-component" hastalığı `connect/page.tsx` (2597
+satır) ve `connect/mobile/page.tsx` (2690 satır) ile — checklistte hiç yer almadan ve
+bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nüksetmiş.
+
+**Kod tabanı büyümesi:** 452→537 dosya, ~60.800→77.615 satır (%28 büyüme, aktif gelişim).
+
+**Doğrulanan iyileşenler (kalıcı):**
+- 6 test dosyası, `npm test` → **107/107 geçti** (sale/grade/attendance/submission/
+  pricing/buildSaleRequestBody servisleri).
+- `any` kullanımı hâlâ sadece 2 yer — büyümeyle bozulmamış.
+- `tsc --noEmit` proje geneli temiz.
+- Bölünen 6 mega-component geri büyümemiş: `ogrenciler/havuz/page.tsx` 575 satır (iddia
+  573), `egitim-yonetimi/ekle/page.tsx` 765 (iddia 766), `satis-yap/page.tsx` 535 (iddia
+  535, birebir) — `_shared/` klasörleri yerinde.
+- `apiError()` 91 route'ta doğrulandı; **Ağustos 2026 tarihli yeni route'lar
+  (`cases`, `assignments`, `trainers`) da aynı deseni doğru kullanıyor** — öğrenilen
+  alışkanlık kalıcı.
+- Sessiz fetch hatası yok: `flexos/` altında fetch kullanan 76 dosyanın TAMAMINDA
+  `toast` veya `catch` var, yeni birikim yok.
+- `exhaustive-deps`/`set-state-in-effect` disable sayısı 18 (madde 10/11'in "20 konum"
+  iddiasına yakın, yeni birikim yok).
+- Domain katmanı (143 dosya, 12.844 satır) hâlâ temiz: `can()` tabanlı yetki 26
+  dosyada, hiçbir serviste doğrudan Firestore SDK çağrısı yok.
+
+**Hâlâ kötü olanlar / yeni ortaya çıkan sorunlar:**
+1. **`connect/page.tsx` (2597) ve `connect/mobile/page.tsx` (2690) — checklist'in kör
+   noktası.** Sadece ortak yardımcılar çıkarılmış (`format.tsx`, `connectClient.ts`,
+   `ConnectIcon`, `EmojiPicker`, `AttachmentView`, hook'lar — madde 5 doğru), ama her iki
+   sayfa da render/JSX mantığıyla HÂLÂ tek dev component: 35-41 `useState`, 18-26
+   `useEffect`. Madde 6/7/8/15/19'daki "tab/modal component'lerine böl" deseni burada hiç
+   uygulanmamış. İki-realm (staff/trainer_student) gerçek zamanlı chat karmaşıklığı
+   kısmen haklı gerekçe ama 2600+ satır yine de aşırı.
+2. **`React.memo` kapsamı dar kalmış.** Madde 7'de bölünen `StudentTable.tsx` (416
+   satır, tam da madde 12'nin "tekrarlanan satır component'i" tanımına uyan bir örnek)
+   hiç memo almamış — sonraki bölmelerde ortaya çıkan yeni adaylar takip edilmemiş.
+3. **`eslint` "tertemiz" iddiası biraz optimistik.** 35 adet `authHeaders`/
+   `authHeadersJson` "unnecessary dependency" false-positive uyarısı (madde 9'un
+   merkezileştirmesinin yan etkisi, stabil import artık "outer scope" flagleniyor,
+   zararsız ama gürültülü) + 9 adet `react/no-unescaped-entities` HATASI (error
+   seviyesi, 6 dosyada, 2026-07-22/28 tarihli — yeni regresyon değil ama çözülmemiş).
+4. **`apiError` muhasebesi tam değil.** 148 route'un 44'ü kullanmıyor: 21'i connect
+   ailesi (checklist'te "birkaç dosya" diye genel geçilmişti, gerçek sayı daha büyük),
+   kalan ~23'ün ~11'i (`activation/verify`, `password-reset`, `sales/[id]`,
+   `persons/lookup`, `seanslar`, `view-access` vb.) checklist'in "17 dosya bilinçli
+   atlandı" listesinde hiç yok — codemod'un kaçırdığı gerçek boşluklar.
+5. **`vitest` ortam driftı** — `package.json`'da tanımlı ama `node_modules`'ta kurulu
+   değildi, `npm install` gerekti. Kod sorunu değil ama iki-bilgisayar senkron riskine
+   işaret ediyor.
+
+**Sıradaki öncelikler (yeni mini-checklist):**
+1. `connect/page.tsx` + `connect/mobile/page.tsx`'i madde 6/7/8'deki aynı desenle böl
+   (composer, mesaj listesi, konuşma rayı, modal'lar ayrı `_shared/` component'lerine) —
+   şu an en büyük teknik borç.
+2. `StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
+   `useMemo`/`useCallback` zincirini gözden geçir.
+3. 35 `authHeaders`/`authHeadersJson` exhaustive-deps uyarısını gerekçeli disable veya
+   `useRef` tabanlı çözümle temizle.
+4. Kalan ~44 `apiError`'suz route'u (özellikle connect ailesi dışındaki 11 dosya)
+   migrate et.
+5. `vitest` gibi kritik dev-dependency'lerin iki bilgisayar arasında senkron kaldığından
+   emin ol (`npm ci` alışkanlığı).

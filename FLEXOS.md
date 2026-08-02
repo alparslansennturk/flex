@@ -18,6 +18,11 @@
 
 > 🔧 **Teknik borç / kod kalitesi checklist'i** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 kod
 > incelemesinden çıkan 20 maddelik liste, 20/20 TAMAMLANDI 2026-07-31 — detay o dosyada).
+> **Yeniden inceleme (2026-08-02): puan 5.5-6 → 6.5/10.** Testler (107/107)+apiError+
+> mega-component bölmeleri kalıcı doğrulandı; ama `connect/page.tsx` (2597 satır) ve
+> `connect/mobile/page.tsx` (2690 satır) checklist'te hiç yoktu ve şimdi bölünen en
+> büyük eski dosyadan bile büyük yeni mega-component'ler — sıradaki öncelik. Detay
+> (React.memo eksikleri, 44 apiError'suz route, eslint gürültüsü) → aynı dosyanın sonu.
 > 📚 **Tam oturum geçmişi (2026-06-09 → 2026-07-27, ~3460 satır)** → `FLEXOS_OTURUM_ARSIVI.md`
 > (2026-07-28'de buraya taşındı, dosya 4383 satıra şişmişti — hiçbir içerik silinmedi).
 > Aşağıdaki blok sadece **güncel durumun kısa özeti**; tarih bazlı tam detay için arşive bak.
