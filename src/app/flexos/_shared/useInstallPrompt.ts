@@ -58,11 +58,15 @@ declare global {
 
 // `getInstalledRelatedApps()` (Chrome/Edge 84+) — 2026-08-02 kullanıcı sorusu: "ben
 // kaldırırsam sistemin haberi olacak mı?" localStorage TEK BAŞINA hayır der (kaldırma
-// event'i yok) — ama bu API CANLI soruyor, kaldırılınca gerçekten boş dizi dönüyor.
+// event'i yok) — bu API CANLI soruyor ama masaüstü Chrome'da kendi kurulumunu (self
+// platform:"webapp") tespit etmesi GÜVENİLİR DEĞİL: gerçekten kurulu olsa bile boş
+// dizi dönebiliyor (2026-08-02 ikinci bulgu — kullanıcı kurulu olduğu halde `[]`
+// aldı). Bu yüzden sonucu SADECE true'ya yükseltmek için kullanıyoruz, false'u
+// persisted bayrağın üzerine yazmıyoruz — bkz. kullanan `useEffect`.
 // `manifest.json::related_applications`'ta KENDİ manifest'imize (`platform:"webapp"`)
-// referans vermek şart, aksi halde Chrome kendi kurulumunu bu listede döndürmüyor.
+// referans vermek şart, aksi halde Chrome kendi kurulumunu bu listede hiç döndürmüyor.
 // Safari/Firefox'ta yok (`"getInstalledRelatedApps" in navigator` ile feature-detect) —
-// oralarda localStorage sticky-flag best-effort olarak kalmaya devam ediyor.
+// oralarda localStorage sticky-flag tek kaynak olarak kalmaya devam ediyor.
 async function checkLiveInstalled(): Promise<boolean | null> {
   if (typeof navigator === "undefined" || !navigator.getInstalledRelatedApps) return null;
   try {
@@ -101,11 +105,15 @@ export function useInstallPrompt() {
     // başına "kurulu" kanıtı — sonraki normal sekmeler için de kaydediyoruz.
     if (isStandalone()) persistInstalled();
 
-    // Chrome/Edge'de CANLI kontrol — localStorage'daki "her zaman kurulu kalır"
-    // varsayımını düzeltir (kaldırılmışsa buton geri gelir).
+    // Chrome/Edge'de CANLI kontrol. 2026-08-02 gerçek bulgu (kullanıcı raporladı):
+    // masaüstü Chrome'da `getInstalledRelatedApps()` kendi kurulumunu (self platform:
+    // "webapp") güvenilir tespit edemiyor — gerçekten kurulu olsa bile engagement
+    // skoru düşükse `[]` dönebiliyor. Bu yüzden `live` SADECE true'ya YÜKSELTMEK için
+    // kullanılıyor (persisted bayrağı false'a DÜŞÜRMÜYOR) — aksi halde localStorage
+    // doğru "kurulu" derken bu API'nin yanlış negatifi butonu geri getiriyordu.
     let cancelled = false;
     checkLiveInstalled().then((live) => {
-      if (!cancelled && live !== null) setInstalled(live || isStandalone());
+      if (!cancelled && live !== null && live) setInstalled(true);
     });
 
     // Mount'tan ÖNCE yakalanmış olma durumu yukarıdaki lazy initializer'da zaten
