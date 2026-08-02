@@ -620,11 +620,100 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
 1. `connect/page.tsx` + `connect/mobile/page.tsx`'i madde 6/7/8'deki aynı desenle böl
    (composer, mesaj listesi, konuşma rayı, modal'lar ayrı `_shared/` component'lerine) —
    şu an en büyük teknik borç.
-2. `StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
-   `useMemo`/`useCallback` zincirini gözden geçir.
-3. 35 `authHeaders`/`authHeadersJson` exhaustive-deps uyarısını gerekçeli disable veya
-   `useRef` tabanlı çözümle temizle.
-4. Kalan ~44 `apiError`'suz route'u (özellikle connect ailesi dışındaki 11 dosya)
-   migrate et.
+2. [x] ~~`StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
+   `useMemo`/`useCallback` zincirini gözden geçir.~~ — ✅ 2026-08-02 tamamlandı:
+   `StudentTable.tsx` `memo()` ile sarıldı (`StudentTableImpl` iç fonksiyon + `export const
+   StudentTable = memo(StudentTableImpl)`). Prop zinciri kontrol edildi: `filtered` zaten
+   `useMemo`'luydu (madde 7'den), `onOpenAssign`/`onOpenTransfer` zaten `useCallback`'liydi
+   — SADECE `onRowClick` (`openStudentPanel`) ve `onOpenDelete` (`openDelete`) düz inline
+   fonksiyondu (her render'da yeni referans, memo'yu bozardı), ikisi de `useCallback`'e
+   alındı (boş deps — sadece `useState` setter'ları kullanıyorlar, stabil). Diğer prop'lar
+   (`canAssignGroup`/`canTransfer`/`canDeleteEnrollment`, `actionMenuOpen`/`Step`/`Pos`,
+   `loading`/`page`) zaten primitif ya da `useState` referansı, sorun yoktu. `tsc --noEmit`
+   temiz, `eslint` sıfır yeni uyarı, `vitest` 107/107. **Tarayıcı testi YAPILMADI** —
+   davranış değişikliği yok (memo sadece gereksiz re-render'ı engeller, render çıktısı
+   birebir aynı), madde 16'daki gerekçeyle aynı risk sınıfı (facade/optimizasyon,
+   davranış değil) — statik doğrulama (tsc+eslint+test) yeterli görüldü.
+3. [x] ~~35 `authHeaders`/`authHeadersJson` exhaustive-deps uyarısını gerekçeli disable veya
+   `useRef` tabanlı çözümle temizle.~~ — ✅ 2026-08-02 tamamlandı: 35 uyarının HEPSİ
+   deps dizisinden çıkarıldı (15 dosya). Disable-comment/`useRef` gerekmedi — eslint'in
+   kendisi zaten bunları "gereksiz dependency" olarak işaretliyordu (`authHeaders`/
+   `authHeadersJson` merkezi dosyadan import edilen SABİT modül referansı, state değil,
+   deps'e eklenmesine hiç gerek yoktu). Aynı oturumda **9 `react/no-unescaped-entities`
+   hatası** da düzeltildi (8 dosya — çıplak `'`/`"` → `&apos;`/`&quot;`, salt metin
+   escape'i, görünüm/davranış değişmedi). Doğrulama: `tsc --noEmit` proje geneli temiz,
+   `npm test` **107/107** geçti, `eslint src/app/flexos` bu iki kategoride **sıfır**
+   uyarı/hata gösteriyor (kalan 2 hata — `FlexHeader.tsx` set-state-in-effect,
+   `seanslar/page.tsx:66` prefer-const — bu turdan ÖNCE de vardı, dokunulmadı).
+   Tarayıcı testi yapılmadı — ikisi de davranış değiştirmeyen mekanik düzeltme
+   (metin escape + gereksiz dep silme), risk sınıfı düşük.
+4. [x] ~~Kalan ~44 `apiError`'suz route'u (özellikle connect ailesi dışındaki 11 dosya)
+   migrate et.~~ — ✅ 2026-08-02 KISMEN tamamlandı: gerçek sayı incelemenin iddia ettiği
+   44 değil **57**'ydi (148 route'un 91'i kullanıyordu — `student/connect/*` 11 dosya
+   önceki taramada hiç sayılmamış). Bu turda **connect ailesi DIŞINDAKİ 14 "gerçek boşluk"**
+   dosyası migrate edildi: `attendance/report`, `seanslar` (POST/GET/DELETE üçü de),
+   `sales/[id]`, `sales/[id]/payments`, `appointments`, `lottery-results/mail`,
+   `student/me`, `activation/verify`, `groups/[id]/roster`, `egitmen-anasayfa/
+   activity-log`, `password-reset`, `me`, `persons/lookup`. 5'i zaten var olan generic
+   `catch(e){console.error;return 500}` bloğunun birebir `apiError()` swap'ıydı, 5'inde
+   HİÇ try/catch yoktu (yeni eklendi — beklenmeyen hatada artık düzgün JSON+500 dönüyor,
+   önceden çıplak unhandled exception'dı), 2'sinde (`lottery-results/mail`,
+   `password-reset`) SADECE dış catch değiştirildi — içteki bilinçli non-fatal
+   swallow'lar (Drive upload/e-posta enumeration koruması) dokunulmadan bırakıldı.
+   `activation/verify` özel: eskiden `err.message`'ı client'a birebir sızdırıyordu,
+   artık apiError'ın sabit "Sunucu hatası." mesajını dönüyor — bilinçli güvenlik
+   iyileştirmesi (public/unauthenticated uç, iç Firebase hata detayı artık sızmıyor).
+   **`realtime/stream` bilinçli atlandı** — SSE stream route'u, JSON-hata-dönen
+   apiError() deseniyle uyumlu değil (response stream başladıktan sonra JSON dönemez).
+   Doğrulama: `tsc --noEmit` proje geneli temiz, `eslint` bu 13 dosyada sıfır uyarı,
+   `vitest` 107/107. Dev server'da 6 route (me/appointments/seanslar/sales/activation)
+   auth'suz/eksik-body istekle test edildi — hepsi temiz JSON + doğru status kodu döndü
+   (401/400/405), unhandled exception/çıplak 500 yok.
+
+   **Devam — aynı gün, ikinci tur:** eski checklist'in "17 dosya bilinçli atlandı, özel
+   rollback/çoklu-catch mantığı var" diye işaretlediği 13 NON-connect dosya tek tek
+   okunup incelendi. Bulgu: iddia edilenin aksine **11/13'ü tamamen standart**
+   `ForbiddenError`/`ValidationError`/genel-500 deseniydi — muhtemelen eski regex
+   codemod'u sadece fonksiyon içinde 2 ayrı `catch` (JSON-parse + asıl hata) olduğu
+   için atlamış, gerçek bir karmaşıklık yoktu. Migrate edilenler: `social-pool`,
+   `book-pool`, `collage-pool` (GET+PATCH üçü de, birebir aynı desen), `assignment-
+   templates` (GET+POST), `role-defs` (GET+POST), `dev-notes` + `dev-notes/[id]`
+   (4 handler), `egitmen-anasayfa/bootstrap`, `persons/[id]/education-summary`,
+   `view-access` + `view-access/verify` — hepsi düz swap, JSON-parse catch'leri
+   dokunulmadan bırakıldı. **2 dosya gerçekten özeldi:** `users/route.ts` POST'ta
+   Firestore yazımı başarısız olursa YENİ açılan Firebase Auth hesabını geri silen
+   bir rollback satırı var (`if (createdNewAuthAccount) await adminAuth.deleteUser(...)`)
+   — bu satır catch bloğunda `apiError()` çağrısından ÖNCE korunarak taşındı, mevcut/
+   paylaşılan bir hesap asla silinmiyor (davranış birebir aynı). `users/[id]/resend-
+   code`'da özel "Kod gönderilemedi." mesajı vardı, apiError'ın genel "Sunucu hatası."
+   mesajına döndü — kozmetik, davranışsal etkisi yok. Doğrulama: `tsc --noEmit` temiz,
+   `eslint` bu 13 dosyada sıfır uyarı, `vitest` 107/107, dev server'da 10 route
+   auth'suz istekle test edildi (hepsi 401, unhandled exception yok, `next dev` log'unda
+   compile hatası yok). **Artık connect ailesi dışında migrate edilmemiş route KALMADI**
+   — geriye SADECE `realtime/stream` (bilinçli atlanan, SSE) + **30 connect-ailesi
+   dosyası** kaldı, o da yarınki connect sayfa bölme oturumuna bırakıldı.
 5. `vitest` gibi kritik dev-dependency'lerin iki bilgisayar arasında senkron kaldığından
    emin ol (`npm ci` alışkanlığı).
+6. **`realtime-hub.ts` + `read-cache.ts` çoklu-instance sınırı — Upstash Redis'e taşı**
+   (2026-08-02 keşfedildi, kullanıcının k6/500-eşzamanlı-kullanıcı yük testi hazırlığı
+   sırasında). `src/app/lib/server/realtime-hub.ts`'deki `subscribe`/`broadcast`
+   (TÜM gerçek zamanlı SSE senkronunun — `useRealtimeSync`, 18 ekran — tek kaynağı) ve
+   `read-cache.ts`'deki `cachedRead`/`invalidateCache` (kota-tasarrufu cache'i) İKİSİ
+   DE process-local bellekte (`Map`) tutuluyor. Kodun kendi yorumu (`realtime-hub.ts:13-19`)
+   zaten itiraf ediyor: "Vercel'de birden fazla fonksiyon instance'ı varsa... bu
+   instance'daki dinleyiciler haberi kaçırır." Tek kullanıcıyla/local dev'de hiç
+   görünmez (hep aynı instance) — 500 eşzamanlı farklı-rol kullanıcı Vercel'i
+   kesinlikle çoklu-instance'a zorlayacağından SSE güncellemeleri bazı kullanıcılarda
+   kaçabilir (çökme/veri kaybı DEĞİL — sadece "gerçek zamanlı" gecikir, sayfa
+   yenilenince düzelir) ve cache'in kota-tasarrufu kısmen buharlaşır (her instance
+   soğuk cache'le başlar).
+   **İyi haber:** Upstash Redis altyapısı ZATEN kurulu — `package.json`'da
+   `@upstash/redis`+`@upstash/ratelimit`, Vercel'de `UPSTASH_REDIS_REST_URL`/
+   `UPSTASH_REDIS_REST_TOKEN` (72 gün önce eklenmiş, dev/preview/prod'da), çalışan
+   bir client pattern'i `src/app/lib/rate-limit.ts`'te (SADECE rate-limit için
+   kullanılıyor, realtime-hub'a hiç bağlı değil). Yani "Redis kurmak" diye ayrı bir
+   iş yok — sadece `realtime-hub.ts`'i mevcut Upstash bağlantısına yönlendirmek
+   gerekiyor (`subscribe`/`broadcast` imzası aynı kalacak şekilde tasarlanmış,
+   çağıran kod route'lar/hook değişmeden geçiş yapılabilir — kodun kendi yorumunda
+   da belirtilmiş). **Kod değişikliği HENÜZ YAPILMADI** — connect bölme + kalan
+   apiError migrasyonundan sonra sıraya alınacak, k6 testinden önce.
