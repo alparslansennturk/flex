@@ -16,7 +16,6 @@
     "@types/nodemailer": "^7.0.11",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
-    "@vercel/toolbar": "^0.2.2",
     "clsx": "^2.1.1",
     "firebase": "^12.11.0",
     "firebase-admin": "^13.6.1",

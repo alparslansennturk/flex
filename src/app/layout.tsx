@@ -4,7 +4,6 @@ import { Geist, Geist_Mono, Rubik } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/app/context/UserContext";
 import { ScoringProvider } from "@/app/context/ScoringContext";
-import VercelToolbarWrapper from "@/app/components/VercelToolbarWrapper";
 import NotificationToastListener from "@/app/components/notifications/NotificationToastListener";
 import QuickSearch from "@/app/components/shared/QuickSearch";
 import PwaBootstrap from "@/app/flexos/_components/PwaBootstrap";
@@ -90,7 +89,6 @@ window.addEventListener("beforeinstallprompt", function (e) {
           </ScoringProvider>
           <NotificationToastListener />
           <QuickSearch />
-          <VercelToolbarWrapper />
         </UserProvider>
       </body>
     </html>
