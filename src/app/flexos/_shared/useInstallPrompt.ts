@@ -21,9 +21,10 @@ function isStandalone(): boolean {
 // AÇTIKTAN sonra normal web sekmesine dönünce "Uygulamayı Kur" hâlâ görünüyordu.
 // Çözüm: `appinstalled` ateşlediği AN ve/veya standalone modda çalışırken bir kez
 // `localStorage`'a yazıyoruz — sonraki her sekme/oturum (aynı tarayıcı/cihaz) bunu
-// okuyup butonu baştan gizleyebiliyor. Gerçek bir "kaldırıldı" sinyali yok (öyle bir
-// API de yok) — kaldırılırsa buton yanlışlıkla gizli kalabilir, ama tarayıcının kendi
-// adres çubuğu kurulum ikonu her zaman elde kalıyor, kullanıcı engellenmiyor.
+// okuyup butonu baştan gizleyebiliyor. Doğrudan bir "kaldırıldı" event'i yok ama dolaylı
+// güvenilir bir sinyal var: Chrome kuruluyken `beforeinstallprompt`'ı bir daha hiç
+// ateşlemiyor, kaldırılınca (sonraki sayfa açılışında) yeniden ateşliyor — bu event
+// tekrar geldiğinde bu bayrağı temizleyip butonu geri getiriyoruz (bkz. `onAvailable`).
 function isInstalledPersisted(): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -36,6 +37,14 @@ function isInstalledPersisted(): boolean {
 function persistInstalled(): void {
   try {
     window.localStorage.setItem(INSTALLED_KEY, "true");
+  } catch {
+    // localStorage kapalı/dolu olabilir — sessizce yut, kritik değil
+  }
+}
+
+function clearInstalledPersisted(): void {
+  try {
+    window.localStorage.removeItem(INSTALLED_KEY);
   } catch {
     // localStorage kapalı/dolu olabilir — sessizce yut, kritik değil
   }
@@ -98,7 +107,14 @@ export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(
     () => (typeof window !== "undefined" ? window.__flexosInstallPrompt ?? null : null),
   );
-  const [installed, setInstalled] = useState(() => isStandalone() || isInstalledPersisted());
+  // `beforeinstallprompt` tarayıcının KENDİSİ "şu an kurulu değil, kurulabilir" dediği
+  // anda ateşleniyor — zaten kuruluysa Chrome bunu hiç ateşlemiyor. Bu yüzden mount
+  // anında bu event çoktan yakalanmışsa (script React'ten önce çalışıyor), stale
+  // persisted bayrağa rağmen gerçek durumun "kurulu değil" olduğuna güveniyoruz.
+  const [installed, setInstalled] = useState(() => {
+    if (typeof window !== "undefined" && window.__flexosInstallPrompt) return false;
+    return isStandalone() || isInstalledPersisted();
+  });
 
   useEffect(() => {
     // Şu an standalone modda çalışıyorsak (kurulu pencereden açılmış), bu tek
@@ -117,8 +133,17 @@ export function useInstallPrompt() {
     });
 
     // Mount'tan ÖNCE yakalanmış olma durumu yukarıdaki lazy initializer'da zaten
-    // okunuyor — burada sadece mount'tan SONRA gelecek event'i dinliyoruz.
-    const onAvailable = () => setDeferredPrompt(window.__flexosInstallPrompt ?? null);
+    // okunuyor — burada sadece mount'tan SONRA gelecek event'i dinliyoruz. Bu event
+    // gelmesi başlı başına "kurulu değil" kanıtı (bkz. yukarıdaki yorum) — kaldırılmış
+    // olabilir, o yüzden stale persisted bayrağı da temizleyip butonu geri getiriyoruz.
+    const onAvailable = () => {
+      const prompt = window.__flexosInstallPrompt ?? null;
+      setDeferredPrompt(prompt);
+      if (prompt) {
+        setInstalled(false);
+        clearInstalledPersisted();
+      }
+    };
     const onInstalled = () => {
       setInstalled(true);
       setDeferredPrompt(null);
