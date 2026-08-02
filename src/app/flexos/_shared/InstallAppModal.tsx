@@ -33,7 +33,13 @@ interface InstallAppModalProps {
 export default function InstallAppModal({ open, onClose, isSafari, canPrompt, promptInstall, markAsInstalled }: InstallAppModalProps) {
   const handleInstall = async () => {
     if (isSafari) {
+      // Safari kurulum event'i ateşlemiyor VE kurulu uygulamayı açmak (`isStandalone()`)
+      // yazdığı localStorage bayrağı normal Safari sekmesine güvenilir şekilde ulaşmıyor
+      // (2026-08-02 kullanıcı testiyle doğrulandı — taze sekmede bile buton kalıcı kaldı).
+      // Bu yüzden burada iyimser işaretliyoruz: kullanıcı talimatı görüp tıkladıysa
+      // muhtemelen kurmuştur, cross-tab senkrona güvenmek yerine anında gizliyoruz.
       toast.info("Safari'de kurmak için: Paylaş menüsü → \"Dock'a Ekle\".");
+      markAsInstalled();
       onClose();
       return;
     }
