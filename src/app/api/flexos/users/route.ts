@@ -14,7 +14,7 @@ import {
   createFlexosUser,
   type CreateFlexosUserInput,
 } from "@/app/lib/domain/services/flexos-user-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 const ACTIVATION_CODE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 gün — canlıyla aynı
 
@@ -80,8 +80,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     }));
     return NextResponse.json({ items });
   } catch (e) {
-    console.error("[flexos/users GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/users GET");
   }
 });
 
@@ -168,13 +167,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     // (öksüz bırakma). Mevcut (canlı/başka) bir hesabı yeniden kullandıysak ASLA silme —
     // o bize ait değil.
     if (createdNewAuthAccount) await adminAuth.deleteUser(authUid).catch(() => {});
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/users POST]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/users POST");
   }
 });

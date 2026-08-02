@@ -4,6 +4,7 @@ import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { isRateLimited } from "@/app/lib/rate-limit";
 import { sendMail } from "@/app/lib/email";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/password-reset — canlının `/api/password-reset`'iyle AYNI mantık,
@@ -126,8 +127,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    console.error("[flexos/password-reset] Hata:", err);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+  } catch (err) {
+    return apiError(err, "flexos/password-reset");
   }
 }

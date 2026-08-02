@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreSocialPoolRepo } from "@/app/lib/server/social-pool-repo.firestore";
 import { getMySocialPool, updateMySocialPool, type SocialPoolData } from "@/app/lib/domain/services/social-pool-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** GET /api/flexos/social-pool — eğitmenin KENDİ havuz kopyası (yoksa `pool: null`). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
@@ -11,9 +11,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     const pool = await getMySocialPool((await actorFromCaller(caller)), firestoreSocialPoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    console.error("[flexos/social-pool GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/social-pool GET");
   }
 });
 
@@ -37,9 +35,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
     const pool = await updateMySocialPool((await actorFromCaller(caller)), data, firestoreSocialPoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/social-pool PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/social-pool PATCH");
   }
 });

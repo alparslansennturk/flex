@@ -3,6 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreSeansRepo } from "@/app/lib/server/seans-repo.firestore";
 import type { Seans } from "@/app/lib/domain/eduos/seans";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** POST /api/flexos/seanslar — seans oluştur. */
 export const POST = withAuth(async (req: NextRequest, caller) => {
@@ -18,25 +19,33 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçerli saat aralığı girin." }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  const seans: Seans = {
-    id: firestoreSeansRepo.nextId(),
-    tenantId: actor.tenantId,
-    days: body.days,
-    startTime: body.startTime,
-    endTime: body.endTime,
-    createdAt: now,
-    createdBy: actor.uid,
-  };
-  await firestoreSeansRepo.save(seans);
-  return NextResponse.json({ id: seans.id }, { status: 201 });
+  try {
+    const now = new Date().toISOString();
+    const seans: Seans = {
+      id: firestoreSeansRepo.nextId(),
+      tenantId: actor.tenantId,
+      days: body.days,
+      startTime: body.startTime,
+      endTime: body.endTime,
+      createdAt: now,
+      createdBy: actor.uid,
+    };
+    await firestoreSeansRepo.save(seans);
+    return NextResponse.json({ id: seans.id }, { status: 201 });
+  } catch (e) {
+    return apiError(e, "flexos/seanslar POST");
+  }
 });
 
 /** GET /api/flexos/seanslar — seans listesi. */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   const actor = await actorFromCaller(caller);
-  const items = await firestoreSeansRepo.list(actor.tenantId);
-  return NextResponse.json({ items });
+  try {
+    const items = await firestoreSeansRepo.list(actor.tenantId);
+    return NextResponse.json({ items });
+  } catch (e) {
+    return apiError(e, "flexos/seanslar GET");
+  }
 });
 
 /** DELETE /api/flexos/seanslar?id=xxx — seans sil. */
@@ -44,7 +53,11 @@ export const DELETE = withAuth(async (req: NextRequest, caller) => {
   const actor = await actorFromCaller(caller);
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id parametresi gerekli." }, { status: 400 });
-  const ok = await firestoreSeansRepo.delete(id, actor.tenantId);
-  if (!ok) return NextResponse.json({ error: "Seans bulunamadı." }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  try {
+    const ok = await firestoreSeansRepo.delete(id, actor.tenantId);
+    if (!ok) return NextResponse.json({ error: "Seans bulunamadı." }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return apiError(e, "flexos/seanslar DELETE");
+  }
 });

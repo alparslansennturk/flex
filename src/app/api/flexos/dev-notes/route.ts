@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreDevNoteRepo } from "@/app/lib/server/dev-note-repo.firestore";
 import { listDevNotes, createDevNote } from "@/app/lib/domain/services/dev-note-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 import type { DevNotePriority } from "@/app/lib/domain/core/dev-note";
 
 /** GET /api/flexos/dev-notes — liste (SADECE owner, view.toggle gated). */
@@ -13,9 +13,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     const items = await listDevNotes(actor, firestoreDevNoteRepo);
     return NextResponse.json({ items });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    console.error("[flexos/dev-notes GET]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/dev-notes GET");
   }
 });
 
@@ -42,9 +40,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     );
     return NextResponse.json(note, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/dev-notes POST]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/dev-notes POST");
   }
 });

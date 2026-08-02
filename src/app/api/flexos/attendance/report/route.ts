@@ -6,6 +6,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/attendance/report — Yoklama Raporu. Gated `attendance.report.read`
@@ -30,47 +31,51 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const fromFilter = req.nextUrl.searchParams.get("from") ?? undefined;
   const toFilter = req.nextUrl.searchParams.get("to") ?? undefined;
 
-  const [records, groups, trainers, educations, branches] = await Promise.all([
-    firestoreAttendanceRepo.list(actor.tenantId),
-    firestoreGroupRepo.list(actor.tenantId),
-    firestoreTrainerRepo.list(actor.tenantId),
-    firestoreEducationRepo.list(actor.tenantId),
-    firestoreBranchRepo.list(actor.tenantId),
-  ]);
+  try {
+    const [records, groups, trainers, educations, branches] = await Promise.all([
+      firestoreAttendanceRepo.list(actor.tenantId),
+      firestoreGroupRepo.list(actor.tenantId),
+      firestoreTrainerRepo.list(actor.tenantId),
+      firestoreEducationRepo.list(actor.tenantId),
+      firestoreBranchRepo.list(actor.tenantId),
+    ]);
 
-  const groupMap = new Map(groups.map((g) => [g.id, g]));
-  const trainerMap = new Map(trainers.map((t) => [t.id, t.name]));
-  const eduMap = new Map(educations.map((e) => [e.id, e]));
-  const branchMap = new Map(branches.map((b) => [b.id, b.name]));
+    const groupMap = new Map(groups.map((g) => [g.id, g]));
+    const trainerMap = new Map(trainers.map((t) => [t.id, t.name]));
+    const eduMap = new Map(educations.map((e) => [e.id, e]));
+    const branchMap = new Map(branches.map((b) => [b.id, b.name]));
 
-  const items = records
-    .filter((r) => !groupIdFilter || r.groupId === groupIdFilter)
-    .filter((r) => !trainerIdFilter || r.trainerId === trainerIdFilter)
-    .filter((r) => !monthFilter || r.month === monthFilter)
-    .filter((r) => !fromFilter || r.date >= fromFilter)
-    .filter((r) => !toFilter || r.date <= toFilter)
-    .map((r) => {
-      const group = groupMap.get(r.groupId);
-      const edu = group?.educationId ? eduMap.get(group.educationId) : undefined;
-      const totalHours = Object.values(r.entries).reduce((sum, e) => sum + (e.hours || 0), 0);
-      return {
-        id: r.id,
-        groupId: r.groupId,
-        groupCode: group?.code ?? "",
-        educationName: edu?.name ?? "",
-        branch: (edu?.branchId ? branchMap.get(edu.branchId) : group?.branch) ?? "",
-        trainerId: r.trainerId ?? "",
-        trainerName: r.trainerId ? trainerMap.get(r.trainerId) ?? "" : "",
-        date: r.date,
-        month: r.month,
-        sessionHours: r.sessionHours,
-        totalHours,
-        studentCount: Object.keys(r.entries).length,
-        attendanceClosed: r.attendanceClosed,
-        createdByException: r.createdByException ?? false,
-      };
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
+    const items = records
+      .filter((r) => !groupIdFilter || r.groupId === groupIdFilter)
+      .filter((r) => !trainerIdFilter || r.trainerId === trainerIdFilter)
+      .filter((r) => !monthFilter || r.month === monthFilter)
+      .filter((r) => !fromFilter || r.date >= fromFilter)
+      .filter((r) => !toFilter || r.date <= toFilter)
+      .map((r) => {
+        const group = groupMap.get(r.groupId);
+        const edu = group?.educationId ? eduMap.get(group.educationId) : undefined;
+        const totalHours = Object.values(r.entries).reduce((sum, e) => sum + (e.hours || 0), 0);
+        return {
+          id: r.id,
+          groupId: r.groupId,
+          groupCode: group?.code ?? "",
+          educationName: edu?.name ?? "",
+          branch: (edu?.branchId ? branchMap.get(edu.branchId) : group?.branch) ?? "",
+          trainerId: r.trainerId ?? "",
+          trainerName: r.trainerId ? trainerMap.get(r.trainerId) ?? "" : "",
+          date: r.date,
+          month: r.month,
+          sessionHours: r.sessionHours,
+          totalHours,
+          studentCount: Object.keys(r.entries).length,
+          attendanceClosed: r.attendanceClosed,
+          createdByException: r.createdByException ?? false,
+        };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
 
-  return NextResponse.json({ items });
+    return NextResponse.json({ items });
+  } catch (e) {
+    return apiError(e, "flexos/attendance/report GET");
+  }
 });

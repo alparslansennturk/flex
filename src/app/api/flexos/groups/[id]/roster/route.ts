@@ -5,6 +5,7 @@ import { can } from "@/app/lib/domain/access/can";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/groups/[id]/roster — grubun öğrenci listesi (sınıf listesi).
@@ -59,7 +60,6 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
 
     return NextResponse.json({ items });
   } catch (e) {
-    console.error("[flexos/groups/:id/roster GET]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/groups/:id/roster GET");
   }
 });

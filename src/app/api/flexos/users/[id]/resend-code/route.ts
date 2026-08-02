@@ -8,6 +8,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { generateActivationCode } from "@/app/lib/user-validation";
 import { buildFlexosActivationEmail } from "@/app/lib/server/flexos-activation-email";
 import { sendMail } from "@/app/lib/email";
+import { apiError } from "@/app/lib/server/api-error";
 
 const ACTIVATION_CODE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 gün — POST /users ile aynı
 
@@ -57,7 +58,6 @@ export const POST = withAuth(async (_req: NextRequest, caller, { params }: { par
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("[flexos/users/:id/resend-code POST] hata:", e);
-    return NextResponse.json({ error: "Kod gönderilemedi." }, { status: 500 });
+    return apiError(e, "flexos/users/:id/resend-code POST");
   }
 });

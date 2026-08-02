@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import type { Actor } from "@/app/lib/domain/access/types";
 import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+import { apiError } from "@/app/lib/server/api-error";
 
 // 2026-07-15 kullanıcı geri bildirimi: "15 aktivite olmalı, sığmazsa panel kendi içinde
 // scroll etsin" (panel zaten `overflow-y-auto` — sadece çekilen sayı azdı).
@@ -56,7 +57,6 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     const items = await fetchActivityLogForActor(actor, requestedTrainerId);
     return NextResponse.json({ items }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
-    console.error("[flexos/egitmen-anasayfa/activity-log GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/egitmen-anasayfa/activity-log GET");
   }
 });

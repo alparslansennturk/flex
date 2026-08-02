@@ -5,6 +5,7 @@ import { can } from "@/app/lib/domain/access/can";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/sales/[id]/payments — satışa ait tahsilat/taksit listesi.
@@ -52,7 +53,6 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
       items,
     });
   } catch (e) {
-    console.error("[flexos/sales/payments GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/sales/payments GET");
   }
 });

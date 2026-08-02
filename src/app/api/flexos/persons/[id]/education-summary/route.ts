@@ -13,7 +13,7 @@ import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firest
 import { firestoreCertificateSettingsRepo } from "@/app/lib/server/certificate-settings-repo.firestore";
 import { firestoreHolidayRepo } from "@/app/lib/server/holiday-repo.firestore";
 import { getEducationSummaryForPerson } from "@/app/lib/domain/services/person-education-summary-service";
-import { ForbiddenError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/persons/[id]/education-summary — Öğrenci Detay (sayfa+modal)
@@ -43,10 +43,6 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
     });
     return NextResponse.json(result);
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    console.error("[flexos/persons/[id]/education-summary GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/persons/[id]/education-summary GET");
   }
 });

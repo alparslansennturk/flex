@@ -3,6 +3,7 @@ import { adminDb, adminAuth } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { isRateLimited } from "@/app/lib/rate-limit";
 import { DEFAULT_TENANT } from "@/app/lib/server/auth-actor";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/activation/verify — FlexOS kullanıcı ilk aktivasyonu.
@@ -69,9 +70,7 @@ export async function POST(req: NextRequest) {
     await codeDoc.ref.update({ status: "used", usedAt: FieldValue.serverTimestamp() });
 
     return NextResponse.json({ success: true, flexosUserId });
-  } catch (err: unknown) {
-    console.error("[flexos/activation/verify] Hata:", err);
-    const message = err instanceof Error ? err.message : "Sunucu hatası.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err) {
+    return apiError(err, "flexos/activation/verify");
   }
 }

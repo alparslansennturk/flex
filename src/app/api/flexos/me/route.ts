@@ -8,6 +8,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
 import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * 4 dashboard var — login sonrası kişinin rolüne göre doğru olana yönlendirilir.
@@ -113,9 +114,13 @@ export async function buildMeInfo(actor: Actor) {
  * için (kozmetik, güvenlik değil).
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = await actorFromCaller(caller);
-  const info = await buildMeInfo(actor);
-  // no-store: Görünüm Anahtarı sahibi mod değiştirdiğinde (admin↔eğitmen) bu uç
-  // ANINDA yeni sonucu vermeli — tarayıcı/ara katman cache'i eski yetkiyi göstermesin.
-  return NextResponse.json(info, { headers: { "Cache-Control": "no-store" } });
+  try {
+    const actor = await actorFromCaller(caller);
+    const info = await buildMeInfo(actor);
+    // no-store: Görünüm Anahtarı sahibi mod değiştirdiğinde (admin↔eğitmen) bu uç
+    // ANINDA yeni sonucu vermeli — tarayıcı/ara katman cache'i eski yetkiyi göstermesin.
+    return NextResponse.json(info, { headers: { "Cache-Control": "no-store" } });
+  } catch (e) {
+    return apiError(e, "flexos/me GET");
+  }
 });

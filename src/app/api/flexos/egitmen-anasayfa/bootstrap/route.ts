@@ -13,7 +13,7 @@ import { getSettings } from "@/app/lib/domain/services/settings-service";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
 import { listSubmissionsForGroup } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * "Ödev Teslimi" hızlı kart(2026-07-31 kullanıcı isteği) — hangi grup(lar)ın YENİ
@@ -97,10 +97,6 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    console.error("[flexos/egitmen-anasayfa/bootstrap GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/egitmen-anasayfa/bootstrap GET");
   }
 });

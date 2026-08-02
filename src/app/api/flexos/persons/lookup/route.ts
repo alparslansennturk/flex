@@ -6,6 +6,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { apiError } from "@/app/lib/server/api-error";
 
 const STATUS_LABEL: Record<string, string> = {
   active: "Devam Ediyor",
@@ -57,7 +58,6 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
 
     return NextResponse.json({ found: true, personId: person.id, name: `${person.firstName} ${person.lastName}`.trim(), saleDates, enrollments });
   } catch (e) {
-    console.error("[persons/lookup] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "persons/lookup");
   }
 });

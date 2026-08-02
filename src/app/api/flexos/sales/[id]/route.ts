@@ -5,6 +5,7 @@ import { can } from "@/app/lib/domain/access/can";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import type { Guardian } from "@/app/lib/domain/eduos/sale";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/sales/[id] — Satış üzerindeki sözleşme alanlarını güncelle.
@@ -64,7 +65,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     broadcast(actor.tenantId, { type: "sales.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("[flexos/sales/[id] PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/sales/[id] PATCH");
   }
 });

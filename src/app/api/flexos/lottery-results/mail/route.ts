@@ -10,6 +10,7 @@ import { isRateLimited } from "@/app/lib/rate-limit";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { apiError } from "@/app/lib/server/api-error";
 
 // item: Kolaj → {name,emoji}, Kitap → {title,...} (BookItem), Sosyal → SocialDrawItem
 // (brandName/sectorDisplay/brandRule/purpose/platform/contentType) — düz-alan snapshot,
@@ -187,7 +188,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
     return NextResponse.json({ success: true, driveUrl, driveFileName });
   } catch (err) {
-    console.error("[flexos/lottery-results/mail] Hata:", err);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(err, "flexos/lottery-results/mail");
   }
 });
