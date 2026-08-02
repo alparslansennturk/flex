@@ -99,6 +99,23 @@
   `activated` doğrulandı). **Ek özellik:** paylaşımlı sınıf bilgisayarları için 15dk
   hareketsizlikte otomatik `signOut()` (`useIdleAutoLogout.ts`, `PwaBootstrap.tsx`
   üzerinden kök layout'ta tek noktadan tüm FlexOS'ta aktif).
+- **PWA ikon + kurulum tespiti + Vercel Toolbar temizliği (2026-08-02)** — yukarıdaki PWA
+  maddesinin devamı, aynı gün içinde 3 ayrı bug: (1) İkonlar Google'ın manifest ikon
+  üreticisiyle yeniden yapıldı (%45 padding), üreticinin çıktısındaki ince kırmızı kenar
+  artefaktı `public/icons/flexos-{192,512,maskable-192,maskable-512,apple-touch-icon}.png`
+  için piksel bazlı temizlendi (`e40344d`, `36abc41`). (2) `useInstallPrompt.ts`'te İKİ
+  gerçek bug: (a) `getInstalledRelatedApps()` masaüstü Chrome'da kendi kurulumunu GÜVENİLİR
+  tespit edemiyor (gerçekten kurulu olsa bile `[]` dönebiliyor) — bu yanlış negatif,
+  localStorage'daki doğru "kurulu" bayrağının üzerine yazıp "Uygulamayı Kur" butonunu
+  haksız yere geri getiriyordu; artık bu API SADECE true'ya yükseltmek için kullanılıyor
+  (`4e6f560`). (b) Kaldırma sonrası buton hiç geri gelmiyordu (gerçek "kaldırıldı" event'i
+  yok) — çözüm: `beforeinstallprompt` SADECE kurulu değilken ateşleniyor, yeniden
+  ateşlemesi (sayfa tam yenilenince) "kurulu değil" kanıtı sayılıp bayrak temizleniyor;
+  kullanıcı gerçek cihazda kaldır→yenile→buton geri geldi diye doğruladı (`69bf6ff`).
+  (3) `VercelToolbarWrapper` (admin kullanıcılara 2sn sonra otomatik açılan `@vercel/toolbar`)
+  hem kod hem paket seviyesinde tamamen kaldırıldı, kullanıcı Vercel dashboard'dan
+  kapatmasına rağmen çıkmaya devam ediyordu çünkü kaynak proje ayarı değil, gömülü koddu
+  (`eb507f2`). Detay → memory (`flexos_pwa_install_detection_2026_08_02`).
 - **Randevu Takvimi — mesai saati/geçmiş tarih validasyonu (2026-08-01)** — bkz. yukarıdaki
   ~~Randevu Takvimi'nin bazı kısımları~~ notu. Özellik zaten tamamdı, sadece bu son cila
   eksikti; artık hem `randevu-takvimi/page.tsx` hem Aktivite Merkezi'nin randevu akışı aynı
