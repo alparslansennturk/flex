@@ -10,9 +10,22 @@ import { ChevronDown, Wallet, Lock, Banknote } from "lucide-react";
 import type { PersonDetail } from "./useStudentDetail";
 import { tl, fmtDate, PAY_METHOD_LABEL, PAY_STATUS_BADGE, ROLLUP_BADGE, clientRollup } from "./studentShared";
 
-export function StudentOdemeBilgileri({ person }: { person: PersonDetail }) {
+/** `selectedSaleId`/`onSelectSaleId` verilirse seçim PARENT'ta yönetilir (2026-08-02 —
+ * Öğrenci Detay sayfasında Eğitim sekmesiyle ortak seçim senkronu için). Verilmezse eskisi
+ * gibi kendi içinde yönetir. */
+export function StudentOdemeBilgileri({
+  person, selectedSaleId: selectedSaleIdProp, onSelectSaleId,
+}: {
+  person: PersonDetail;
+  selectedSaleId?: string | null;
+  onSelectSaleId?: (saleId: string) => void;
+}) {
   const { sales, payments } = person;
-  const [selectedSaleId, setSelectedSaleId] = useState(sales[0]?.id ?? "");
+  const [selectedSaleIdState, setSelectedSaleIdState] = useState(sales[0]?.id ?? "");
+  const controlled = selectedSaleIdProp !== undefined;
+  const selectedSaleId = controlled
+    ? (selectedSaleIdProp && sales.some((s) => s.id === selectedSaleIdProp) ? selectedSaleIdProp : (sales[0]?.id ?? ""))
+    : selectedSaleIdState;
 
   if (sales.length === 0 && payments.length === 0) {
     return (
@@ -41,7 +54,7 @@ export function StudentOdemeBilgileri({ person }: { person: PersonDetail }) {
             <select
               value={sel?.id ?? ""}
               disabled={single}
-              onChange={(e) => setSelectedSaleId(e.target.value)}
+              onChange={(e) => { if (controlled) onSelectSaleId?.(e.target.value); else setSelectedSaleIdState(e.target.value); }}
               className="appearance-none min-w-[280px] pr-10 pl-3.5 py-2.5 rounded-[11px] border border-[#E2E5EA] text-[14px] font-semibold"
               style={{ background: single ? "#EEF0F3" : "#fff", color: single ? "#6F7B87" : "#1E222B", cursor: single ? "default" : "pointer" }}
             >

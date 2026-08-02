@@ -164,9 +164,21 @@ function Donut({ pct, size, color }: { pct: number; size: number; color: string 
   );
 }
 
-export function StudentEgitimBilgileri({ trainings, compact = false }: { trainings: TrainingSummary[]; compact?: boolean }) {
-  const [selIdx, setSelIdx] = useState(0);
+/** `selectedEnrollmentId`/`onSelectEnrollment` verilirse seçim PARENT'ta yönetilir (2026-08-02
+ * — Öğrenci Detay sayfasında Eğitim ↔ Ödeme sekmeleri arasında ortak seçim senkronu için).
+ * Verilmezse eskisi gibi kendi içinde yönetir (modal — `StudentDetailModal.tsx` hâlâ
+ * kontrolsüz kullanıyor, orada Ödeme sekmesi yok, senkron gerekmiyor). */
+export function StudentEgitimBilgileri({
+  trainings, compact = false, selectedEnrollmentId, onSelectEnrollment,
+}: {
+  trainings: TrainingSummary[];
+  compact?: boolean;
+  selectedEnrollmentId?: string | null;
+  onSelectEnrollment?: (enrollmentId: string) => void;
+}) {
+  const [selIdxState, setSelIdxState] = useState(0);
   const [ddOpen, setDdOpen] = useState(false);
+  const controlled = selectedEnrollmentId !== undefined;
 
   if (trainings.length === 0) {
     return (
@@ -177,7 +189,9 @@ export function StudentEgitimBilgileri({ trainings, compact = false }: { trainin
     );
   }
 
-  const idx = Math.min(selIdx, trainings.length - 1);
+  const idx = controlled
+    ? Math.max(0, trainings.findIndex((t) => t.enrollmentId === selectedEnrollmentId))
+    : Math.min(selIdxState, trainings.length - 1);
   const cur = trainings[idx];
   const [c1, c2] = avatarGradient(cur.groupId);
   const donutSize = compact ? 132 : 150;
@@ -223,7 +237,7 @@ export function StudentEgitimBilgileri({ trainings, compact = false }: { trainin
                 return (
                   <div
                     key={t.enrollmentId}
-                    onClick={() => { setSelIdx(i); setDdOpen(false); }}
+                    onClick={() => { if (controlled) onSelectEnrollment?.(t.enrollmentId); else setSelIdxState(i); setDdOpen(false); }}
                     className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-[10px] cursor-pointer text-[13.5px] ${active ? "bg-[#E2EAF3] text-[#205297] font-bold" : "text-[#414B59] font-medium hover:bg-[#F7F8FA]"}`}
                   >
                     <span className="inline-flex items-center gap-2 min-w-0 truncate">

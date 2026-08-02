@@ -766,8 +766,8 @@ export const css = `
   .fs-navlink-sub{font-size:14.7px!important;padding:6.5px 13.5px!important;gap:11.5px!important}
 }
 @media (min-height: 1081px) {
-  .fs-navlink:not(.fs-navlink-sub){font-size:16px!important;padding:10px 14px!important;gap:14px!important}
-  .fs-navlink-sub{font-size:15.5px!important;padding:7px 14px!important;gap:12px!important}
+  .fs-navlink:not(.fs-navlink-sub){font-size:15px!important;padding:9.5px 13.5px!important;gap:13px!important}
+  .fs-navlink-sub{font-size:14.5px!important;padding:6.5px 13.5px!important;gap:11px!important}
 }
 /* 2026-07-22: scroll artık .fs-nav değil .fs-sidebar'ın kendisinde (bkz. S.sidebar).
    Kullanıcı kararı: scrollbar HİÇ görünmesin, sadece kaydırma hareketi çalışsın. */

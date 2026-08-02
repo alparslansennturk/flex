@@ -40,6 +40,33 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
   const [tab, setTab] = useState<Tab>("genel");
   const { person, trainings, poolStatus, subeler, loading, reload } = useStudentDetail(personId);
 
+  // Eğitim ↔ Ödeme sekmeleri arasında ortak seçim (2026-08-02 kullanıcı isteği): eskiden
+  // her sekme kendi bağımsız dropdown'ını tutuyordu (Eğitim'de bir eğitimi seçip Ödeme'ye
+  // geçince yeniden seçmen gerekiyordu). Artık TEK enrollment seçimi kaynak — sale seçimi
+  // ondan türetilir (`Enrollment.saleId` üzerinden); Ödeme'nin kendi dropdown'ından farklı
+  // bir satış seçilirse (aynı eğitimin başka bir satışı gibi bir durumda) eşleşen enrollment
+  // varsa Eğitim sekmesi de ona döner — yoksa (enrollment'sız satış, örn. iptal) sadece
+  // Ödeme tarafı değişir.
+  const [selEnrollmentId, setSelEnrollmentId] = useState<string | null>(null);
+  const [selSaleId, setSelSaleId] = useState<string | null>(null);
+  const effectiveEnrollmentId = selEnrollmentId && trainings.some((t) => t.enrollmentId === selEnrollmentId)
+    ? selEnrollmentId
+    : (trainings[0]?.enrollmentId ?? null);
+  const effectiveSaleId = selSaleId && person?.sales.some((s) => s.id === selSaleId)
+    ? selSaleId
+    : (trainings.find((t) => t.enrollmentId === effectiveEnrollmentId)?.saleId ?? person?.sales[0]?.id ?? null);
+
+  const handleSelectEnrollment = (enrollmentId: string) => {
+    setSelEnrollmentId(enrollmentId);
+    const t = trainings.find((tr) => tr.enrollmentId === enrollmentId);
+    if (t?.saleId) setSelSaleId(t.saleId);
+  };
+  const handleSelectSaleId = (saleId: string) => {
+    setSelSaleId(saleId);
+    const t = trainings.find((tr) => tr.saleId === saleId);
+    if (t) setSelEnrollmentId(t.enrollmentId);
+  };
+
   // Düzenleme (2026-07-23 kullanıcı isteği): SADECE doğum tarihi + iletişim bilgileri
   // (tel/e-posta/adres) değiştirilebilir — satış/kayıt alanları (ad, TC, şube, kayıt
   // tarihi, durum) HİÇ dokunulmaz. Buton görünürlüğü + gerçek yazma yetkisi tamamen
@@ -216,11 +243,13 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
           )}
           {tab === "odeme" && canReadPayment && (
             <div className="bg-white border border-[#E2E5EA] rounded-[18px] p-6 shadow-[0_1px_3px_rgba(15,31,61,.05)]">
-              <StudentOdemeBilgileri person={person} />
+              <StudentOdemeBilgileri person={person} selectedSaleId={effectiveSaleId} onSelectSaleId={handleSelectSaleId} />
             </div>
           )}
           {tab === "egitim" && (
-            loading ? <div className="flex items-center justify-center py-24"><FlexSpinner /></div> : <StudentEgitimBilgileri trainings={trainings} />
+            loading ? <div className="flex items-center justify-center py-24"><FlexSpinner /></div> : (
+              <StudentEgitimBilgileri trainings={trainings} selectedEnrollmentId={effectiveEnrollmentId} onSelectEnrollment={handleSelectEnrollment} />
+            )
           )}
         </>
       )}

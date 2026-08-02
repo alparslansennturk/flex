@@ -53,6 +53,9 @@ export interface CertificateSummary {
 
 export interface TrainingSummary {
   enrollmentId: EntityId;
+  /** `Enrollment.saleId` — bu enrollment'ı doğuran satış (Core quick-add'te yok). Öğrenci
+   * Detay'da Eğitim ↔ Ödeme sekmeleri arasında ortak seçim senkronu için (2026-08-02). */
+  saleId: EntityId | null;
   groupId: EntityId;
   groupCode: string;
   branchName: string | null; // Group.branch (denormalize)
@@ -263,6 +266,7 @@ export async function getEducationSummaryForPerson(
 
     return {
       enrollmentId: enr.id,
+      saleId: enr.saleId ?? null,
       groupId: group.id,
       groupCode: group.code,
       branchName: group.branch ?? null,
