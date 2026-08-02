@@ -63,7 +63,7 @@ export default function OgrenciHavuzuPage() {
   // ── öğrenci detay paneli (sağdan kayarak) ──
   const [showStudentPanel, setShowStudentPanel] = useState(false);
   const [panelPersonId, setPanelPersonId] = useState<string | null>(null);
-  const openStudentPanel = (personId: string) => { setPanelPersonId(personId); setShowStudentPanel(true); };
+  const openStudentPanel = useCallback((personId: string) => { setPanelPersonId(personId); setShowStudentPanel(true); }, []);
 
   // İsimle arama (2026-07-16 — havuzda hiç search yoktu, sadece dropdown filtreler
   // vardı). Diğer filtrelerin aksine "Filtrele" butonu beklemeden ANINDA uygulanır —
@@ -169,7 +169,7 @@ export default function OgrenciHavuzuPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -187,7 +187,7 @@ export default function OgrenciHavuzuPage() {
       }
     })();
     return () => ac.abort();
-  }, [router, loadStudents, authHeaders]);
+  }, [router, loadStudents]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı öğrenci ekleyip/kaydını
   // değiştirdiğinde (satış, transfer, mezuniyet dahil) SSE üzerinden haber alınır.
@@ -264,7 +264,7 @@ export default function OgrenciHavuzuPage() {
     } finally {
       setLoadingGroups(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   const closeAssign = () => { if (!assigning) { setAssignTarget(null); setSelectedGroupId(""); setSelectedEnrollmentId(""); } };
 
@@ -341,7 +341,7 @@ export default function OgrenciHavuzuPage() {
     } finally {
       setLoadingGroups(false);
     }
-  }, [authHeaders]);
+  }, []);
 
   const closeTransfer = () => { if (!transferring) { setTransferTarget(null); setSelectedGroupId(""); setSelectedEnrollmentId(""); setTransferCloseAs(null); } };
 
@@ -369,7 +369,7 @@ export default function OgrenciHavuzuPage() {
     }
   };
 
-  const openDelete = (student: Student, enrollmentId: string, label: string) => setDeleteTarget({ student, enrollmentId, label });
+  const openDelete = useCallback((student: Student, enrollmentId: string, label: string) => setDeleteTarget({ student, enrollmentId, label }), []);
   const closeDelete = () => { if (!deleting) setDeleteTarget(null); };
 
   const confirmDelete = async () => {

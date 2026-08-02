@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatTrPhone } from "@/app/lib/phone";
 import { FlexSpinner } from "../../../_components/FlexSpinner";
@@ -33,7 +33,7 @@ interface StudentTableProps {
 }
 
 /** Öğrenci Havuzu tablosu — satırlar, branş/eğitim/grup hover popup'ları, 3-nokta işlem menüsü, sayfalama. */
-export function StudentTable({
+function StudentTableImpl({
   filtered, hasAnyStudents, loading, page, setPage,
   canAssignGroup, canTransfer, canDeleteEnrollment,
   actionMenuOpen, actionMenuStep, actionMenuPos, setActionMenuOpen, setActionMenuStep, setActionMenuPos, setOpenDropdown,
@@ -414,3 +414,5 @@ export function StudentTable({
     </div>
   );
 }
+
+export const StudentTable = memo(StudentTableImpl);
