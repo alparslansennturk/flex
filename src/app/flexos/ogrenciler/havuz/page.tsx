@@ -123,6 +123,9 @@ export default function OgrenciHavuzuPage() {
   const [groupOptions, setGroupOptions] = useState<GroupOption[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
+  // Aynı grup, kişinin 2+ bekleyen satın almasına aday olabilir (aynı grup id, farklı
+  // enrollmentId) — hangi satırın seçildiğini selectedGroupId tek başına ayırt edemez.
+  const [selectedEnrollmentId, setSelectedEnrollmentId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
   // ── Grup Değiştir modal state (zaten gruplu bir kaydı başka gruba taşır — Gruba Ata'nın
@@ -198,6 +201,7 @@ export default function OgrenciHavuzuPage() {
   const openAssign = useCallback(async (st: Student) => {
     setAssignTarget(st);
     setSelectedGroupId("");
+    setSelectedEnrollmentId("");
     setGroupOptions([]);
     setLoadingGroups(true);
     try {
@@ -262,10 +266,12 @@ export default function OgrenciHavuzuPage() {
     }
   }, [authHeaders]);
 
-  const closeAssign = () => { if (!assigning) { setAssignTarget(null); setSelectedGroupId(""); } };
+  const closeAssign = () => { if (!assigning) { setAssignTarget(null); setSelectedGroupId(""); setSelectedEnrollmentId(""); } };
 
   const confirmAssign = async () => {
-    const option = groupOptions.find((g) => g.id === selectedGroupId);
+    // Aynı grup id'si 2+ bekleyen kayıt için aday listesinde tekrar edebilir — enrollmentId'yi
+    // de eşleştirmeden .find() ilk satırı döner ve yanlış kaydı gruba atayabilir.
+    const option = groupOptions.find((g) => g.id === selectedGroupId && (g.enrollmentId ?? "") === selectedEnrollmentId);
     if (!assignTarget || !option?.enrollmentId || option.conflictWith) return;
     setAssigning(true);
     try {
@@ -277,7 +283,7 @@ export default function OgrenciHavuzuPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(json.error || "Gruba atama başarısız."); return; }
       toast.success(`${assignTarget.name} ${option.code} grubuna atandı.`);
-      setAssignTarget(null); setSelectedGroupId("");
+      setAssignTarget(null); setSelectedGroupId(""); setSelectedEnrollmentId("");
       await loadStudents(); // havuz durumu güncellensin (grupsuz → aktif)
     } catch {
       toast.error("Sunucu hatası — atama yapılamadı.");
@@ -293,6 +299,7 @@ export default function OgrenciHavuzuPage() {
   const openTransfer = useCallback(async (st: Student, entry: StudentGroup) => {
     setTransferTarget({ student: st, enrollmentId: entry.enrollmentId, groupId: entry.groupId, groupLabel: entry.label });
     setSelectedGroupId("");
+    setSelectedEnrollmentId("");
     setTransferCloseAs(null);
     setGroupOptions([]);
     setLoadingGroups(true);
@@ -336,7 +343,7 @@ export default function OgrenciHavuzuPage() {
     }
   }, [authHeaders]);
 
-  const closeTransfer = () => { if (!transferring) { setTransferTarget(null); setSelectedGroupId(""); setTransferCloseAs(null); } };
+  const closeTransfer = () => { if (!transferring) { setTransferTarget(null); setSelectedGroupId(""); setSelectedEnrollmentId(""); setTransferCloseAs(null); } };
 
   const confirmTransfer = async () => {
     const option = groupOptions.find((g) => g.id === selectedGroupId);
@@ -532,6 +539,8 @@ export default function OgrenciHavuzuPage() {
           loadingGroups={loadingGroups}
           selectedGroupId={selectedGroupId}
           setSelectedGroupId={setSelectedGroupId}
+          selectedEnrollmentId={selectedEnrollmentId}
+          setSelectedEnrollmentId={setSelectedEnrollmentId}
           assigning={assigning}
           onClose={closeAssign}
           onConfirm={confirmAssign}

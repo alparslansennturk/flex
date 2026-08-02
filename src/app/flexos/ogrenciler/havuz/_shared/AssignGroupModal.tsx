@@ -11,6 +11,10 @@ interface AssignGroupModalProps {
   loadingGroups: boolean;
   selectedGroupId: string;
   setSelectedGroupId: (id: string) => void;
+  /** Kişinin 2+ bekleyen satın alması aynı gruba eşleşebilir (aynı `id`, farklı `enrollmentId`) —
+   * hangi satırın tıklandığını ayırt etmek için gerekli, bkz. GroupOptionsList. */
+  selectedEnrollmentId: string;
+  setSelectedEnrollmentId: (id: string) => void;
   assigning: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -18,7 +22,8 @@ interface AssignGroupModalProps {
 
 /** "Gruba Ata" modalı — grupsuz bir kaydı seçilen gruba atar. */
 export function AssignGroupModal({
-  assignTarget, groupOptions, loadingGroups, selectedGroupId, setSelectedGroupId, assigning, onClose, onConfirm,
+  assignTarget, groupOptions, loadingGroups, selectedGroupId, setSelectedGroupId,
+  selectedEnrollmentId, setSelectedEnrollmentId, assigning, onClose, onConfirm,
 }: AssignGroupModalProps) {
   return (
     <div style={S.modalOverlay} onClick={onClose}>
@@ -54,7 +59,12 @@ export function AssignGroupModal({
               <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 280 }}>Önce Sınıflar sayfasından bir grup oluşturun.</div>
             </div>
           ) : (
-            <GroupOptionsList groupOptions={groupOptions} selectedGroupId={selectedGroupId} onSelect={setSelectedGroupId} />
+            <GroupOptionsList
+              groupOptions={groupOptions}
+              selectedGroupId={selectedGroupId}
+              selectedEnrollmentId={selectedEnrollmentId}
+              onSelect={(id, enrollmentId) => { setSelectedGroupId(id); setSelectedEnrollmentId(enrollmentId ?? ""); }}
+            />
           )}
         </div>
 
