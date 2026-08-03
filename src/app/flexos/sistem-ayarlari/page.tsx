@@ -40,6 +40,7 @@ import FlexModal from "../_components/FlexModal";
 import Footer from "@/app/components/layout/Footer";
 import { ToggleSwitch } from "../kullanicilar/_shared/toggles";
 import NotificationSoundSettings from "../_components/NotificationSoundSettings";
+import InstallBannerSettings from "../_components/InstallBannerSettings";
 import DevNotesPanel from "./_shared/DevNotesPanel";
 
 export default function SistemAyarlariPage() {
@@ -348,7 +349,12 @@ export default function SistemAyarlariPage() {
             )}
           </div>
 
-          {activeTopTab === "bildirim" && <NotificationSoundSettings />}
+          {activeTopTab === "bildirim" && (
+            <div className="space-y-4">
+              <NotificationSoundSettings />
+              <InstallBannerSettings />
+            </div>
+          )}
           {canPin && activeTopTab === "gelistirici" && <DevNotesPanel />}
 
           {canSeeFinansalTab && activeTopTab === "finansal" && (

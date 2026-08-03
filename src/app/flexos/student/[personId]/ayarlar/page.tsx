@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import StudentSidebar from "../../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../../_components/FlexHeader";
 import NotificationSoundSettings from "../../../_components/NotificationSoundSettings";
+import InstallBannerSettings from "../../../_components/InstallBannerSettings";
 
 export default function FlexosStudentAyarlarPage() {
   const { personId } = useParams<{ personId: string }>();
@@ -27,8 +28,9 @@ export default function FlexosStudentAyarlarPage() {
           connectPersonId={personId}
         />
         <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <FlexPageContent className="pt-7 pb-12">
+          <FlexPageContent className="pt-7 pb-12 space-y-4">
             <NotificationSoundSettings />
+            <InstallBannerSettings />
           </FlexPageContent>
         </main>
       </div>

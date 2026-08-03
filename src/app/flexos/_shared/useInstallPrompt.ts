@@ -9,6 +9,11 @@ interface BeforeInstallPromptEvent extends Event {
 
 const INSTALLED_KEY = "flexosInstalled";
 const BANNER_DISMISSED_KEY = "flexosSafariBannerDismissed";
+// Ayarlar sayfasındaki "Kurulum Bannerını Yeniden Göster" (2026-08-03) — o an açık
+// başka bir sekme/bileşende (ör. sidebar) mount edilmiş `useInstallPrompt` örneğinin
+// state'ini senkronize etmek için `flexos-install-available` ile AYNI desen: custom
+// event + `useEffect` dinleyicisi.
+const BANNER_RESET_EVENT = "flexos-banner-reset";
 
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
@@ -51,10 +56,15 @@ function clearInstalledPersisted(): void {
   }
 }
 
+// "Kapat" (2026-08-03) — kalıcı localStorage bayrağı. Önceki tasarımlarda "banner'ı
+// kaybetme" riski butonun KENDİSİ bir şeyi optimistik varsayarak (installed=true)
+// kapanmasından kaynaklanıyordu; şimdi banner SADECE kullanıcı bilinçli olarak
+// "Kapat"a basarsa kayboluyor, ve geri getirme yolu Ayarlar sayfasında AÇIKÇA var
+// (`InstallBannerSettings.tsx`) — bu yüzden süresiz kalıcı olması güvenli.
 function isBannerDismissed(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return window.sessionStorage.getItem(BANNER_DISMISSED_KEY) === "true";
+    return window.localStorage.getItem(BANNER_DISMISSED_KEY) === "true";
   } catch {
     return false;
   }
@@ -62,7 +72,7 @@ function isBannerDismissed(): boolean {
 
 function persistBannerDismissed(): void {
   try {
-    window.sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
+    window.localStorage.setItem(BANNER_DISMISSED_KEY, "true");
   } catch {
     // sessizce yut
   }
@@ -70,7 +80,7 @@ function persistBannerDismissed(): void {
 
 function clearBannerDismissed(): void {
   try {
-    window.sessionStorage.removeItem(BANNER_DISMISSED_KEY);
+    window.localStorage.removeItem(BANNER_DISMISSED_KEY);
   } catch {
     // sessizce yut
   }
@@ -141,9 +151,6 @@ export function useInstallPrompt() {
     if (typeof window !== "undefined" && window.__flexosInstallPrompt) return false;
     return isStandalone() || isInstalledPersisted();
   });
-  // Safari kurulum bannerı (2026-08-03) için "Daha Sonra" tercihi — sekme/oturum
-  // bazlı (sessionStorage), kalıcı localStorage DEĞİL, aksi halde eski `installed`
-  // bayrağıyla aynı "bir daha hiç geri gelmez" tuzağına düşer.
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissed());
 
   useEffect(() => {
@@ -180,12 +187,15 @@ export function useInstallPrompt() {
       window.__flexosInstallPrompt = null;
       persistInstalled();
     };
+    const onBannerReset = () => setBannerDismissed(false);
     window.addEventListener("flexos-install-available", onAvailable);
     window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener(BANNER_RESET_EVENT, onBannerReset);
     return () => {
       cancelled = true;
       window.removeEventListener("flexos-install-available", onAvailable);
       window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener(BANNER_RESET_EVENT, onBannerReset);
     };
   }, []);
 
@@ -207,23 +217,18 @@ export function useInstallPrompt() {
     persistInstalled();
   }, []);
 
-  // Safari'de "iyimser gizleme" (bkz. `InstallAppModal.tsx::handleInstall`) kaldırma
-  // event'i olmadığı için kalıcı hale geliyor — kullanıcı gerçekten kaldırırsa flag
-  // temizlenmiyor. Sadece Safari'de gösterilen manuel bir kaçış yolu (bkz. sidebar'daki
-  // kullanım) bu bayrağı elle sıfırlayabilsin diye var; Chrome/Edge'de hiç render edilmiyor.
-  const resetInstalled = useCallback(() => {
-    setInstalled(false);
-    clearInstalledPersisted();
-    // Sıfırlama = "tekrar kurulum önerisi görmek istiyorum" demek — eski "daha
-    // sonra" tercihi varsa temizlenmeli, yoksa banner sıfırlamadan hemen sonra
-    // sessionStorage'daki stale dismiss yüzünden geri gelmez.
-    setBannerDismissed(false);
-    clearBannerDismissed();
-  }, []);
-
   const dismissBanner = useCallback(() => {
     setBannerDismissed(true);
     persistBannerDismissed();
+  }, []);
+
+  // Ayarlar sayfasındaki "Kurulum Bannerını Yeniden Göster" — kendi state'ini
+  // düzeltir + `BANNER_RESET_EVENT` yayınlayıp AYNI ANDA mount olmuş diğer
+  // `useInstallPrompt` örneklerini (ör. sidebar'daki banner) da güncelliyor.
+  const resetBannerDismissed = useCallback(() => {
+    setBannerDismissed(false);
+    clearBannerDismissed();
+    window.dispatchEvent(new Event(BANNER_RESET_EVENT));
   }, []);
 
   return {
@@ -232,8 +237,8 @@ export function useInstallPrompt() {
     isSafari: isSafari(),
     promptInstall,
     markAsInstalled,
-    resetInstalled,
     bannerDismissed,
     dismissBanner,
+    resetBannerDismissed,
   };
 }
