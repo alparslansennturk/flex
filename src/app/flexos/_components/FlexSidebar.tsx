@@ -282,7 +282,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // (`InstallAppModal.tsx`) açılır, gerçek native kurulum istemi/Safari talimatı
   // oradan tetiklenir. Zaten kurulu (standalone) modda çalışıyorsa madde hiç render
   // edilmez.
-  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled } = useInstallPrompt();
+  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled, resetInstalled } = useInstallPrompt();
   const [installModalOpen, setInstallModalOpen] = useState(false);
 
   // "Kim girdiyse onun ana sayfası" hedefi — hem logo hem "Ana Sayfa" nav öğesi aynı
@@ -661,6 +661,12 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         <Item icon={IC.settings} label="Ayarlar" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
         {/* 2026-08-01: zaten kurulu (standalone) modda çalışıyorsa madde hiç görünmez. */}
         {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={() => setInstallModalOpen(true)} />}
+        {/* 2026-08-03: Safari'de "installed" flag'i (bkz. useInstallPrompt.ts) kaldırma
+            event'i olmadığı için kalıcılaşıyor — sadece Safari'de manuel kaçış yolu,
+            Chrome/Edge'de hiç render edilmiyor. */}
+        {installed && isSafari && (
+          <Item icon={IC.refresh} label="Kurulumu Sıfırla" onClick={() => { resetInstalled(); toast.info("Kurulum durumu sıfırlandı — \"Uygulamayı Kur\" geri geldi."); }} />
+        )}
         <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>
@@ -733,6 +739,7 @@ export const IC = {
   settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'),
   logout: sv('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>'),
   download: sv('<path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M2 17v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2"/>'),
+  refresh: sv('<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>'),
   chat: sv('<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>'),
 };
 

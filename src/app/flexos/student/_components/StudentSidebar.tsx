@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
+import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 import { Item, S, IC, css } from "../../_components/FlexSidebar";
@@ -30,7 +31,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
   };
 
   // "Uygulamayı Kur" (2026-08-01) — FlexSidebar'daki AYNI mantık, bkz. orada bıraktığım yorum.
-  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled } = useInstallPrompt();
+  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled, resetInstalled } = useInstallPrompt();
   const [installModalOpen, setInstallModalOpen] = useState(false);
 
   const isHome = pathname === `/flexos/student/${personId}`;
@@ -58,6 +59,9 @@ export default function StudentSidebar({ personId }: { personId: string }) {
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.settings} label="Ayarlar" active={isAyarlar} onClick={() => router.push(ayarlarHref)} />
         {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={() => setInstallModalOpen(true)} />}
+        {installed && isSafari && (
+          <Item icon={IC.refresh} label="Kurulumu Sıfırla" onClick={() => { resetInstalled(); toast.info("Kurulum durumu sıfırlandı — \"Uygulamayı Kur\" geri geldi."); }} />
+        )}
         <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>

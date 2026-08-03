@@ -177,11 +177,21 @@ export function useInstallPrompt() {
     persistInstalled();
   }, []);
 
+  // Safari'de "iyimser gizleme" (bkz. `InstallAppModal.tsx::handleInstall`) kaldırma
+  // event'i olmadığı için kalıcı hale geliyor — kullanıcı gerçekten kaldırırsa flag
+  // temizlenmiyor. Sadece Safari'de gösterilen manuel bir kaçış yolu (bkz. sidebar'daki
+  // kullanım) bu bayrağı elle sıfırlayabilsin diye var; Chrome/Edge'de hiç render edilmiyor.
+  const resetInstalled = useCallback(() => {
+    setInstalled(false);
+    clearInstalledPersisted();
+  }, []);
+
   return {
     installed,
     canPrompt: !!deferredPrompt,
     isSafari: isSafari(),
     promptInstall,
     markAsInstalled,
+    resetInstalled,
   };
 }
