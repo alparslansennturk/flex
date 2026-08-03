@@ -633,19 +633,31 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
    akıyor). **Tarayıcı testi YAPILMADI** (token bütçesi kısıtlıydı, sadece statik
    doğrulama) — bir sonraki oturumda gerçek kullanıcı akışıyla (mesaj gönder/al,
    reaksiyon, ek dosya, konuşma oluştur/düzenle) uçtan uca test edilmeli.
-   - **`connect/mobile/page.tsx` (2690 satır) — ✅ 2026-08-03 KISMEN TAMAMLANDI**
-     (commit'ler `0643af3`, `e724a42`, `e4ef612`, `5a7cfcf`), aynı gün devam:
+   - ~~`connect/mobile/page.tsx` (2690 satır)~~ — **✅ 2026-08-03 TAMAMLANDI**
+     (commit'ler `0643af3`, `e724a42`, `e4ef612`, `5a7cfcf`, `8125931`):
      - Tema/ikon altyapısı (ICONS/Icon/Tokens/tokens/iconFor/avatarBox/
        SwipeableChatRow, component state'inden bağımsız) → `_shared/mobileTheme.tsx`.
      - Screen/Tab/ThemePref/ChannelSection tipleri → `_shared/mobileTypes.ts`.
      - "app" ekranı (6 sekmeli ana ekran + alt nav) → `_shared/MobileAppScreen.tsx` (~44 prop).
      - "chat" ekranı (header+mesaj listesi+composer) → `_shared/MobileChatScreen.tsx` (~40 prop).
      - "create" ekranı (Kanal/Grup/Topluluk formu) → `_shared/MobileCreateScreen.tsx` (~25 prop).
-     **Sonuç: `connect/mobile/page.tsx` 2690→1704 satır (%37 azalma).** Hepsi
-     birebir taşıma, tsc+eslint her adımda temiz. **Tarayıcı testi YAPILMADI.**
-     - **KALAN:** küçük ekranlar (notif/help/password/starred/archive/legal/
-       legal-kvkk, toplam ~250 satır) + presence-status bottom sheet hiç
-       dokunulmadı — düşük öncelik (küçük, düşük risk, isteğe bağlı iş).
+     - 7 küçük ekran (Bildirimler/Yardım/Şifre/Yıldızlı/Arşiv/Yasal/KVKK) →
+       `_shared/MobileMiscScreens.tsx` (ortak `ScreenHeader` yardımcısıyla).
+     - 2 bottom sheet (Yeni Sohbet Başlat + presence-durum) → `_shared/MobileSheets.tsx`.
+     **Sonuç: `connect/mobile/page.tsx` 2690→1317 satır (%51 azalma) — masaüstünün
+     (1293) bile altında.** `page.tsx` artık `motion`/`AnimatePresence` import
+     etmiyor, hiç doğrudan JSX render etmiyor — sadece state/effect/handler +
+     component çağrıları. Birebir taşıma, tsc+eslint her adımda temiz.
+     **Tarayıcı testi YAPILMADI** (ne masaüstünde ne mobilde) — bir sonraki
+     oturumda gerçek kullanıcı akışıyla (mesaj gönder/al, reaksiyon, ek dosya,
+     konuşma oluştur, sekme/ekran geçişleri) uçtan uca test edilmeli, öncelikli.
+   - **Kalan (isteğe bağlı, çok daha büyük/riskli iş — madde 1'in kapsamı
+     dışında):** her iki dosyada da state/effect/handler kümeleri (~650-700
+     satır/dosya) hâlâ tek fonksiyonda — bunu gerçekten küçültmek custom hook'lara
+     bölmeyi gerektirir (ör. `useConversationsList`, `useMessageThread`,
+     `useComposer`, `usePresenceStatus`). JSX'i component'e taşımaktan çok daha
+     riskli (state/effect bağımlılıkları arasında stale closure/cleanup hataları
+     mümkün) — bugünkü işe dahil edilmedi, ayrı ve dikkatli bir oturum gerektirir.
 2. [x] ~~`StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
    `useMemo`/`useCallback` zincirini gözden geçir.~~ — ✅ 2026-08-02 tamamlandı:
    `StudentTable.tsx` `memo()` ile sarıldı (`StudentTableImpl` iç fonksiyon + `export const
