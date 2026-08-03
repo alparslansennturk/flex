@@ -651,13 +651,33 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
      **Tarayıcı testi YAPILMADI** (ne masaüstünde ne mobilde) — bir sonraki
      oturumda gerçek kullanıcı akışıyla (mesaj gönder/al, reaksiyon, ek dosya,
      konuşma oluştur, sekme/ekran geçişleri) uçtan uca test edilmeli, öncelikli.
-   - **Kalan (isteğe bağlı, çok daha büyük/riskli iş — madde 1'in kapsamı
-     dışında):** her iki dosyada da state/effect/handler kümeleri (~650-700
-     satır/dosya) hâlâ tek fonksiyonda — bunu gerçekten küçültmek custom hook'lara
-     bölmeyi gerektirir (ör. `useConversationsList`, `useMessageThread`,
-     `useComposer`, `usePresenceStatus`). JSX'i component'e taşımaktan çok daha
-     riskli (state/effect bağımlılıkları arasında stale closure/cleanup hataları
-     mümkün) — bugünkü işe dahil edilmedi, ayrı ve dikkatli bir oturum gerektirir.
+   - ~~Kalan state/effect kümeleri~~ — **✅ 2026-08-03 KISMEN TAMAMLANDI**
+     (commit'ler `61fbd0e`, `ba1413a`, `a1291ba`, `e7822e9`, `e616f7c`):
+     `connect/mobile/page.tsx`'ten 5 YÜKSEK GÜVENİLİRLİKLİ (sıfır/çok düşük dış
+     bağımlılığı olan, gerçekten izole) custom hook çıkarıldı:
+     - `useViewportHeight()` — viewportHeight state + resize/orientationchange effect'i.
+     - `usePwaEnvironment()` — isIOS + isStandalone tespiti.
+     - `useConnectTheme()` — themePref/systemDark/dark/T (tek yönlü bağımlılık, hiç girdisi yok).
+     - `usePushNotifications(authUser, studentPersonId, isIOS, isStandalone)` —
+       notifPush/notifSound/showPushReenableBanner/pushTokenRef + toggle
+       fonksiyonları + ilgili effect'ler. `handleLogout` artık `pushTokenRef`'e
+       doğrudan dokunmuyor, hook'un döndürdüğü `unregisterToken()` kullanılıyor.
+     - `usePresenceTracking(uids, studentPersonId)` — presenceMap/myPresenceStatus/
+       forcePresenceTick + abonelik effect'i + `usePresenceHeartbeat` çağrısı.
+       "Hangi uid'lere abone olunacağı" hesabı BİLEREK hook'a taşınmadı
+       (conversation-list domain'ine ait), page.tsx'te `useMemo` olarak kaldı.
+     **Sonuç: `connect/mobile/page.tsx` 1317→1104 satır.** Hepsi birebir taşıma,
+     her adım ayrı commit + tsc/eslint doğrulaması. Eslint'in yeni
+     `react-hooks/set-state-in-effect` kuralı hook dosyalarında daha katı
+     davranıyor — projedeki established disable-comment deseni (bkz.
+     `NotificationSoundSettings.tsx`) uygulandı.
+   - **Bilerek yapılmadı (madde kapsamı dışı, "yapay bölme" — kullanıcı kararı):**
+     Mesaj thread'i + composer + uzun-basma menüsü, auth+login+logout, rol/profil
+     çözümü, konuşma listesi + dizin fetch'leri — bunlar `selectedId`/`screen`/
+     `draft`/`conversations` üzerinden birbirine gerçekten geçmiş, hook'a
+     zorlamak yanlış sınırdan kesim (stale closure/cleanup riski) yaratırdı.
+     `connect/page.tsx` (masaüstü) tarafında bu hook çıkarımı HİÇ yapılmadı —
+     istenirse aynı yöntemle ayrı bir oturumda ele alınabilir.
 2. [x] ~~`StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
    `useMemo`/`useCallback` zincirini gözden geçir.~~ — ✅ 2026-08-02 tamamlandı:
    `StudentTable.tsx` `memo()` ile sarıldı (`StudentTableImpl` iç fonksiyon + `export const
