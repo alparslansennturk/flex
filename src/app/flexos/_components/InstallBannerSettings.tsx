@@ -13,9 +13,16 @@
 import { useInstallPrompt } from "../_shared/useInstallPrompt";
 
 export default function InstallBannerSettings() {
-  const { isSafari, bannerDismissed, resetBannerDismissed } = useInstallPrompt();
+  const { isSafari, installed, bannerDismissed, resetBannerDismissed } = useInstallPrompt();
 
   if (!isSafari) return null;
+
+  // Banner iki ayrı sebepten görünmüyor olabilir: kullanıcı "Kapat"a bastı
+  // (bannerDismissed) VEYA `installed` bayrağı (ör. bu cihazda daha önceki bir
+  // tıklamadan) true kalmış — reset ikisini de temizliyor, buton ikisinden
+  // biri true olduğunda aktif olmalı (2026-08-03 gerçek bulgu — sadece
+  // bannerDismissed'a bakınca `installed` takılıyken buton pasif kalıyordu).
+  const hasSomethingToReset = bannerDismissed || installed;
 
   return (
     <div className="bg-white rounded-2xl border border-[#EEF0F3] p-6 space-y-1 max-w-2xl">
@@ -26,7 +33,7 @@ export default function InstallBannerSettings() {
         </div>
         <button
           onClick={resetBannerDismissed}
-          disabled={!bannerDismissed}
+          disabled={!hasSomethingToReset}
           className="shrink-0 px-4 py-2 rounded-xl border border-[#E2E5EA] text-[13px] font-semibold text-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:border-base-primary-300"
         >
           Kurulum Bannerını Yeniden Göster
