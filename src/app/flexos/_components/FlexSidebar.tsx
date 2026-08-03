@@ -19,6 +19,7 @@ import ViewPinModal from "./ViewPinModal";
 import { FlexSpinner, isAppBooted, markAppBooted } from "./FlexSpinner";
 import { useInstallPrompt } from "../_shared/useInstallPrompt";
 import InstallAppModal from "../_shared/InstallAppModal";
+import SafariInstallBanner from "../_shared/SafariInstallBanner";
 
 /**
  * Core/Full — SADECE `/api/flexos/me`'nin `mode` alanından okunur (bkz. o route'taki
@@ -278,11 +279,12 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     router.push("/flexos/giris");
   };
 
-  // "Uygulamayı Kur" (2026-08-01, site geneli PWA) — önce değeri anlatan bir modal
-  // (`InstallAppModal.tsx`) açılır, gerçek native kurulum istemi/Safari talimatı
-  // oradan tetiklenir. Zaten kurulu (standalone) modda çalışıyorsa madde hiç render
-  // edilmez.
-  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled, resetInstalled } = useInstallPrompt();
+  // "Uygulamayı Kur" (2026-08-01, site geneli PWA) — Chrome/Edge'de önce değeri
+  // anlatan bir modal (`InstallAppModal.tsx`) açılır, gerçek native kurulum istemi
+  // oradan tetiklenir. Safari'de bu sidebar öğesi hiç render edilmiyor (2026-08-03) —
+  // onun yerine sayfa üstünde `SafariInstallBanner.tsx` var. Zaten kurulu (standalone)
+  // modda çalışıyorsa madde hiç render edilmez.
+  const { installed, canPrompt, isSafari, promptInstall, markAsInstalled, resetInstalled, bannerDismissed, dismissBanner } = useInstallPrompt();
   const [installModalOpen, setInstallModalOpen] = useState(false);
 
   // "Kim girdiyse onun ana sayfası" hedefi — hem logo hem "Ana Sayfa" nav öğesi aynı
@@ -659,11 +661,13 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           değişti. */}
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.settings} label="Ayarlar" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
-        {/* 2026-08-01: zaten kurulu (standalone) modda çalışıyorsa madde hiç görünmez. */}
-        {!installed && <Item icon={IC.download} label="Uygulamayı Kur" onClick={() => setInstallModalOpen(true)} />}
-        {/* 2026-08-03: Safari'de "installed" flag'i (bkz. useInstallPrompt.ts) kaldırma
-            event'i olmadığı için kalıcılaşıyor — sadece Safari'de manuel kaçış yolu,
-            Chrome/Edge'de hiç render edilmiyor. */}
+        {/* 2026-08-01: zaten kurulu (standalone) modda çalışıyorsa madde hiç görünmez.
+            2026-08-03: Safari'de bu öğe hiç render edilmiyor — o tarayıcı için üst
+            banner var (`SafariInstallBanner.tsx`). */}
+        {!installed && !isSafari && <Item icon={IC.download} label="Uygulamayı Kur" onClick={() => setInstallModalOpen(true)} />}
+        {/* Safari'de "installed" flag'i (bkz. useInstallPrompt.ts) kaldırma event'i
+            olmadığı için kalıcılaşıyor — sadece Safari'de manuel kaçış yolu, buna
+            basınca hem flag temizlenir hem üstteki banner otomatik geri gelir. */}
         {installed && isSafari && (
           <Item icon={IC.refresh} label="Kurulumu Sıfırla" onClick={() => { resetInstalled(); toast.info("Kurulum durumu sıfırlandı — \"Uygulamayı Kur\" geri geldi."); }} />
         )}
@@ -672,7 +676,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </div>
 
       <ViewPinModal open={pinOpen} onClose={() => setPinOpen(false)} onVerified={onPinVerified} />
-      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} isSafari={isSafari} canPrompt={canPrompt} promptInstall={promptInstall} markAsInstalled={markAsInstalled} />
+      <InstallAppModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} canPrompt={canPrompt} promptInstall={promptInstall} markAsInstalled={markAsInstalled} />
+      <SafariInstallBanner isSafari={isSafari} installed={installed} bannerDismissed={bannerDismissed} markAsInstalled={markAsInstalled} dismissBanner={dismissBanner} />
     </aside>
   );
 }

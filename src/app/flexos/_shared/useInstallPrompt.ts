@@ -8,6 +8,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const INSTALLED_KEY = "flexosInstalled";
+const BANNER_DISMISSED_KEY = "flexosSafariBannerDismissed";
 
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
@@ -47,6 +48,31 @@ function clearInstalledPersisted(): void {
     window.localStorage.removeItem(INSTALLED_KEY);
   } catch {
     // localStorage kapalı/dolu olabilir — sessizce yut, kritik değil
+  }
+}
+
+function isBannerDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(BANNER_DISMISSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistBannerDismissed(): void {
+  try {
+    window.sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
+  } catch {
+    // sessizce yut
+  }
+}
+
+function clearBannerDismissed(): void {
+  try {
+    window.sessionStorage.removeItem(BANNER_DISMISSED_KEY);
+  } catch {
+    // sessizce yut
   }
 }
 
@@ -115,6 +141,10 @@ export function useInstallPrompt() {
     if (typeof window !== "undefined" && window.__flexosInstallPrompt) return false;
     return isStandalone() || isInstalledPersisted();
   });
+  // Safari kurulum bannerı (2026-08-03) için "Daha Sonra" tercihi — sekme/oturum
+  // bazlı (sessionStorage), kalıcı localStorage DEĞİL, aksi halde eski `installed`
+  // bayrağıyla aynı "bir daha hiç geri gelmez" tuzağına düşer.
+  const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissed());
 
   useEffect(() => {
     // Şu an standalone modda çalışıyorsak (kurulu pencereden açılmış), bu tek
@@ -184,6 +214,16 @@ export function useInstallPrompt() {
   const resetInstalled = useCallback(() => {
     setInstalled(false);
     clearInstalledPersisted();
+    // Sıfırlama = "tekrar kurulum önerisi görmek istiyorum" demek — eski "daha
+    // sonra" tercihi varsa temizlenmeli, yoksa banner sıfırlamadan hemen sonra
+    // sessionStorage'daki stale dismiss yüzünden geri gelmez.
+    setBannerDismissed(false);
+    clearBannerDismissed();
+  }, []);
+
+  const dismissBanner = useCallback(() => {
+    setBannerDismissed(true);
+    persistBannerDismissed();
   }, []);
 
   return {
@@ -193,5 +233,7 @@ export function useInstallPrompt() {
     promptInstall,
     markAsInstalled,
     resetInstalled,
+    bannerDismissed,
+    dismissBanner,
   };
 }

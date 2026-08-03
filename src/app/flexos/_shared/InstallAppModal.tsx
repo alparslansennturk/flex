@@ -24,25 +24,17 @@ import FlexLogo from "@/app/components/ui/FlexLogo";
 interface InstallAppModalProps {
   open: boolean;
   onClose: () => void;
-  isSafari: boolean;
   canPrompt: boolean;
   promptInstall: () => Promise<void>;
   markAsInstalled: () => void;
 }
 
-export default function InstallAppModal({ open, onClose, isSafari, canPrompt, promptInstall, markAsInstalled }: InstallAppModalProps) {
+// 2026-08-03: Safari artık bu modalı hiç açmıyor — kendi bannerı var
+// (`SafariInstallBanner.tsx`), sidebar'daki "Uygulamayı Kur" öğesi Safari'de
+// zaten render edilmiyor (bkz. `FlexSidebar.tsx`/`StudentSidebar.tsx`). Bu
+// modal artık SADECE Chrome/Edge native `beforeinstallprompt` akışı için var.
+export default function InstallAppModal({ open, onClose, canPrompt, promptInstall, markAsInstalled }: InstallAppModalProps) {
   const handleInstall = async () => {
-    if (isSafari) {
-      // Safari kurulum event'i ateşlemiyor VE kurulu uygulamayı açmak (`isStandalone()`)
-      // yazdığı localStorage bayrağı normal Safari sekmesine güvenilir şekilde ulaşmıyor
-      // (2026-08-02 kullanıcı testiyle doğrulandı — taze sekmede bile buton kalıcı kaldı).
-      // Bu yüzden burada iyimser işaretliyoruz: kullanıcı talimatı görüp tıkladıysa
-      // muhtemelen kurmuştur, cross-tab senkrona güvenmek yerine anında gizliyoruz.
-      toast.info("Safari'de kurmak için: Paylaş menüsü → \"Dock'a Ekle\".");
-      markAsInstalled();
-      onClose();
-      return;
-    }
     if (!canPrompt) {
       // Chrome/Edge `beforeinstallprompt`'ı bir sayfa/oturumda EN FAZLA bir kez verir —
       // bir daha ateşlememesinin en olası sebebi ZATEN KURULU olması (2026-08-02
