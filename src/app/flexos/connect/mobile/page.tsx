@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * Genel Duyuru kanalı + announcementChannelId bağı).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   reauthenticateWithCredential, EmailAuthProvider, updatePassword,
@@ -40,15 +40,12 @@ import { auth, db } from "@/app/lib/firebase";
 import { useMarkConnectReady } from "./SplashGate";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
-  type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToReceipts, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
   setConversationMuted, setConversationArchived, reportIssue, hideConversation, clearConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
-  subscribeToPresence,
 } from "@/app/flexos/connect/_shared/connectClient";
-import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
 import { authHeaders } from "@/app/lib/client/auth-headers";
 import { dividerLabel as dividerLabelBase } from "@/app/flexos/connect/_shared/format";
 import { Icon } from "@/app/flexos/connect/_shared/mobileTheme";
@@ -65,6 +62,7 @@ import { useViewportHeight } from "@/app/flexos/connect/_shared/useViewportHeigh
 import { usePwaEnvironment } from "@/app/flexos/connect/_shared/usePwaEnvironment";
 import { useConnectTheme } from "@/app/flexos/connect/_shared/useConnectTheme";
 import { usePushNotifications } from "@/app/flexos/connect/_shared/usePushNotifications";
+import { usePresenceTracking } from "@/app/flexos/connect/_shared/usePresenceTracking";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
@@ -187,24 +185,19 @@ export default function FlexConnectMobile() {
   /** Öğrenci modu — "Eğitmenim" (kayıtlı olduğu grupların eğitmen(ler)i, DM için). */
   const [trainerDirectory, setTrainerDirectory] = useState<DirectoryUser[]>([]);
 
-  // Presence (2026-07-20) — SADECE personel durum taşır/ayarlar; öğrenciler sadece
-  // görür (kendi eğitmenlerinin rozeti). `staffDirectory` (personel görünümü) ∪
-  // `trainerDirectory` (öğrenci görünümü) her ikisi de personel uid'leri içerir.
-  const [presenceMap, setPresenceMap] = useState<Map<string, PresenceSignal>>(new Map());
-  const [myPresenceStatus, setMyPresenceStatusLocal] = useState<PresenceStatus>("online");
   const [presenceSheetOpen, setPresenceSheetOpen] = useState(false);
-  usePresenceHeartbeat(studentPersonId !== undefined, studentPersonId ?? undefined);
-  // `isPresenceOffline()` `Date.now()`'a göre TÜRETİLİYOR (bkz. connect-presence.ts) —
-  // ama karşı taraf uygulamayı kapatıp heartbeat göndermeyi kesince Firestore'da
-  // HİÇBİR yeni yazı olmuyor, `presenceMap` snapshot'ı hiç değişmiyor, dolayısıyla
-  // component de yeniden render OLMUYOR ve nokta kalıcı olarak "çevrimiçi" (yeşil)
-  // görünmeye devam ediyordu (2026-07-29 kullanıcı bulgusu). TTL'den (45sn) daha
-  // sık bir "tick" ile zorla yeniden render tetikleyip zaman aşımını yakalıyoruz.
-  const [, forcePresenceTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => forcePresenceTick((t) => t + 1), 10_000);
-    return () => clearInterval(id);
-  }, []);
+  // "Hangi kişilere abone olunacağı" (tab/dizin/konuşma listesine bağlı) burada
+  // hesaplanıyor (conversation-list domain'ine ait, hook'a taşınmadı) — gerçek
+  // abonelik + kendi durumum/heartbeat `usePresenceTracking`'de.
+  const presenceUids = useMemo(() => {
+    const directoryUids = tab !== "staff" ? []
+      : studentPersonId ? trainerDirectory.map((u) => u.uid)
+      : staffTabView === "staff" ? staffDirectory.map((u) => u.uid) : studentDirectory.map((u) => u.uid);
+    const dmPeerUids = conversations.filter((c) => c.type === "dm" && c.peerUid).map((c) => c.peerUid as string);
+    const myUid = auth.currentUser?.uid;
+    return [...new Set([...directoryUids, ...dmPeerUids, ...(myUid ? [myUid] : [])])];
+  }, [tab, staffTabView, studentPersonId, staffDirectory, trainerDirectory, studentDirectory, conversations]);
+  const { presenceMap, myPresenceStatus, setMyPresenceStatusLocal } = usePresenceTracking(presenceUids, studentPersonId);
 
   const loadConversations = useCallback(async () => {
     if (studentPersonId === undefined) return;
@@ -256,25 +249,6 @@ export default function FlexConnectMobile() {
     }
   }, [studentPersonId]);
 
-  // Presence aboneliği — SADECE gerçekten ekranda görünebilecek kişiler
-  // (2026-07-20 okuma-optimizasyonu: "39k okuma olmuş, azalsın"). Önceden TÜM
-  // personel+öğrenci rosterına her sayfa yüklemesinde abone oluyordu — artık
-  // SADECE "Kullanıcılar"/"Eğitmenim" sekmesi aktifken o listeye + konuşma
-  // listesindeki DM karşı taraflarına + kendi uid'imize.
-  useEffect(() => {
-    const directoryUids = tab !== "staff" ? []
-      : studentPersonId ? trainerDirectory.map((u) => u.uid)
-      : staffTabView === "staff" ? staffDirectory.map((u) => u.uid) : studentDirectory.map((u) => u.uid);
-    const dmPeerUids = conversations.filter((c) => c.type === "dm" && c.peerUid).map((c) => c.peerUid as string);
-    const myUid = auth.currentUser?.uid;
-    const uids = [...new Set([...directoryUids, ...dmPeerUids, ...(myUid ? [myUid] : [])])];
-    if (uids.length === 0) return;
-    return subscribeToPresence(uids, (signals) => {
-      setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
-      const mine = signals.find((s) => s.uid === myUid);
-      if (mine) setMyPresenceStatusLocal(mine.status);
-    });
-  }, [tab, staffTabView, studentPersonId, staffDirectory, trainerDirectory, studentDirectory, conversations]);
 
   // PWA service worker kaydı (2026-07-18) — SADECE bu route'un scope'unda,
   // masaüstünü etkilemez. Minimal SW (bkz. `public/sw-connect-mobile.js`) —
