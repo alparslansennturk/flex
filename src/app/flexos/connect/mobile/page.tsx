@@ -29,7 +29,6 @@ export const dynamic = "force-dynamic";
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   reauthenticateWithCredential, EmailAuthProvider, updatePassword,
@@ -48,16 +47,21 @@ import {
   setConversationMuted, setConversationArchived, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation, clearConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
-  subscribeToPresence, setMyPresenceStatus,
+  subscribeToPresence,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
 import { authHeaders } from "@/app/lib/client/auth-headers";
-import { withTimeout, initials, fmtTime, dividerLabel as dividerLabelBase, PresenceDot } from "@/app/flexos/connect/_shared/format";
-import { Icon, tokens, avatarBox, SwipeableChatRow } from "@/app/flexos/connect/_shared/mobileTheme";
+import { withTimeout, dividerLabel as dividerLabelBase } from "@/app/flexos/connect/_shared/format";
+import { Icon, tokens } from "@/app/flexos/connect/_shared/mobileTheme";
 import type { Screen, Tab, ThemePref, ChannelSection } from "@/app/flexos/connect/_shared/mobileTypes";
 import { MobileAppScreen } from "@/app/flexos/connect/_shared/MobileAppScreen";
 import { MobileChatScreen } from "@/app/flexos/connect/_shared/MobileChatScreen";
 import { MobileCreateScreen } from "@/app/flexos/connect/_shared/MobileCreateScreen";
+import {
+  MobileNotifScreen, MobileHelpScreen, MobilePasswordScreen, MobileStarredScreen,
+  MobileArchiveScreen, MobileLegalScreen, MobileLegalKvkkScreen,
+} from "@/app/flexos/connect/_shared/MobileMiscScreens";
+import { MobileQuickStartSheet, MobilePresenceSheet } from "@/app/flexos/connect/_shared/MobileSheets";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
@@ -1241,456 +1245,65 @@ export default function FlexConnectMobile() {
 
       {/* ============ BILDIRIMLER ============ */}
       {authUser && screen === "notif" && (
-        <motion.div key="notif" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Bildirimler</div>
-              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Nasıl bilgilendirileceğini yönet</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-              {[
-                { title: "Anlık Bildirimler", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush, loading: notifPushLoading },
-                { title: "Bildirim Sesi", sub: "Bildirim gelince OS sesi çalsın", icon: "bell", val: notifSound, onToggle: toggleNotifSound, loading: notifSoundLoading },
-              ].map((r, i, arr) => (
-                <div key={r.title} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none" }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={19} sw={2} /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{r.title}</div>
-                    <div style={{ fontSize: 11.5, fontWeight: 500, color: T.text2, marginTop: 2, lineHeight: 1.35 }}>{r.sub}</div>
-                  </div>
-                  <button onClick={r.onToggle} role="switch" aria-checked={r.val} aria-busy={r.loading} aria-label={r.title} style={{ width: 46, height: 28, borderRadius: 999, border: "none", cursor: r.loading ? "wait" : "pointer", pointerEvents: r.loading ? "none" : undefined, opacity: r.loading ? 0.75 : 1, flex: "0 0 auto", background: r.val ? T.brand : (dark ? "#33405A" : "#D4D8DF"), position: "relative", transition: "background .18s", padding: 0 }}>
-                    {r.loading ? (
-                      <motion.span
-                        style={{ position: "absolute", top: 3, left: 3, width: 22, height: 22, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,.35)", borderTopColor: "#fff", boxSizing: "border-box" }}
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}
-                      />
-                    ) : (
-                      <span style={{ position: "absolute", top: 3, left: r.val ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
+        <MobileNotifScreen
+          T={T} dark={dark} setScreen={setScreen} setTab={setTab} notifPush={notifPush} toggleNotifPush={toggleNotifPush}
+          notifPushLoading={notifPushLoading} notifSound={notifSound} toggleNotifSound={toggleNotifSound} notifSoundLoading={notifSoundLoading}
+        />
       )}
 
-      {/* ============ YARDIM & GERİ BİLDİRİM ============ */}
       {authUser && screen === "help" && (
-        <motion.div key="help" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>{helpKind === "sorun" ? "Sorun Bildir" : "Öneri Gönder"}</div>
-              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>{helpKind === "sorun" ? "Karşılaştığın sorunu anlat, inceleyelim" : "Fikrini bizimle paylaş"}</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Açıklama</label>
-            <textarea
-              value={helpMessage}
-              onChange={(e) => setHelpMessage(e.target.value)}
-              placeholder={helpKind === "sorun" ? "Ne oldu, ne zaman oldu, hangi ekrandaydın?" : "Aklındaki fikri anlat…"}
-              rows={8}
-              style={{ width: "100%", padding: 14, borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text, fontFamily: "inherit", resize: "none", boxSizing: "border-box" }}
-            />
-            <button
-              onClick={submitHelp}
-              disabled={!helpMessage.trim() || helpSending}
-              style={{ width: "100%", height: 50, border: "none", borderRadius: 14, background: helpMessage.trim() ? "#2867bd" : (dark ? "#33405A" : "#C3CAD4"), color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: helpMessage.trim() ? "pointer" : "default", marginTop: 14 }}
-            >
-              {helpSending ? "Gönderiliyor…" : "Gönder"}
-            </button>
-          </div>
-        </motion.div>
+        <MobileHelpScreen
+          T={T} setScreen={setScreen} setTab={setTab} helpKind={helpKind} helpMessage={helpMessage}
+          setHelpMessage={setHelpMessage} submitHelp={submitHelp} helpSending={helpSending}
+        />
       )}
 
-      {/* ============ GİZLİLİK & GÜVENLİK — ŞİFRE DEĞİŞTİR ============ */}
       {authUser && screen === "password" && (
-        <motion.div key="password" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Şifre Değiştir</div>
-              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Gizlilik & Güvenlik</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Mevcut Şifre</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
-              <Icon k="lock" size={18} color={T.muted} />
-              <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
-            </div>
-            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
-              <Icon k="lock" size={18} color={T.muted} />
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="En az 6 karakter" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
-            </div>
-            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre (Tekrar)</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
-              <Icon k="lock" size={18} color={T.muted} />
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
-            </div>
-            <button
-              onClick={changePassword}
-              disabled={changingPassword}
-              style={{ width: "100%", height: 50, border: "none", borderRadius: 14, background: "#2867bd", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
-            >
-              {changingPassword ? "Güncelleniyor…" : "Şifreyi Güncelle"}
-            </button>
-          </div>
-        </motion.div>
+        <MobilePasswordScreen
+          T={T} setScreen={setScreen} setTab={setTab} currentPassword={currentPassword} setCurrentPassword={setCurrentPassword}
+          newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword}
+          setConfirmPassword={setConfirmPassword} changePassword={changePassword} changingPassword={changingPassword}
+        />
       )}
 
-      {/* ============ YILDIZLI MESAJLARIM ============ */}
       {authUser && screen === "starred" && (
-        <motion.div key="starred" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Yıldızlı Mesajlarım</div>
-              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Tüm sohbetlerden</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
-            {loadingStarred ? (
-              <div className="flex justify-center py-8"><div style={{ width: 22, height: 22, border: `3px solid ${T.border}`, borderTopColor: T.brand, borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} /></div>
-            ) : starredMessages.length === 0 ? (
-              <p style={{ textAlign: "center", fontSize: 13, color: T.muted, padding: "24px 12px" }}>Henüz yıldızladığın bir mesaj yok.</p>
-            ) : (
-              starredMessages.map((m) => (
-                <button
-                  key={`${m.conversationId}-${m.messageId}`} onClick={() => goToStarredConversation(m.conversationId)}
-                  style={{ display: "flex", flexDirection: "column", width: "100%", padding: "12px 14px", borderRadius: 14, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: T.brand }}>{m.conversationName || "Sohbet"}</span>
-                    <span style={{ fontSize: 11, color: T.muted }}>{fmtTime(m.createdAt)}</span>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: T.text2, marginTop: 1 }}>{m.authorName}</span>
-                  <span style={{ fontSize: 14, color: T.text, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {m.text || (m.attachments?.length ? `📎 ${m.attachments[0].fileName}` : "")}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </motion.div>
+        <MobileStarredScreen
+          T={T} setScreen={setScreen} setTab={setTab} loadingStarred={loadingStarred} starredMessages={starredMessages}
+          goToStarredConversation={goToStarredConversation}
+        />
       )}
 
-      {/* ============ ARŞİV — liste (2026-07-31 kullanıcı isteği: mobilde arşivlenmiş
-          konuşmaları görebilecek hiçbir ekran yoktu, sadece kaydırarak arşivleme vardı) ============ */}
       {authUser && screen === "archive" && (
-        <motion.div key="archive" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => { setScreen("app"); setTab("chats"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Arşiv</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "12px 8px" }}>
-            {(() => {
-              const archivedRows = conversations.filter((c) => c.archived);
-              if (archivedRows.length === 0) return <p style={{ textAlign: "center", fontSize: 13, color: T.muted, padding: "24px 12px" }}>Arşivde konuşma yok.</p>;
-              return archivedRows.map((c) => (
-                <SwipeableChatRow
-                  key={c.id}
-                  c={c}
-                  T={T}
-                  presence={presenceMap.get(c.peerUid ?? "")}
-                  isSwiped={swipedRowId === c.id}
-                  onSwipeChange={(next) => setSwipedRowId(next ? c.id : null)}
-                  onOpen={() => openChat(c.id)}
-                  onArchiveToggle={() => handleToggleArchiveRow(c.id, c.archived)}
-                  onClear={() => handleClearConversationRow(c.id, c.name)}
-                  onDelete={() => handleHideConversationRow(c.id, c.name)}
-                />
-              ));
-            })()}
-          </div>
-        </motion.div>
+        <MobileArchiveScreen
+          T={T} setScreen={setScreen} setTab={setTab} conversations={conversations} swipedRowId={swipedRowId}
+          setSwipedRowId={setSwipedRowId} openChat={openChat} handleToggleArchiveRow={handleToggleArchiveRow}
+          handleClearConversationRow={handleClearConversationRow} handleHideConversationRow={handleHideConversationRow}
+          presenceMap={presenceMap}
+        />
       )}
 
-      {/* ============ YASAL BİLGİLENDİRMELER — liste ============ */}
       {authUser && screen === "legal" && (
-        <motion.div key="legal" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Yasal Bilgilendirmeler</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-              {[
-                { title: "KVKK Aydınlatma Metni", onClick: () => setScreen("legal-kvkk") },
-                { title: "Gizlilik Politikası", onClick: () => toast("Yakında eklenecek.") },
-                { title: "Kullanım Koşulları", onClick: () => toast("Yakında eklenecek.") },
-                { title: "Sürüm Bilgisi", onClick: () => toast("Yakında eklenecek.") },
-              ].map((r, i, arr) => (
-                <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k="file" size={18} sw={2} /></div>
-                  <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
-                  <Icon k="chev" size={18} color={T.chev} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
+        <MobileLegalScreen T={T} dark={dark} setScreen={setScreen} />
       )}
 
-      {/* ============ KVKK AYDINLATMA METNİ ============ */}
       {authUser && screen === "legal-kvkk" && (
-        <motion.div key="legal-kvkk" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-            <button onClick={() => setScreen("legal")} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>KVKK Aydınlatma Metni</div>
-              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Son Güncelleme: 20.07.2026</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 32px" }}>
-            <p style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text, margin: "0 0 20px" }}>
-              Bu Aydınlatma Metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) kapsamında,
-              Arı Bilgi Bilişim Teknolojileri Akademisi tarafından geliştirilen Flex Connect uygulamasını kullanan
-              öğrenciler, akademik personel ve yöneticilerin kişisel verilerinin işlenmesine ilişkin usul ve
-              esaslar hakkında bilgi vermek amacıyla hazırlanmıştır.
-            </p>
-            {([
-              { h: "1. Veri Sorumlusu", p: ["6698 sayılı KVKK kapsamında veri sorumlusu Arı Bilgi Bilişim Teknolojileri Akademisi olarak faaliyet göstermektedir."] },
-              {
-                h: "2. İşlenen Kişisel Veriler",
-                p: ["Flex Connect uygulaması kapsamında aşağıdaki kişisel veriler işlenebilmektedir:"],
-                b: ["Ad ve Soyad", "Kurumsal e-posta adresi", "Kullanıcı rolü (Öğrenci, Akademisyen, Yönetici vb.)", "Bölüm / Program bilgisi", "Ders, laboratuvar veya grup bilgileri", "Kullanıcının uygulama içerisinde oluşturduğu mesajlar ve paylaşımlar (iletişim hizmetinin sunulabilmesi amacıyla)", "Bildirim tercihleri ve cihaz bildirim bilgileri (bildirim özelliğinin kullanılması halinde)", "Kimlik doğrulama ve oturum kayıtları"],
-                after: ["Flex Connect, kullanıcıların konum bilgisi, telefon rehberi, kamera, mikrofon veya benzeri kişisel verilerine kullanıcı izni olmaksızın erişmez."],
-              },
-              {
-                h: "3. Kişisel Verilerin İşlenme Amaçları",
-                p: ["Toplanan kişisel veriler aşağıdaki amaçlarla işlenmektedir:"],
-                b: ["Kullanıcı hesabının oluşturulması ve yönetilmesi", "Kimlik doğrulama işlemlerinin gerçekleştirilmesi", "Mesajlaşma ve iletişim hizmetlerinin sunulması", "Ders, laboratuvar ve grup süreçlerinin yürütülmesi", "Duyuru ve bildirimlerin kullanıcılara ulaştırılması", "Anket ve geri bildirim süreçlerinin yönetilmesi", "Sistem güvenliğinin sağlanması", "Teknik destek hizmetlerinin sunulması", "Yasal yükümlülüklerin yerine getirilmesi"],
-              },
-              {
-                h: "4. Kişisel Verilerin Aktarılması",
-                p: ["Kişisel veriler;"],
-                b: ["uygulamanın güvenli şekilde çalıştırılması", "kimlik doğrulama hizmetlerinin sağlanması", "bildirim gönderilmesi", "veri barındırma hizmetlerinin yürütülmesi"],
-                after: ["amaçlarıyla hizmet alınan teknoloji sağlayıcılarıyla sınırlı olmak üzere paylaşılabilir.", "Bunun dışında kişisel veriler, ilgili mevzuat kapsamında yetkili kamu kurum ve kuruluşlarının hukuka uygun talepleri dışında üçüncü kişilerle paylaşılmaz."],
-              },
-              {
-                h: "5. Kişisel Verilerin Toplanma Yöntemi",
-                p: ["Kişisel veriler;"],
-                b: ["kullanıcı tarafından uygulamaya girilen bilgiler", "kurumsal kullanıcı kayıtları", "uygulama kullanım süreçleri", "elektronik ortamlar"],
-                after: ["aracılığıyla otomatik yöntemlerle toplanmaktadır."],
-              },
-              {
-                h: "6. Kişisel Verilerin Saklanması",
-                p: ["Kişisel veriler; ilgili mevzuatta öngörülen süreler boyunca veya işleme amacının gerektirdiği süre kadar güvenli şekilde saklanmaktadır.", "Saklama süresi sona eren veriler ilgili mevzuata uygun olarak silinir, yok edilir veya anonim hale getirilir."],
-              },
-              {
-                h: "7. Veri Güvenliği",
-                p: ["Flex Connect kapsamında kişisel verilerin gizliliğini ve güvenliğini sağlamak amacıyla uygun teknik ve idari tedbirler uygulanmaktadır.", "Bu kapsamda;"],
-                b: ["güvenli bağlantılar kullanılmakta", "yetkilendirme kontrolleri uygulanmakta", "erişimler sınırlandırılmakta", "veri güvenliğini artırıcı güncel teknolojiler kullanılmaktadır"],
-              },
-              {
-                h: "8. KVKK Kapsamındaki Haklarınız",
-                p: ["6698 sayılı KVKK'nın 11. maddesi kapsamında kullanıcılar;"],
-                b: ["kişisel verilerinin işlenip işlenmediğini öğrenme", "işlenen verilere ilişkin bilgi talep etme", "verilerin düzeltilmesini isteme", "verilerin silinmesini veya yok edilmesini talep etme", "işlenen verilerin aktarıldığı üçüncü kişileri öğrenme", "kanuna aykırı işleme nedeniyle zararın giderilmesini talep etme"],
-                after: ["haklarına sahiptir."],
-              },
-              {
-                h: "9. İletişim",
-                p: ["KVKK kapsamındaki taleplerinizi aşağıdaki iletişim adresi üzerinden iletebilirsiniz.", "Veri Sorumlusu: Arı Bilgi Bilişim Teknolojileri Akademisi", "E-posta: alparslan.sennturk@gmail.com"],
-              },
-            ]).map((s) => (
-              <div key={s.h} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: T.text, marginBottom: 8 }}>{s.h}</div>
-                {s.p.map((line, i) => (
-                  <p key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text2, margin: "0 0 8px" }}>{line}</p>
-                ))}
-                {s.b && (
-                  <ul style={{ margin: "0 0 8px", paddingLeft: 20 }}>
-                    {s.b.map((item, i) => (
-                      <li key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text2, marginBottom: 4 }}>{item}</li>
-                    ))}
-                  </ul>
-                )}
-                {s.after?.map((line, i) => (
-                  <p key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text2, margin: "0 0 8px" }}>{line}</p>
-                ))}
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        <MobileLegalKvkkScreen T={T} setScreen={setScreen} />
       )}
 
-      {/* ============ BOTTOM SHEET ============ */}
-      <AnimatePresence>
-        {sheetOpen && (
-          <motion.div
-            key="sheet-backdrop"
-            onClick={() => setSheetOpen(false)}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-            style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)" }}
-          >
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 380, damping: 38 }}
-              style={{ width: "100%", maxHeight: "82vh", display: "flex", flexDirection: "column", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 0", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)" }}>
-          <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px", flex: "0 0 auto" }} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 10px", flex: "0 0 auto" }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: T.text, letterSpacing: "-.3px" }}>Yeni Sohbet Başlat</div>
-            <button onClick={() => setSheetOpen(false)} style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: T.card, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <Icon k="close" size={16} color={T.text2} />
-            </button>
-          </div>
-          <div style={{ padding: "0 16px 12px", flex: "0 0 auto" }}>
-            <div style={searchWrapStyle}>
-              <Icon k="search" size={17} color={T.muted} />
-              <input value={quickStartQuery} onChange={(e) => setQuickStartQuery(e.target.value)} placeholder="Kişi ara..." style={searchFieldStyle} />
-            </div>
-          </div>
-          <div style={{ overflowY: "auto", padding: "0 16px 16px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-              {[
-                { k: "channel" as const, title: "Yeni Kanal", desc: "Kurumsal duyurular · tek yönlü akış", tone: "#2867bd" },
-                { k: "group" as const, title: "Yeni Grup", desc: "Personel/eğitmen ile karşılıklı sohbet", tone: "#2E8B57" },
-                { k: "community" as const, title: "Yeni Topluluk", desc: "Birden çok grubu tek çatıda topla", tone: "#6C5CE7" },
-              ].map((o) => (
-                <button key={o.k} onClick={() => startCreate(o.k)} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: o.tone + (dark ? "26" : "1F"), color: o.tone }}><Icon k={o.k} size={21} sw={2} /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{o.title}</div>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{o.desc}</div>
-                  </div>
-                  <Icon k="chev" size={19} color={T.chev} />
-                </button>
-              ))}
-              <button onClick={() => { setSheetOpen(false); setScreen("archive"); }} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.text2 + (dark ? "26" : "1F"), color: T.text2 }}><Icon k="archive" size={20} sw={2} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>Arşiv</div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>Arşivlenmiş sohbetler</div>
-                </div>
-                <Icon k="chev" size={19} color={T.chev} />
-              </button>
-            </div>
-
-            {quickStartQuery.trim() === "" && (() => {
-              const recentDms = conversations
-                .filter((c): c is typeof c & { peerUid: string; lastMessage: NonNullable<typeof c["lastMessage"]> } =>
-                  c.type === "dm" && !!c.peerUid && !!c.lastMessage)
-                .sort((a, b) => b.lastMessage.at.localeCompare(a.lastMessage.at))
-                .slice(0, 5);
-              if (recentDms.length === 0) return null;
-              return (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>Sık Görüşülenler</div>
-                  <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-                    {recentDms.map((c, i, arr) => (
-                      <button
-                        key={c.id}
-                        onClick={() => { setSheetOpen(false); openDirectMessage(c.peerUid, c.realm); }}
-                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
-                      >
-                        <div style={avatarBox(T.brand, 42)}>{initials(c.name || "?")}<PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.card} /></div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{c.name}</div>
-                        </div>
-                        <Icon k="chev" size={18} color={T.chev} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {[
-              { title: "Personel", list: staffDirectory, realm: "staff" as const, view: "staff" as const },
-              { title: "Öğrenciler", list: studentDirectory, realm: "trainer_student" as const, view: "students" as const },
-            ].map(({ title, list, realm, view }) => {
-              const q = quickStartQuery.trim().toLowerCase();
-              const rows = q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
-              if (rows.length === 0) return null;
-              return (
-                <div key={title} style={{ marginBottom: 14 }}>
-                  <div
-                    onClick={() => { setSheetOpen(false); setStaffTabView(view); setTab("staff"); }}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 2px 8px", cursor: "pointer" }}
-                  >
-                    <span style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em" }}>{title}</span>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: T.brand }}>Tümünü gör</span>
-                  </div>
-                  <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-                    {rows.map((p, i, arr) => (
-                      <button
-                        key={p.uid}
-                        onClick={() => { setSheetOpen(false); openDirectMessage(p.uid, realm); }}
-                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
-                      >
-                        <div style={avatarBox(T.brand, 42)}>{initials(p.name)}<PresenceDot signal={presenceMap.get(p.uid)} ring={T.card} /></div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
-                        </div>
-                        <Icon k="chev" size={18} color={T.chev} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <MobileQuickStartSheet
+        T={T} dark={dark} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} searchWrapStyle={searchWrapStyle}
+        searchFieldStyle={searchFieldStyle} quickStartQuery={quickStartQuery} setQuickStartQuery={setQuickStartQuery}
+        startCreate={startCreate} setScreen={setScreen} conversations={conversations} openDirectMessage={openDirectMessage}
+        presenceMap={presenceMap} staffDirectory={staffDirectory} studentDirectory={studentDirectory}
+        setStaffTabView={setStaffTabView} setTab={setTab}
+      />
 
       {/* Presence durum seçici (2026-07-20) — SADECE personel, "Yeni Oluştur"
           sheet'iyle AYNI bottom-sheet görsel dili. */}
-      <AnimatePresence>
-        {presenceSheetOpen && (
-          <motion.div
-            key="presence-sheet-backdrop"
-            onClick={() => setPresenceSheetOpen(false)}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-            style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)" }}
-          >
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 380, damping: 38 }}
-              style={{ width: "100%", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 26px", paddingBottom: "max(26px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)" }}>
-          <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px" }} />
-          <div style={{ fontSize: 16, fontWeight: 800, color: T.text, padding: "6px 18px 10px", letterSpacing: "-.3px" }}>Durumun</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 16px 8px" }}>
-            {([
-              { status: "online" as PresenceStatus, title: "Çevrimiçi", desc: "Mesajlara açık görünürsün", color: "#22C55E" },
-              { status: "in_class" as PresenceStatus, title: "Derste", color: "#F59E0B", desc: "Şu an ders veriyorsun" },
-              { status: "dnd" as PresenceStatus, title: "Rahatsız Etmeyin", color: "#F59E0B", desc: "Meşgulsün, sonra bakacaksın" },
-            ]).map((o) => (
-              <button
-                key={o.status}
-                onClick={async () => {
-                  setPresenceSheetOpen(false);
-                  setMyPresenceStatusLocal(o.status);
-                  await setMyPresenceStatus(o.status);
-                }}
-                style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${myPresenceStatus === o.status ? T.brand : T.border}`, background: myPresenceStatus === o.status ? T.brandBg : T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-              >
-                <span style={{ width: 12, height: 12, borderRadius: "50%", background: o.color, flex: "0 0 auto" }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{o.title}</div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{o.desc}</div>
-                </div>
-                {myPresenceStatus === o.status && <Icon k="check" size={18} sw={2.4} color={T.brand} />}
-              </button>
-            ))}
-          </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <MobilePresenceSheet
+        T={T} dark={dark} presenceSheetOpen={presenceSheetOpen} setPresenceSheetOpen={setPresenceSheetOpen}
+        myPresenceStatus={myPresenceStatus} setMyPresenceStatusLocal={setMyPresenceStatusLocal}
+      />
 
       <style jsx global>{`
         @keyframes fcType { 0%,60%,100% { transform: translateY(0); opacity:.5; } 30% { transform: translateY(-3px); opacity:1; } }
