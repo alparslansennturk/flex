@@ -775,3 +775,136 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
    çağıran kod route'lar/hook değişmeden geçiş yapılabilir — kodun kendi yorumunda
    da belirtilmiş). **Kod değişikliği HENÜZ YAPILMADI** — connect bölme + kalan
    apiError migrasyonundan sonra sıraya alınacak, k6 testinden önce.
+
+## Yeniden inceleme (2026-08-03) — connect mega-component bölmesi sonrası
+
+> 2026-08-02 incelemesinin bulduğu asıl kör nokta (`connect/page.tsx` 2597 satır,
+> `connect/mobile/page.tsx` 2690 satır) üzerine aynı gün yapılan bölme çalışmasının
+> BAĞIMSIZ denetimi. Yöntem: hiçbir iddiaya güvenilmedi — `git log`'da 14 commit
+> hash'i tek tek doğrulandı, `wc -l`/`git show <commit>~1:<path> | wc -l` ile
+> öncesi/sonrası satır sayıları gerçekten sayıldı, `tsc --noEmit` HEM normal HEM
+> `--noUnusedLocals --noUnusedParameters` ile (proje varsayılanında kapalı, kasıtlı
+> daha katı) çalıştırıldı, `eslint` hem varsayılan config hem zorla `no-unused-vars:
+> error` override'ıyla tarandı (ikincisinin çoğu sonucu type-signature parametre
+> adları olduğu için YANLIŞ POZİTİF çıktı, aşağıda not edildi), `npm test`
+> çalıştırıldı, iki ana sayfa (`connect/page.tsx` 1293 satır, `connect/mobile/
+> page.tsx` 1104 satır) BAŞTAN SONA okundu, riskli 4 `_shared/` dosyası
+> (`ConversationThread.tsx`, `MobileChatScreen.tsx`, `usePushNotifications.ts`,
+> `usePresenceTracking.ts`) tam okunup prop wiring elle çapraz kontrol edildi.
+
+**Yeni puan: 8/10** (önceki: 6.5/10) — SADECE kod kalitesi/yapısı ölçülüyor.
+Gerekçe: önceki incelemenin en somut, en büyük eleştirisi (checklist'in kör
+noktası olan iki mega-component) bu oturumda GERÇEKTEN ve doğrulanabilir şekilde
+küçültüldü — iddia edilen her sayı/commit birebir doğru çıktı, sıfır regresyon
+bulundu, kod tekrarı yok (madde 2'deki bilinen istisna hariç). 9-10 değil 8
+olmasının nedeni saf kod kalitesi: kalan boyut (1293/1104 satır) hâlâ göreceli
+büyük ve masaüstü/mobil arasında hook-çıkarım derinliği asimetrik (bkz. madde 2).
+
+**Not — test durumu puana KARIŞTIRILMADI, ayrı bir eksen:** Bu oturumdaki
+14 commit'in hiçbiri tarayıcıda test edilmedi (bkz. aşağıdaki risk #1) — ama bu
+kodun KALİTESİYLE ilgili bir şey söylemiyor, "bu değişikliğin production'da
+davranışının doğrulanma durumu" ayrı bir soru. Önceki taslakta bu ikisi tek
+puana karıştırılmıştı — düzeltildi. Test durumu aşağıda ayrı bir risk maddesi
+olarak duruyor, kod-kalitesi puanını düşürmüyor.
+
+**Doğrulanan iddialar (hepsi gerçek):**
+- **Commit'ler:** `7b2c13c`, `46caa5d`, `9c218a3`, `2b8cc34` (masaüstü) + `0643af3`,
+  `e724a42`, `e4ef612`, `5a7cfcf`, `8125931`, `61fbd0e`, `ba1413a`, `a1291ba`,
+  `e7822e9`, `e616f7c` (mobil) — 14/14 commit `git log`'da gerçekten var, mesajları
+  iddia edilenle eşleşiyor, hepsi 2026-08-03 tarihli.
+- **Satır sayıları — `wc -l` ile gerçek tarama, birebir doğru:**
+  `connect/page.tsx` 2597 → **1293** (commit öncesi `git show 7b2c13c~1` ile
+  doğrulandı: tam 2597). `connect/mobile/page.tsx` 2690 → **1104** (`git show
+  0643af3~1` ile doğrulandı: tam 2690). Ara adım iddiası (`8125931` sonrası 1317)
+  de commit sırasıyla tutarlı.
+- **Yeni `_shared/` dosyaları gerçekten var ve makul boyutta:** 16 yeni dosya
+  (`CreateConversationModal` 481, `ConnectIconRail` 132, `ConversationListColumn`
+  329, `ConversationThread` 601, `mobileTheme` 179, `mobileTypes` 6,
+  `MobileAppScreen` 512, `MobileChatScreen` 398, `MobileCreateScreen` 167,
+  `MobileMiscScreens` 320, `MobileSheets` 217, `useViewportHeight` 36,
+  `usePwaEnvironment` 39, `useConnectTheme` 40, `usePushNotifications` 177,
+  `usePresenceTracking` 54) — tek dev component yerine hiçbiri 700 satırı
+  geçmeyen, tek-sorumluluklu parçalar.
+- **`tsc --noEmit -p .` temiz** (varsayılan proje ayarıyla). Daha da ileri gidilip
+  proje varsayılanında KAPALI olan `--noUnusedLocals --noUnusedParameters` ile de
+  çalıştırıldı — connect ailesinde çıkan TEK 2 sonuç (`connectClient.ts`'teki
+  `auth` importu, 2 route'ta kullanılmayan `req` parametresi) bugünkü değişiklikten
+  ÖNCE de vardı (`connectClient.ts` zaten var olan bir dosya, bugün dokunulmadı) —
+  **bugün oluşturulan 16 yeni dosyanın HİÇBİRİNDE ölü kod/kullanılmayan import
+  yok.**
+- **`eslint src/app/flexos/connect`**: varsayılan config ile sadece 4 uyarı, 0
+  hata (`connectClient.ts::auth` unused-var, `mobile/page.tsx`'te 2 + `page.tsx`'te
+  1 exhaustive-deps `openChat`/`GUEST_TITLES` uyarısı). Bu 3 exhaustive-deps
+  uyarısı YENİ DEĞİL — `git show <önceki-commit>` ile kontrol edildi, aynı
+  `fromUrl`/`GUEST_TITLES` deseni refactor ÖNCESİ de aynı şekilde vardı (fonksiyon
+  hoisting'e dayanan, davranışsal olarak zararsız bir eslint kısıtı). **Zorla
+  `no-unused-vars: error` override'ıyla taratılan "83 problem" YANIŞ POZİTİFTİ** —
+  neredeyse tamamı `interface XProps { onFoo: (id: string, name: string) => void }`
+  gibi TİP İMZALARINDAKİ parametre adları (gövdesi olmayan, sadece okunabilirlik
+  için isimlendirilmiş), gerçek kod değil; projenin normal typescript-eslint
+  konfigürasyonu bunları zaten doğru şekilde yok sayıyor.
+- **`npm test` → 107/107** (değişmedi, regresyon yok — beklenen, bu refactor test
+  kapsamındaki servis katmanına dokunmuyor).
+- **Prop wiring elle çapraz kontrol edildi, hata bulunamadı:** `ConversationThread`
+  (~65 prop) ve `MobileChatScreen` (~40 prop) interface'leri ile ana sayfalardaki
+  çağrı satırları tek tek karşılaştırıldı — eksik/fazla/yanlış-adlandırılmış prop
+  yok. `usePushNotifications`/`usePresenceTracking` hook'ları temiz, iyi
+  yorumlanmış, imzaları (`authUser, studentPersonId, isIOS, isStandalone` /
+  `uids, studentPersonId`) iddia edilenle birebir eşleşiyor; "hangi uid'lere
+  abone olunacağı" hesabının bilerek page.tsx'te (`useMemo`) bırakılması, hook'un
+  kendi belgelenmiş sınırıyla tutarlı, makul bir ayrım.
+- Her iki ana sayfa (`page.tsx` 1293, `mobile/page.tsx` 1104) uçtan uca okundu:
+  state/effect/handler akışı mantıklı, iyi yorumlanmış (tarih damgalı kullanıcı
+  bulguları hâlâ satır satır iz bırakıyor), extraction sonrası hiçbir yerde
+  "unutulmuş" kopya state/dead branch görülmedi.
+
+**Hâlâ kötü olan / yeni ortaya çıkan riskler (kod-kalitesi puanının PARÇASI
+DEĞİL — kullanıcı kararı: kendi test edecek, ayrı bir eksen):**
+1. **Sıfır tarayıcı testi — en büyük risk, itiraf edilen ve doğrulanmış.** 14
+   commit'in TAMAMI sadece statik doğrulamayla (tsc+eslint) ilerledi; ne masaüstü
+   ne mobil Connect'te tek bir gerçek kullanıcı akışı (mesaj gönder/al, reaksiyon,
+   ek dosya, konuşma oluştur, uzun-basma menüsü, sekme geçişi) dev server'da ya da
+   Claude in Chrome ile denenmedi. Statik araçlar bir prop'un yanlış sırayla
+   geçilmesini (isim eşleşse bile tip uyuşuyorsa) veya bir closure'ın stale
+   kalmasını yakalayamaz — bu sınıf hata SADECE çalışan uygulamada görünür. Gerçek
+   zamanlı chat + presence + push bildirimi gibi zamanlamaya duyarlı bir yüzeyde
+   bu, "kod derleniyor" ile "kullanıcı için çalışıyor" arasındaki farkı kapatmıyor.
+2. **Asimetrik derinlik — masaüstü hâlâ tek dev component.** Mobilde 5 custom hook
+   çıkarıldı (push/presence/tema/viewport/pwa state+effect'leriyle birlikte
+   component'ten TAMAMEN ayrıldı); masaüstünde (`connect/page.tsx`) AYNI mantığın
+   (push bildirimi, presence) hook'a hiç çıkarılmadığı, sadece JSX'in
+   component'lere bölündüğü — sonuç: masaüstü push bildirimi kodu (`toggleNotifPush`/
+   `getOrRefreshPushToken`/`pushTokenRef` — satır 148-252) mobildeki
+   `usePushNotifications.ts` ile neredeyse BİREBİR AYNI mantığı, ayrı bir dosyada,
+   kopya olarak taşıyor. Bu bilinçli bir kapsam kararı olarak not düşülmüş
+   ("istenirse ayrı oturumda ele alınabilir") — makul bir zaman/risk dengesi, ama
+   gerçek bir kod-tekrarı borcu olarak KALIYOR, "yapılmadı" demek yanlış olur ama
+   "bitti" de değil.
+3. **Kalan boyut hâlâ büyük, sadece göreceli olarak iyi.** 1293/1104 satır tek
+   component olarak sektör standardına göre hâlâ büyük (29-32 `useState`, 16
+   `useEffect` her ikisinde) — 2597/2690'a göre gerçek ve ölçülebilir bir iyileşme,
+   ama "çözüldü" değil "önceki halinden çok daha iyi" demek daha doğru. İki-realm
+   (staff/trainer_student) gerçek zamanlı mesajlaşmanın doğal karmaşıklığı kısmen
+   haklı gerekçe.
+4. **Madde 6 (kalan apiError-suz route'lar, 21 connect-ailesi dosyası) hâlâ açık**
+   — bugünkü oturum sayfa/component bölmesine odaklandı, route katmanına
+   dokunmadı; 2026-08-02'nin bıraktığı "yarınki connect sayfa bölme oturumuna"
+   referansı kısmen yanlış çıktı (bölme oldu ama apiError migrasyonu değil) —
+   sıradaki mini-checklist'e taşındı.
+
+**Sıradaki mini-checklist (yeni):**
+1. **Öncelik #1: gerçek tarayıcı testi.** Dev server + Claude in Chrome (veya
+   canlı Vercel preview) ile hem `/flexos/connect` hem `/flexos/connect/mobile`
+   üzerinden uçtan uca akış: mesaj gönder/al/düzenle/sil, reaksiyon ekle/kaldır,
+   dosya eki yükle, konuşma oluştur (kanal/grup/topluluk üçü de), presence
+   durumu değiştir, push bildirimi aç/kapat, mobilde sekme/ekran geçişleri +
+   uzun-basma menüsü. Bu YAPILMADAN "birebir taşıma, davranış değişikliği yok"
+   iddiası statik doğrulamayla sınırlı kalır.
+2. Masaüstü push bildirimi mantığını (`connect/page.tsx:148-252`) mobildeki
+   `usePushNotifications.ts`'e ORTAK bir hook'a taşı (parametre farkı sadece
+   `isIOS`/`isStandalone`'ın masaüstünde hep `false` olması) — kod tekrarını
+   gerçekten kapatır, madde 2'deki asimetriyi giderir.
+3. 21 connect-ailesi route'un `apiError` migrasyonu (2026-08-02'den beri açık,
+   bugün ele alınmadı) — SSE (`realtime/stream`) hariç.
+4. `realtime-hub.ts`/`read-cache.ts` → Upstash Redis geçişi (madde 6, hâlâ kod
+   değişikliği yapılmadı).
