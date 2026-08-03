@@ -11,7 +11,7 @@
  *    bkz. `connect-service.ts::listConversationsForPrincipal`).
  */
 
-import { useEffect, useRef, useState, useCallback, useLayoutEffect, type ComponentType } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap, Pencil, Trash2, X, Smile, Check, CheckCheck, ChevronDown, Reply, Copy, Star, StarOff } from "lucide-react";
@@ -20,7 +20,7 @@ import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type ConnectConversationType, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
   type PresenceSignal,
-  fetchConversations, fetchMessages, postMessage, markConversationRead, subscribeToMessages,
+  fetchConversations, fetchMessages, mergeMessageViews, postMessage, markConversationRead, subscribeToMessages, subscribeToReceipts, subscribeToConversationUpdates,
   subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation, editMessage, deleteMessage, setMessageReaction, toggleMessageStar,
   sendMessageWithAttachment, subscribeToPresence, isPresenceOffline,
 } from "@/app/flexos/connect/_shared/connectClient";
@@ -116,6 +116,7 @@ export default function StudentConnectPage() {
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
   // Mesaj düzenle/sil (WhatsApp — 2026-07-18).
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -154,6 +155,17 @@ export default function StudentConnectPage() {
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => { fetchTrainerDirectory(personId).then(setTrainerDirectoryList); }, [personId]);
+
+  // Konuşma listesi canlılığı (2026-08-03 kullanıcı bulgusu) — bkz. connect/page.tsx
+  // aynı tarihli yorum. `loadConversations()` DEĞİL — loading spinner göstermeden
+  // arka planda sessizce tazeliyoruz.
+  const conversationIdsKey = useMemo(() => conversations.map((c) => c.id).sort().join(","), [conversations]);
+  useEffect(() => {
+    if (!conversationIdsKey) return;
+    return subscribeToConversationUpdates(conversationIdsKey.split(","), () => {
+      fetchConversations(personId).then(setConversations);
+    });
+  }, [conversationIdsKey, personId]);
 
   useEffect(() => {
     const uids = trainerDirectoryList.map((u) => u.uid);
@@ -200,11 +212,64 @@ export default function StudentConnectPage() {
     [conversations, loadConversations, personId, selectConversation],
   );
 
+  // 2026-08-03 kullanıcı bulgusu: bu sayfada HİÇ otomatik seçim yoktu — Connect'e
+  // her girişte "Bir konuşma seçin" boş ekranında kalıyordu, okunmamış mesajı olsa
+  // bile kullanıcı elle listeye gidip tıklamak zorundaydı ("sohbetler ön planda
+  // olmalı"). Okunmamışı olan İLK konuşmayı (liste zaten en-yeni-üstte sıralı)
+  // önceliklendirip otomatik açıyoruz; hiç okunmamış yoksa listenin ilkini.
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (autoSelectedRef.current || loadingList || conversations.length === 0) return;
+    const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
+    if (candidates.length === 0) return;
+    autoSelectedRef.current = true;
+    const target = candidates.find((c) => c.unreadCount > 0) ?? candidates[0];
+    setNavTab(target.type);
+    selectConversation(target.id);
+  }, [conversations, loadingList, selectConversation]);
+
+  // 2026-08-03 kullanıcı bulgusu: tikler geri düşüyordu (yarış durumu, bkz.
+  // connect/page.tsx aynı tarihli yorum — bu sayfa `connect/page.tsx` ve
+  // `connect/mobile/page.tsx`'ten AYRI bağımsız bir kopya, aynı fix'ler burada da
+  // gerekiyor) ve sohbet AÇIKKEN gelen mesaj hiç okundu işaretlenmiyordu.
   useEffect(() => {
     if (!selectedId) return;
-    const unsub = subscribeToMessages(selectedId, () => { fetchMessages(selectedId, personId).then(setMessages); });
+    const unsub = subscribeToMessages(selectedId, () => {
+      fetchMessages(selectedId, personId).then((fresh) => {
+        setMessages((prev) => mergeMessageViews(prev, fresh));
+        const last = fresh[fresh.length - 1];
+        if (last && !last.isMine) markConversationRead(selectedId, personId);
+      });
+    });
     return unsub;
   }, [selectedId, personId]);
+
+  // Okundu/teslim tikleri (2026-08-03 kullanıcı bulgusu: bu sayfada hiç receipts
+  // dinleyicisi yoktu — eğitmen kendi mesajını okuyunca öğrenci ekranı sadece
+  // sayfa yenilenince yeşile dönüyordu). Eğitmen sayfasındaki (`connect/page.tsx`)
+  // AYNI desen — `members` alt-koleksiyonunun kendi `onSnapshot`'ı.
+  useEffect(() => {
+    if (!selectedId) return;
+    const myUid = auth.currentUser?.uid;
+    const unsub = subscribeToReceipts(selectedId, (receipts) => {
+      const others = receipts.filter((r) => r.uid !== myUid);
+      const otherReadAts = others.map((r) => r.lastReadAt).filter((t): t is string => !!t);
+      const otherDeliveredAts = others.map((r) => r.lastDeliveredAt).filter((t): t is string => !!t);
+      setMessages((prev) => {
+        let changed = false;
+        const next = prev.map((m) => {
+          if (!m.isMine) return m;
+          const readByAll = otherReadAts.length > 0 ? otherReadAts.every((t) => t >= m.createdAt) : undefined;
+          const deliveredByAll = otherDeliveredAts.length > 0 ? otherDeliveredAts.every((t) => t >= m.createdAt) : undefined;
+          if (readByAll === m.readByAll && deliveredByAll === m.deliveredByAll) return m;
+          changed = true;
+          return { ...m, readByAll, deliveredByAll };
+        });
+        return changed ? next : prev;
+      });
+    });
+    return unsub;
+  }, [selectedId]);
 
   useEffect(() => {
     setTypingSignals([]);
@@ -221,8 +286,22 @@ export default function StudentConnectPage() {
 
   // İlk yüklemede anında en alta atla, sonraki yeni mesajlar yumuşak kaysın
   // (2026-07-18 bug fix — bkz. ConnectWidget.tsx/connect/page.tsx AYNI yorum).
+  // 2026-08-03 kullanıcı bulgusu: `scrollIntoView({behavior:"auto"})` ilk
+  // yüklemede bile GÖZLE GÖRÜLÜR şekilde yukarıdan aşağı kayıyordu — konteynerin
+  // scroll pozisyonunu doğrudan `scrollTop = scrollHeight` ile ayarlamak (tarayıcının
+  // scrollIntoView iç sezgisine/ata-zincirine bağlı olmadan) gerçekten anlık.
   useLayoutEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    // `selectConversation` mesajları geçici olarak `[]`'e temizliyor (önceki
+    // konuşmanın mesajlarının yanlışlıkla görünmeye devam etmesini önlemek için)
+    // — bu ARA ADIM `firstLoadRef`'i tüketmesin diye burada tamamen atlanıyor,
+    // yoksa gerçek veri geldiğinde bayrak zaten `false` olup "smooth" (gözle
+    // görülür kayan) scroll'a düşüyordu.
+    if (messages.length === 0) return;
+    if (firstLoadRef.current) {
+      if (messagesContainerRef.current) messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
     firstLoadRef.current = false;
   }, [messages]);
 
@@ -317,7 +396,7 @@ export default function StudentConnectPage() {
       }),
     );
     const ok = await setMessageReaction(selectedId, messageId, next, personId);
-    if (!ok) fetchMessages(selectedId, personId).then(setMessages);
+    if (!ok) fetchMessages(selectedId, personId).then((fresh) => setMessages((prev) => mergeMessageViews(prev, fresh)));
   }
 
   const filtered = conversations
@@ -474,7 +553,7 @@ export default function StudentConnectPage() {
 
             {/* `paddingBottom` kasıtlı büyük (2026-07-20, bkz. personel sayfası AYNI fix)
                 — en son mesajın altında HER ZAMAN menünün sığacağı kadar boş alan bırakır. */}
-            <div className="flex-1 overflow-y-auto" style={{ padding: "26px 0 240px" }}>
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto" style={{ padding: "26px 0 240px" }}>
               <div className="flex flex-col gap-1" style={{ maxWidth: 760, margin: "0 auto", padding: "0 32px" }}>
                 {loadingMessages ? (
                   <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-surface-400" /></div>

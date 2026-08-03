@@ -20,7 +20,7 @@
  *    eğitmenin KENDİ grubunun roster'ı, `/api/flexos/groups/[id]/roster`).
  */
 
-import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -33,7 +33,7 @@ import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectRealm,
   type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView, type PresenceSignal, type PresenceStatus,
-  fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
+  fetchConversations, fetchMessages, mergeMessageViews, postMessage, markConversationRead, subscribeToConversationUpdates, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, subscribeToReceipts, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
   setConversationPinned, setConversationArchived, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, clearConversation, fetchStarredMessages,
@@ -270,6 +270,18 @@ export default function FlexConnectPage() {
     fetchStudentDirectory().then(setStudentDirectoryList);
   }, []);
 
+  // Konuşma listesi canlılığı (2026-08-03 kullanıcı bulgusu: karşı taraftan mesaj
+  // gelince badge/önizleme hiç güncellenmiyordu, sadece ilk yüklemede/kendi
+  // aksiyonunda tazeleniyordu). `loadConversations()` DEĞİL — o loading spinner
+  // gösterip listeyi anlık boşaltıyor, arka planda sessizce tazeliyoruz.
+  const conversationIdsKey = useMemo(() => conversations.map((c) => c.id).sort().join(","), [conversations]);
+  useEffect(() => {
+    if (!conversationIdsKey) return;
+    return subscribeToConversationUpdates(conversationIdsKey.split(","), () => {
+      fetchConversations().then(setConversations);
+    });
+  }, [conversationIdsKey]);
+
   // Presence aboneliği — SADECE gerçekten ekranda görünebilecek kişiler
   // (2026-07-20 okuma-optimizasyonu kullanıcı isteği: "39k okuma olmuş, azalsın").
   // Önceden TÜM personel+öğrenci rosterına (yüzlerce kişi olabilir) her sayfa
@@ -346,7 +358,9 @@ export default function FlexConnectPage() {
     const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
     if (candidates.length === 0) return;
     autoSelectedRef.current = true;
-    const top = candidates[0];
+    // 2026-08-03 kullanıcı bulgusu: okunmamışı olan sohbet varsa o önceliklendirilsin
+    // ("sohbetler ön planda olmalı") — önceden her zaman listenin ilki açılıyordu.
+    const top = candidates.find((c) => c.unreadCount > 0) ?? candidates[0];
     setNavTab(top.type);
     selectConversation(top.id);
   }, [conversations, loadingList, selectConversation]);
@@ -605,9 +619,19 @@ export default function FlexConnectPage() {
 
   // Gerçek zamanlılık — mevcut ödev-chat'iyle AYNI kanıtlanmış desen: Firestore
   // `onSnapshot` yeni mesaj işaret edince API'den (isim/renk çözülmüş) yeniden çeker.
+  // 2026-08-03 kullanıcı bulgusu: `markConversationRead` SADECE sohbete girişte
+  // çağrılıyordu — sohbet AÇIKKEN karşı taraftan yeni mesaj gelirse okundu hiç
+  // yeniden işaretlenmiyordu (WhatsApp'ta açık sohbete gelen mesaj neredeyse anında
+  // okunmuş sayılır). Son mesaj benim değilse burada da işaretliyoruz.
   useEffect(() => {
     if (!selectedId) return;
-    const unsub = subscribeToMessages(selectedId, () => { fetchMessages(selectedId).then(setMessages); });
+    const unsub = subscribeToMessages(selectedId, () => {
+      fetchMessages(selectedId).then((fresh) => {
+        setMessages((prev) => mergeMessageViews(prev, fresh));
+        const last = fresh[fresh.length - 1];
+        if (last && !last.isMine) markConversationRead(selectedId);
+      });
+    });
     return unsub;
   }, [selectedId]);
 
@@ -666,6 +690,11 @@ export default function FlexConnectPage() {
   // gerçekten arttıysa (yeni mesaj) kaydırıyoruz, yoksa kullanıcı geçmişi
   // okurken her 15sn'de bir en alta zıplardı.
   useLayoutEffect(() => {
+    // 2026-08-03 kullanıcı bulgusu: `selectConversation`'ın mesajları geçici
+    // olarak `[]`'e temizlemesi `firstLoadRef`'i ARA ADIMDA tüketiyordu — gerçek
+    // veri geldiğinde bayrak zaten `false` olup "smooth" (gözle görülür kayan)
+    // scroll'a düşüyordu. Boş diziyi tamamen atlıyoruz.
+    if (messages.length === 0) return;
     const grew = messages.length > prevMsgCountRef.current;
     if (firstLoadRef.current || grew) {
       bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
@@ -782,7 +811,7 @@ export default function FlexConnectPage() {
       }),
     );
     const ok = await setMessageReaction(selectedId, messageId, next);
-    if (!ok) fetchMessages(selectedId).then(setMessages);
+    if (!ok) fetchMessages(selectedId).then((fresh) => setMessages((prev) => mergeMessageViews(prev, fresh)));
   }
 
   const filtered = conversations

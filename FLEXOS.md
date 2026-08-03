@@ -29,6 +29,13 @@
 
 ### Şu an gerçekten açık olanlar
 
+- **🔴 SIRADAKİ (2026-08-04 ilk iş): Connect mobil sayfada da mesaj kayması/tik sorunları var** —
+  masaüstü+öğrenci sayfalarında 2026-08-03/04'te 6 gerçek bulgu düzeltildi (tik geri düşme,
+  açık-sohbette-okundu, liste canlılığı, öğrenci receipts eksikliği, otomatik-seçim,
+  scroll-kayması — detay `FLEXOS_TEKNIK_BORC.md` sonunda). `connect/mobile/page.tsx`'e KISMEN
+  aynı fix'ler uygulandı (tik-merge, açık-sohbette-okundu, liste canlılığı, scroll-kayması) ama
+  kullanıcı mobilde HALA "mesaj kayıyor" gibi sorunlar bildirdi — canlı telefon/PWA testiyle
+  yeniden ele alınacak.
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
 - **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
   kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).

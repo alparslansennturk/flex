@@ -169,6 +169,11 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
   void tick;
 
   useLayoutEffect(() => {
+    // 2026-08-03 kullanıcı bulgusu (connect/page.tsx'te bulundu, aynı desen
+    // burada da var): mesajları geçici olarak `[]`'e temizleyen ara adım
+    // `firstLoadRef`'i tüketiyordu — gerçek veri geldiğinde bayrak zaten `false`
+    // olup "smooth" (gözle görülür kayan) scroll'a düşüyordu.
+    if (messages.length === 0) return;
     bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
     firstLoadRef.current = false;
   }, [messages]);

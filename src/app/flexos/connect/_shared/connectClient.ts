@@ -125,6 +125,30 @@ export async function fetchMessages(conversationId: string, personId?: string): 
   return data.items;
 }
 
+/**
+ * `fetchMessages()` her tetiklendiğinde TÜM diziyi sunucudan taze veriyle değiştirir —
+ * ama bu istek `subscribeToReceipts`'in anlık client-side tik yamasından DAHA YAVAŞ
+ * gelip DAHA ESKİ bir anda hesaplanmış (henüz teslim/okunmamış) bir görünümü
+ * getirebilir (2026-08-03 kullanıcı bulgusu: tik "önce oldu gibi oldu, sonra oldu").
+ * `readByAll`/`deliveredByAll` MANTIKSAL OLARAK MONOTON (bir mesaj bir kez
+ * teslim/okunmuşsa asla geri dönmez) — bu yüzden taze cevabı uygularken bu İKİ ALANI
+ * var olan state'teki `true` değerini asla düşürmeyecek şekilde birleştiriyoruz.
+ * Diğer HER alan (metin, düzenleme, silme, reaksiyon, ek, yıldız...) her zaman
+ * sunucudan gelen `fresh` ile TAMAMEN değişir — merge SADECE bu iki alana özel.
+ */
+export function mergeMessageViews(prev: MessageView[], fresh: MessageView[]): MessageView[] {
+  if (prev.length === 0) return fresh;
+  const prevById = new Map(prev.map((m) => [m.id, m]));
+  return fresh.map((m) => {
+    const old = prevById.get(m.id);
+    if (!old) return m;
+    const readByAll = m.readByAll === true || old.readByAll === true ? true : m.readByAll;
+    const deliveredByAll = m.deliveredByAll === true || old.deliveredByAll === true ? true : m.deliveredByAll;
+    if (readByAll === m.readByAll && deliveredByAll === m.deliveredByAll) return m;
+    return { ...m, readByAll, deliveredByAll };
+  });
+}
+
 export async function postMessage(
   conversationId: string,
   text: string,
@@ -597,6 +621,30 @@ export function subscribeToReceipts(conversationId: string, onChange: (receipts:
     (snap) => onChange(snap.docs.map((d) => ({ uid: d.id, ...(d.data() as { lastReadAt?: string; lastDeliveredAt?: string }) }))),
     (err) => console.error("[connect] receipts onSnapshot hata:", err),
   );
+}
+
+/**
+ * Konuşma LİSTESİ ekranı canlılığı (2026-08-03 kullanıcı bulgusu: karşı taraftan
+ * mesaj gelince badge/son mesaj önizlemesi hiç güncellenmiyordu — liste SADECE
+ * ilk yüklemede veya kendi aksiyonunda [`loadConversations()`] yenileniyordu).
+ * `subscribeToPresence`'daki AYNI 30'luk `documentId() "in"` chunk deseni —
+ * içerik hiç okunmuyor, sadece "bir şey değişti" sinyali; çağıran taraf
+ * `fetchConversations()`'ı sessizce (loading spinner GÖSTERMEDEN) yeniden çeker,
+ * unreadCount/lastMessage server'da zaten doğru hesaplanıyor.
+ */
+export function subscribeToConversationUpdates(conversationIds: string[], onChange: () => void): () => void {
+  const unique = [...new Set(conversationIds)].filter(Boolean);
+  if (unique.length === 0) return () => {};
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += 30) chunks.push(unique.slice(i, i + 30));
+  const unsubs = chunks.map((chunk) =>
+    onSnapshot(
+      query(collection(db, "connect_conversations"), where(documentId(), "in", chunk)),
+      () => onChange(),
+      (err) => console.error("[connect] konuşma listesi onSnapshot hata:", err),
+    ),
+  );
+  return () => unsubs.forEach((u) => u());
 }
 
 export interface TypingSignal { uid: string; name: string; at: string }

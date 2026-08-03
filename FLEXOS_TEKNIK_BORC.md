@@ -1000,3 +1000,53 @@ DEĞİL — kullanıcı kararı: kendi test edecek, ayrı bir eksen):**
    değişikliği yapılmadı)~~ — **✅ TAMAMLANDI (2026-08-03)**, bkz. madde 6 detayı.
    Tek açık nokta: gerçek Redis path'i local'de test edilemedi (env yok), k6
    testinden önce preview/prod'da gözle doğrulama öneriliyor.
+
+## Connect okundu/teslim tikleri + sohbet UX — 6 gerçek bulgu, hepsi düzeltildi ve canlı doğrulandı (2026-08-03/04)
+
+Kullanıcının "WhatsApp gibi olsun, tikler dengesiz" şikayetiyle başladı — masaüstü (eğitmen, gizli sekme) +
+öğrenci hesabıyla uçtan uca canlı test edilerek (aynı anda iki sekme, gerçek mesaj alışverişi) 6 ayrı
+kök neden bulundu. Hepsi `tsc --noEmit`/`eslint` temiz, 107/107 test geçti, her biri tarayıcıda canlı
+doğrulandı (varsayımla değil).
+
+1. **Tik geri düşme (race condition).** `subscribeToMessages`'in tetiklediği TAM yeniden-çekme
+   (`fetchMessages` → `setMessages(fresh)`) ile `subscribeToReceipts`'in ANLIK client-side tik yaması
+   aynı state'e yazıyordu, sıralama garantisi yoktu — yavaş kalan tam-yeniden-çekme cevabı, daha yeni
+   ama daha hızlı gelen receipts yamasının üstüne bayat veri yazıp tiki geri düşürebiliyordu ("önce oldu
+   gibi oldu sonra olmadı"). **Çözüm:** `connectClient.ts::mergeMessageViews(prev, fresh)` — SADECE
+   `readByAll`/`deliveredByAll` alanlarını monoton birleştirir (true'yu asla düşürmez), diğer TÜM alanlar
+   `fresh`'ten değişmeden gelir. `connect/page.tsx`, `connect/mobile/page.tsx`,
+   `student/[personId]/connect/page.tsx` — her `fetchMessages().then(setMessages)` çağrısı bu fonksiyondan
+   geçecek şekilde güncellendi.
+2. **Sohbet AÇIKKEN gelen mesaj okundu işaretlenmiyordu.** `markConversationRead` SADECE sohbete girişte
+   çağrılıyordu — WhatsApp'ta açık sohbete gelen mesaj neredeyse anında okunmuş sayılır. Aynı 3 dosyada
+   `subscribeToMessages` handler'ı, gelen son mesaj kendisi değilse `markConversationRead`'i de çağıracak
+   şekilde genişletildi.
+3. **Konuşma LİSTESİ ekranı hiç canlı değildi.** Ne öğrenci ne eğitmen tarafında — liste sadece ilk
+   yüklemede veya kendi aksiyonunda (`loadConversations()`) tazeleniyordu, karşı taraftan mesaj gelince
+   badge/son-mesaj önizlemesi güncellenmiyordu. **Çözüm:** `connectClient.ts::subscribeToConversationUpdates`
+   (yeni) — `subscribeToPresence`'daki AYNI 30'luk `documentId() "in"` chunk deseni, `connect_conversations`
+   dokümanlarını dinler (içerik okumadan, sadece "değişti" sinyali), çağıran taraf `fetchConversations()`'ı
+   SESSİZCE (loading spinner göstermeden) yeniden çeker. Üç sayfaya da eklendi.
+4. **Öğrenci masaüstü sayfasında (`student/[personId]/connect/page.tsx`) receipts dinleyicisi HİÇ yoktu.**
+   Eğitmen sayfasında 2026-07-25'te eklenmiş olan `subscribeToReceipts` deseni bu üçüncü (bağımsız) kopyaya
+   hiç taşınmamıştı — öğrenci kendi gönderdiği mesajın okunma durumunu SADECE sayfa yenilenince görüyordu.
+   Aynı desen birebir eklendi.
+5. **Öğrenci Connect'e her girişte "Bir konuşma seçin" boş ekranında kalıyordu**, hiç otomatik seçim yoktu —
+   okunmamış mesajı olsa bile elle listeye gidip tıklamak zorundaydı ("sohbetler ön planda olmalı" —
+   kullanıcı isteği). Eğitmen sayfasında kısmi bir otomatik-seçim vardı ama okunmamışı önceliklendirmiyordu
+   (`candidates[0]`). İkisi de düzeltildi: okunmamışı olan İLK konuşma önceliklendirilip otomatik açılıyor.
+6. **Sohbete girince ekran gözle görülür şekilde yukarıdan aşağı kayıyordu** ("berbat", kullanıcı ifadesi).
+   Kök neden: `selectConversation`/`openChat` mesajları geçici olarak `[]`'e temizliyor (önceki konuşmanın
+   mesajlarının yanlışlıkla görünmesini önlemek için, 2026-07-18'den beri var olan BİLEREK yapılan bir şey)
+   — ama bu ARA ADIM `firstLoadRef` bayrağını (ilk yükleme = anında zıpla, sonraki = yumuşak kay ayrımını
+   sağlayan) TÜKETİYORDU. Gerçek veri geldiğinde bayrak zaten `false` olup "smooth" (animasyonlu, gözle
+   görülür) scroll'a düşüyordu. **Çözüm:** `messages.length === 0` olan ara adım scroll effect'inde
+   TAMAMEN atlanıyor artık — 4 dosyada (`connect/page.tsx`, `connect/mobile/page.tsx`,
+   `student/[personId]/connect/page.tsx`, `_components/ConnectWidget.tsx`).
+
+**Değişen dosyalar:** `connectClient.ts` (2 yeni export: `mergeMessageViews`, `subscribeToConversationUpdates`),
+`connect/page.tsx`, `connect/mobile/page.tsx`, `student/[personId]/connect/page.tsx`, `_components/ConnectWidget.tsx`.
+
+**Bilinçli kapsam dışı bırakılan (ayrı görev):** Öğrenci masaüstü sayfasında GERÇEK push bildirimi altyapısı
+hâlâ hiç yok (`usePushNotifications` hook'u yok, SW kaydı yok, ayar ekranı yok) — trainer/mobile sayfalarındaki
+AYNI deseni sıfırdan kurmak gerekiyor, bugünkü kapsamdan çok daha büyük bir iş (yeni özellik, bug fix değil).

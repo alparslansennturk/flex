@@ -40,7 +40,7 @@ import { auth, db } from "@/app/lib/firebase";
 import { useMarkConnectReady } from "./SplashGate";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
-  fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToReceipts, subscribeToTyping,
+  fetchConversations, fetchMessages, mergeMessageViews, postMessage, subscribeToMessages, subscribeToReceipts, subscribeToConversationUpdates, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
   setConversationMuted, setConversationArchived, reportIssue, hideConversation, clearConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
@@ -209,6 +209,17 @@ export default function FlexConnectMobile() {
     }
   }, [studentPersonId]);
   useEffect(() => { loadConversations(); }, [loadConversations]);
+
+  // Konuşma listesi canlılığı (2026-08-03 kullanıcı bulgusu) — bkz. connect/page.tsx
+  // aynı tarihli yorum. `loadConversations()` DEĞİL — loading spinner göstermeden
+  // arka planda sessizce tazeliyoruz.
+  const conversationIdsKey = useMemo(() => conversations.map((c) => c.id).sort().join(","), [conversations]);
+  useEffect(() => {
+    if (!conversationIdsKey) return;
+    return subscribeToConversationUpdates(conversationIdsKey.split(","), () => {
+      fetchConversations(studentPersonId ?? undefined).then(setConversations);
+    });
+  }, [conversationIdsKey, studentPersonId]);
 
   // Bildirime tıklayınca ilgili sohbete git (2026-07-20) — iki senaryo:
   // (1) uygulama zaten açık — SW `notificationclick`'te var olan sekmeyi `focus()`
@@ -414,7 +425,16 @@ export default function FlexConnectMobile() {
     // rotasına gidip 403 alıyordu, `fetchMessages` bunu SESSİZCE boş diziye çeviriyor
     // (bkz. connectClient.ts::fetchMessages `if (!res.ok) return []`) — mesajlar
     // görünürden kaybolabiliyordu.
-    const unsub = subscribeToMessages(selectedId, () => { fetchMessages(selectedId, studentPersonId ?? undefined).then(setMessages); });
+    // 2026-08-03 kullanıcı bulgusu: `markConversationRead` SADECE sohbete girişte
+    // çağrılıyordu — sohbet AÇIKKEN karşı taraftan yeni mesaj gelirse okundu hiç
+    // yeniden işaretlenmiyordu. Son mesaj benim değilse burada da işaretliyoruz.
+    const unsub = subscribeToMessages(selectedId, () => {
+      fetchMessages(selectedId, studentPersonId ?? undefined).then((fresh) => {
+        setMessages((prev) => mergeMessageViews(prev, fresh));
+        const last = fresh[fresh.length - 1];
+        if (last && !last.isMine) markConversationRead(selectedId, studentPersonId ?? undefined);
+      });
+    });
     return unsub;
   }, [selectedId, screen, studentPersonId]);
 
@@ -465,6 +485,11 @@ export default function FlexConnectMobile() {
   // yeni bir dizi referansıyla günceller — sadece gerçekten yeni mesaj geldiyse
   // kaydırıyoruz (bkz. flexos/connect/page.tsx aynı tarihli yorum).
   useEffect(() => {
+    // 2026-08-03 kullanıcı bulgusu: `selectConversation`/`openChat`'ın mesajları
+    // geçici olarak `[]`'e temizlemesi `firstLoadRef`'i ARA ADIMDA tüketiyordu —
+    // gerçek veri geldiğinde bayrak zaten `false` olup "smooth" (gözle görülür
+    // kayan) scroll'a düşüyordu. Boş diziyi tamamen atlıyoruz.
+    if (messages.length === 0) return;
     const grew = messages.length > prevMsgCountRef.current;
     if (firstLoadRef.current || grew) {
       bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
@@ -490,7 +515,8 @@ export default function FlexConnectMobile() {
     setSending(false);
     if (err?.error) { toast.error(err.error); setDraft(text); return; }
     setReplyingTo(null);
-    setMessages(await fetchMessages(selectedId, studentPersonId ?? undefined));
+    const fresh = await fetchMessages(selectedId, studentPersonId ?? undefined);
+    setMessages((prev) => mergeMessageViews(prev, fresh));
     loadConversations();
   }
   function onDraftChange(v: string) {
@@ -513,7 +539,8 @@ export default function FlexConnectMobile() {
       if (err?.error) toast.error(err.error);
       else {
         setDraft("");
-        setMessages(await fetchMessages(selectedId, studentPersonId ?? undefined));
+        const fresh = await fetchMessages(selectedId, studentPersonId ?? undefined);
+        setMessages((prev) => mergeMessageViews(prev, fresh));
         loadConversations();
       }
     } finally {
@@ -590,7 +617,7 @@ export default function FlexConnectMobile() {
       }),
     );
     const ok = await setMessageReaction(selectedId, messageId, next, studentPersonId ?? undefined);
-    if (!ok) fetchMessages(selectedId, studentPersonId ?? undefined).then(setMessages);
+    if (!ok) fetchMessages(selectedId, studentPersonId ?? undefined).then((fresh) => setMessages((prev) => mergeMessageViews(prev, fresh)));
   }
 
   /** Long-press (2026-07-20) — ~450ms eşik, erken bırakılırsa/parmak kayarsa iptal.
