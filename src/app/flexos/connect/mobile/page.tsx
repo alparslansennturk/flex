@@ -63,6 +63,7 @@ import {
 } from "@/app/flexos/connect/_shared/MobileMiscScreens";
 import { MobileQuickStartSheet, MobilePresenceSheet } from "@/app/flexos/connect/_shared/MobileSheets";
 import { useViewportHeight } from "@/app/flexos/connect/_shared/useViewportHeight";
+import { usePwaEnvironment } from "@/app/flexos/connect/_shared/usePwaEnvironment";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
@@ -79,24 +80,7 @@ export default function FlexConnectMobile() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   useEffect(() => onAuthStateChanged(auth, setAuthUser), []);
 
-  // iOS (Safari/Chrome-iOS, ikisi de aynı WebKit motoru) tespiti — 47px'lik
-  // viewport açığı SADECE bu platformda var (Android/masaüstü etkilenmemeli),
-  // bu yüzden aşağıdaki gri-zemin+shadow gizleme stili yalnızca burada devrede.
-  const [isIOS, setIsIOS] = useState(false);
-  useEffect(() => {
-    const ua = window.navigator.userAgent;
-    setIsIOS(/iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1));
-  }, []);
-
-  // iOS'ta Notification.requestPermission() SADECE Ana Ekran'a eklenip standalone
-  // açılan PWA'da native izin diyaloğu gösterir — normal Safari sekmesinde sessizce
-  // (diyalogsuz) "denied" döner ve uygulama Ayarlar > Bildirimler'de HİÇ görünmez.
-  // Bu yüzden izin istemeden ÖNCE standalone kontrolü şart (2026-07-19).
-  const [isStandalone, setIsStandalone] = useState(false);
-  useEffect(() => {
-    const nav = window.navigator as Navigator & { standalone?: boolean };
-    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true);
-  }, []);
+  const { isIOS, isStandalone } = usePwaEnvironment();
 
   // Rol tespiti (2026-07-19) — AYNI kurulu PWA (`/flexos/connect/mobile`, manifest
   // scope'u bu URL'e sabit, ayrı bir route'a yönlendirme PWA modundan çıkarır) hem
