@@ -773,8 +773,34 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
    iş yok — sadece `realtime-hub.ts`'i mevcut Upstash bağlantısına yönlendirmek
    gerekiyor (`subscribe`/`broadcast` imzası aynı kalacak şekilde tasarlanmış,
    çağıran kod route'lar/hook değişmeden geçiş yapılabilir — kodun kendi yorumunda
-   da belirtilmiş). **Kod değişikliği HENÜZ YAPILMADI** — connect bölme + kalan
-   apiError migrasyonundan sonra sıraya alınacak, k6 testinden önce.
+   da belirtilmiş).
+
+   **✅ TAMAMLANDI (2026-08-03).** `read-cache.ts` (`cachedRead`/`invalidateCache`) ve
+   `realtime-hub.ts` (`subscribe`/`broadcast`) Upstash Redis'e taşındı, dış imzalar
+   DEĞİŞMEDİ (çağıran ~9 route + ~38 `broadcast()` çağrısı + SSE route hiç dokunulmadı).
+   `UPSTASH_REDIS_REST_URL`/`TOKEN` yoksa (local dev) eski in-memory `Map` davranışı
+   birebir korunuyor — `rate-limit.ts`'teki kanıtlanmış fallback deseni tekrarlandı.
+   - **`read-cache.ts`:** Redis path'te `GET`/`SET ex` kullanıyor; `invalidateCache`
+     senkron imzasını koruyor ama Redis path'inde gerçek `KEYS`+`DEL` işi Next.js
+     `after()` içinde — response gönderildikten sonra bile tamamlanması garanti
+     (awaitlenmemiş bir Promise Vercel'de fonksiyon dönüşüyle kesilebilirdi).
+     In-flight coalescing (aynı anahtara eşzamanlı çağrılar) BİLEREK hâlâ
+     process-lokal — dağıtık kilit gerektirmiyor, amacı sadece "aynı instance'ta
+     aynı anda aynı şeyi 2 kere isteme".
+   - **`realtime-hub.ts`:** Upstash REST API gerçek blocking pub/sub desteklemediği
+     için Redis Streams (`XADD`/`XRANGE`/`XREVRANGE`/`XTRIM`) + polling deseni
+     kullanıldı — `subscribe()` her tenant stream'ini ~1.5sn'de bir `XRANGE` ile
+     yokluyor. **Bilinçli değiş tokuş:** artık gerçek anlık push değil, en fazla
+     ~1.5sn gecikmeli güncelleme (500 eşzamanlı kullanıcı senaryosunda "hiç
+     gelmeyen güncelleme" riskinden çok daha iyi). `broadcast()` da `after()` ile
+     fire-and-forget (senkron imza korunuyor, ~38 çağıran route değişmedi).
+     Stream'ler `XTRIM MAXLEN 200` + `EXPIRE 300sn` ile sınırsız büyümeden korunuyor.
+   - Doğrulama: `tsc --noEmit` temiz, `eslint` (read-cache.ts, realtime-hub.ts,
+     realtime/stream/route.ts) temiz, `npm test` 107/107 geçti. **Local dev'de
+     `.env.local`'de Upstash değişkenleri YOK** — yani bu doğrulama SADECE fallback
+     (in-memory) yolunu egzersiz etti, gerçek Redis path'i henüz canlı/preview'da
+     TEST EDİLMEDİ. k6 500-kullanıcı testinden önce en az bir kez preview/prod'da
+     gerçek çoklu-sekme/çoklu-cihaz senaryosuyla gözle doğrulanması öneriliyor.
 
 ## Yeniden inceleme (2026-08-03) — connect mega-component bölmesi sonrası
 
@@ -806,6 +832,56 @@ kodun KALİTESİYLE ilgili bir şey söylemiyor, "bu değişikliğin production'
 davranışının doğrulanma durumu" ayrı bir soru. Önceki taslakta bu ikisi tek
 puana karıştırılmıştı — düzeltildi. Test durumu aşağıda ayrı bir risk maddesi
 olarak duruyor, kod-kalitesi puanını düşürmüyor.
+
+**Ek tur (2026-08-03, aynı gün devam) — metodoloji düzeltmesi: ölçüm > varsayım.**
+Kullanıcı iki noktada haklı olarak itiraz etti ve ikisi de sonradan gerçek
+veriyle doğrulandı:
+
+1. **Push bildirimi kod tekrarı** (yukarıdaki risk #2) — kullanıcı "gerçek
+   teknik borç, kabul ediyorum" dedi, hemen düzeltildi: `connect/page.tsx`
+   artık AYNI `usePushNotifications(authUser, null, false, false)` hook'unu
+   kullanıyor (commit `cc76cfe`). `connect/page.tsx` 1293→**1229** satır.
+   İki küçük, şeffaf yan not: (a) masaüstüne mobildeki AYNI `onAuthStateChanged`
+   deseni eklendi (öncesinde hiç yoktu, sayfa pre-authenticated varsayımıyla
+   çalışıyordu — saf taşıma değil, küçük gerçek bir ekleme); (b) masaüstünün
+   boş/no-op foreground-push effect'i kalkıp hook'un GERÇEK badge-senkron
+   effect'iyle değişti (masaüstü artık mobil gibi push geldiğinde app badge'i
+   güncelliyor, öncesinde yapmıyordu). Banner farkı (masaüstünde YOK, 2026-07-31
+   kararı) korundu.
+2. **"Kalan boyut hâlâ büyük" + "65 prop = coupling/cohesion sorunu"** — kullanıcı
+   itiraz etti: satır sayısı tek başına kalite metriği değil, prop sayısı da tek
+   başına mimari hata değil (Context'e geçmek prop sayısını azaltır ama gizli
+   global bağımlılık yaratır, otomatik iyileşme sayılmaz). "Burada varsayım ile
+   ölçüm birbirine karışıyor" — haklıydı, bu iddialar hiç ÖLÇÜLMEMİŞTİ.
+   **Gerçekten ölçüldü** — `npx eslint --rule '{"complexity":["error",8]}'` ile
+   cyclomatic complexity, hem connect dosyalarında HEM checklist'in önceden
+   "başarılı bölünme" örneği diye gösterdiği referans dosyalarda:
+
+   | Dosya | Satır | Top-level fonksiyon complexity |
+   |---|---|---|
+   | `satis-yap/page.tsx` (referans "iyi" örnek) | 535 | **63** |
+   | `egitim-yonetimi/ekle/page.tsx` (referans "iyi" örnek) | 765 | **48** |
+   | `ogrenciler/havuz/page.tsx` (referans "iyi" örnek) | 575 | **14** |
+   | `connect/page.tsx` (bugünkü refactor) | 1229 | **48** |
+   | `connect/mobile/page.tsx` (bugünkü refactor) | 1104 | **37** |
+
+   **Sonuç net:** satır sayısı ile complexity bu kodtabanında KORELE DEĞİL —
+   535 satırlık `satis-yap` (63) connect/page.tsx'ten (1229 satır, 48) daha
+   karmaşık. Connect dosyaları, checklist'in kendi "iyi" referanslarıyla aynı
+   ligde/daha iyi. Ölçülmemiş "coupling/cohesion kötü" iddiası bu veriyle
+   DESTEKLENMEDİ, geri çekildi.
+
+**NİHAİ PUAN: 8/10.** Gerekçe artık tamamen: (a) mega-component sorunu gerçekten
+ve doğrulanabilir şekilde çözüldü, (b) push bildirimi kod tekrarı da düzeltildi,
+(c) kalan boyut/complexity, codebase'in kendi kabul ettiği referans dosyalarla
+karşılaştırıldığında normal aralıkta — ölçülmüş, ekstra bir borç değil. Kalan
+gerçek açık madde: apiError migrasyonu (21 route) — bu bir mimari tercih değil,
+somut ve sayılabilir bir iş, ayrı kaldı. **Bu tartışmadan çıkan asıl kalıcı ders
+(puanın kendisinden daha önemli):** kod kalitesi değerlendirmesi varsayım değil
+ölçüme dayanmalı — coupling/cohesion iddiası varsa `eslint --rule complexity`
+gibi bir araçla gerçekten ölç, ölçemiyorsan "mimari gözlem" diye etiketle,
+"doğrulanmış teknik borç" diye sunma. Test durumu (tarayıcı testi yapıldı mı)
+ile kod kalitesi puanı da AYRI eksenler, birbirine karıştırılmamalı.
 
 **Doğrulanan iddialar (hepsi gerçek):**
 - **Commit'ler:** `7b2c13c`, `46caa5d`, `9c218a3`, `2b8cc34` (masaüstü) + `0643af3`,
@@ -920,5 +996,7 @@ DEĞİL — kullanıcı kararı: kendi test edecek, ayrı bir eksen):**
    export'unu kullanarak korundu.
 3. 21 connect-ailesi route'un `apiError` migrasyonu (2026-08-02'den beri açık,
    bugün ele alınmadı) — SSE (`realtime/stream`) hariç.
-4. `realtime-hub.ts`/`read-cache.ts` → Upstash Redis geçişi (madde 6, hâlâ kod
-   değişikliği yapılmadı).
+4. ~~`realtime-hub.ts`/`read-cache.ts` → Upstash Redis geçişi (madde 6, hâlâ kod
+   değişikliği yapılmadı)~~ — **✅ TAMAMLANDI (2026-08-03)**, bkz. madde 6 detayı.
+   Tek açık nokta: gerçek Redis path'i local'de test edilemedi (env yok), k6
+   testinden önce preview/prod'da gözle doğrulama öneriliyor.
