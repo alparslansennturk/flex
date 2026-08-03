@@ -187,7 +187,10 @@ export function useInstallPrompt() {
       window.__flexosInstallPrompt = null;
       persistInstalled();
     };
-    const onBannerReset = () => setBannerDismissed(false);
+    const onBannerReset = () => {
+      setBannerDismissed(false);
+      setInstalled(false);
+    };
     window.addEventListener("flexos-install-available", onAvailable);
     window.addEventListener("appinstalled", onInstalled);
     window.addEventListener(BANNER_RESET_EVENT, onBannerReset);
@@ -222,12 +225,19 @@ export function useInstallPrompt() {
     persistBannerDismissed();
   }, []);
 
-  // Ayarlar sayfasındaki "Kurulum Bannerını Yeniden Göster" — kendi state'ini
-  // düzeltir + `BANNER_RESET_EVENT` yayınlayıp AYNI ANDA mount olmuş diğer
-  // `useInstallPrompt` örneklerini (ör. sidebar'daki banner) da güncelliyor.
+  // Ayarlar sayfasındaki "Kurulum Bannerını Yeniden Göster" — SADECE Safari'de
+  // gösteriliyor (`InstallBannerSettings.tsx`), bu yüzden Chrome/Edge'in gerçek
+  // `installed` bilgisini bozma riski yok. `flexosInstalled`'ı da temizliyor
+  // (2026-08-03 gerçek bulgu — kullanıcı bu oturumdaki ÖNCEKİ tasarımlarda
+  // "Nasıl Yapılır"a bastığında bu bayrak true yazılmıştı, sadece bannerDismissed
+  // temizlemek yetmiyordu, banner `!installed` şartına takılıp hiç görünmüyordu).
+  // Kendi state'ini düzeltir + `BANNER_RESET_EVENT` yayınlayıp AYNI ANDA mount
+  // olmuş diğer `useInstallPrompt` örneklerini (ör. sidebar'daki banner) de günceller.
   const resetBannerDismissed = useCallback(() => {
     setBannerDismissed(false);
     clearBannerDismissed();
+    setInstalled(false);
+    clearInstalledPersisted();
     window.dispatchEvent(new Event(BANNER_RESET_EVENT));
   }, []);
 
