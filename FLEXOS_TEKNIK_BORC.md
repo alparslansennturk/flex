@@ -617,20 +617,24 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
    işaret ediyor.
 
 **Sıradaki öncelikler (yeni mini-checklist):**
-1. `connect/page.tsx` + `connect/mobile/page.tsx`'i madde 6/7/8'deki aynı desenle böl
-   (composer, mesaj listesi, konuşma rayı, modal'lar ayrı `_shared/` component'lerine) —
-   şu an en büyük teknik borç.
-   - [x] ~~`connect/page.tsx`'in "Yeni Konuşma" modalı (`CreateConversationModal`)~~ —
-     ✅ 2026-08-03 tamamlandı (commit `7b2c13c`): `_shared/CreateConversationModal.tsx`'e
-     taşındı (~450 satır), bağımlı `GroupItem`/`RosterItem` → `_shared/groupTypes.ts`,
-     `IconComponent`/`UsersThreeIcon` → `_shared/ConnectIcon.tsx` (tek yönlü import,
-     döngü yok). `connect/page.tsx` 2597→2115 satır. tsc+eslint temiz, birebir taşıma
-     (davranış değişikliği yok), tarayıcı testi YAPILMADI (token bütçesi kısıtlıydı).
-   - **KALAN (bilinçli yarım bırakıldı, ayrı oturum gerekiyor):** ana gövde (composer,
-     mesaj listesi, konuşma rayı) hâlâ tek ~2050 satırlık component — 35-41 `useState`,
-     18-26 `useEffect` iç içe, canlı chat'i bozma riski yüksek, tek oturumda güvenle
-     bitirilemeyeceği için ERTELENDİ (kullanıcı kararı: düşük token bütçesiyle
-     başlatılmadı). `connect/mobile/page.tsx`'e (2690 satır) hiç dokunulmadı.
+1. ~~`connect/page.tsx` (masaüstü) madde 6/7/8'deki aynı desenle böl~~ — **✅
+   2026-08-03 TAMAMLANDI** (commit'ler `7b2c13c`, `46caa5d`, `9c218a3`, `2b8cc34`).
+   4 parça halinde çıkarıldı, her adımda tsc+eslint temiz doğrulandı:
+   - "Yeni Konuşma" modalı → `_shared/CreateConversationModal.tsx` (~450 satır),
+     bağımlı `GroupItem`/`RosterItem` → `_shared/groupTypes.ts`, `IconComponent`/
+     `UsersThreeIcon` → `_shared/ConnectIcon.tsx`.
+   - İkon rayı (Kolon 1) → `_shared/ConnectIconRail.tsx` (`NAV`/`NavKey` de birlikte).
+   - Konuşma listesi (Kolon 2, "Yeni Sohbet Başlat" dropdown'ı + arama/filtre +
+     liste) → `_shared/ConversationListColumn.tsx` (`DirectoryRow` de birlikte).
+   - Konuşma thread'i (Kolon 3, header + mesaj listesi + composer + Bilgi paneli,
+     dosyanın en büyük tek bloğuydu) → `_shared/ConversationThread.tsx` (~65 prop).
+   **Sonuç: `connect/page.tsx` 2597→1293 satır (%50 azalma).** Hepsi birebir taşıma
+   (davranış değişikliği yok, TÜM state `FlexConnectPage`'de kaldı, prop olarak
+   akıyor). **Tarayıcı testi YAPILMADI** (token bütçesi kısıtlıydı, sadece statik
+   doğrulama) — bir sonraki oturumda gerçek kullanıcı akışıyla (mesaj gönder/al,
+   reaksiyon, ek dosya, konuşma oluştur/düzenle) uçtan uca test edilmeli.
+   - **KALAN:** `connect/mobile/page.tsx` (2690 satır) hiç dokunulmadı — aynı
+     desen orada da uygulanabilir, ayrı bir oturum.
 2. [x] ~~`StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
    `useMemo`/`useCallback` zincirini gözden geçir.~~ — ✅ 2026-08-02 tamamlandı:
    `StudentTable.tsx` `memo()` ile sarıldı (`StudentTableImpl` iç fonksiyon + `export const
