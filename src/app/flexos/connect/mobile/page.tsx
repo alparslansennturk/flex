@@ -52,8 +52,8 @@ import {
 import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
 import { authHeaders } from "@/app/lib/client/auth-headers";
 import { withTimeout, dividerLabel as dividerLabelBase } from "@/app/flexos/connect/_shared/format";
-import { Icon, tokens } from "@/app/flexos/connect/_shared/mobileTheme";
-import type { Screen, Tab, ThemePref, ChannelSection } from "@/app/flexos/connect/_shared/mobileTypes";
+import { Icon } from "@/app/flexos/connect/_shared/mobileTheme";
+import type { Screen, Tab, ChannelSection } from "@/app/flexos/connect/_shared/mobileTypes";
 import { MobileAppScreen } from "@/app/flexos/connect/_shared/MobileAppScreen";
 import { MobileChatScreen } from "@/app/flexos/connect/_shared/MobileChatScreen";
 import { MobileCreateScreen } from "@/app/flexos/connect/_shared/MobileCreateScreen";
@@ -64,6 +64,7 @@ import {
 import { MobileQuickStartSheet, MobilePresenceSheet } from "@/app/flexos/connect/_shared/MobileSheets";
 import { useViewportHeight } from "@/app/flexos/connect/_shared/useViewportHeight";
 import { usePwaEnvironment } from "@/app/flexos/connect/_shared/usePwaEnvironment";
+import { useConnectTheme } from "@/app/flexos/connect/_shared/useConnectTheme";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
@@ -141,23 +142,7 @@ export default function FlexConnectMobile() {
     }
   }
 
-  // ── Tema (Sistem/Light/Dark) — tasarımdaki gibi 3 seçenek, gerçek çalışır ──
-  // İlk değer bir `useEffect` bekleyip sonradan set edilirse, koyu-mod kullanan
-  // cihazlarda ilk kare AÇIK renkle basılıp hemen ardından koyuya dönüyordu
-  // (splash'taki "flaş" şikayetinin bir parçası) — `matchMedia` senkron okunabilen
-  // bir API, lazy initializer ile İLK client render'da doğru değer kullanılır.
-  const [themePref, setThemePref] = useState<ThemePref>("system");
-  const [systemDark, setSystemDark] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  const dark = themePref === "dark" || (themePref === "system" && systemDark);
-  const T = tokens(dark);
+  const { themePref, setThemePref, dark, T } = useConnectTheme();
 
   // ── Router (screen) + sekme ──
   const [screen, setScreen] = useState<Screen>("app");
