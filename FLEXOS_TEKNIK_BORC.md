@@ -900,10 +900,24 @@ DEĞİL — kullanıcı kararı: kendi test edecek, ayrı bir eksen):**
    durumu değiştir, push bildirimi aç/kapat, mobilde sekme/ekran geçişleri +
    uzun-basma menüsü. Bu YAPILMADAN "birebir taşıma, davranış değişikliği yok"
    iddiası statik doğrulamayla sınırlı kalır.
-2. Masaüstü push bildirimi mantığını (`connect/page.tsx:148-252`) mobildeki
-   `usePushNotifications.ts`'e ORTAK bir hook'a taşı (parametre farkı sadece
-   `isIOS`/`isStandalone`'ın masaüstünde hep `false` olması) — kod tekrarını
-   gerçekten kapatır, madde 2'deki asimetriyi giderir.
+2. ~~Masaüstü push bildirimi mantığını ORTAK hook'a taşı~~ — **✅ 2026-08-03
+   TAMAMLANDI** (commit `cc76cfe`): `connect/page.tsx` artık AYNI
+   `usePushNotifications(authUser, null, false, false)` hook'unu kullanıyor
+   (`studentPersonId` hep `null` — masaüstünde bu kavram yok; `undefined`
+   DEĞİL, hook onu "henüz çözülmedi" sayıyor). `connect/page.tsx` 1293→1229.
+   tsc+eslint+`npm test` (107/107) temiz. **İki KÜÇÜK, bilinçli, şeffaf not:**
+   (a) Masaüstü önceden `authUser` state'i HİÇ tutmuyordu (sayfa zaten
+   pre-authenticated varsayımıyla çalışıyordu) — hook'un ihtiyacı için
+   mobildeki AYNI `onAuthStateChanged` deseni eklendi, saf "taşıma" değil,
+   küçük bir gerçek ekleme (daha doğru bir zamanlamaya geçiş). (b) Masaüstünün
+   kendi boş/no-op foreground-push effect'i kaldırılıp hook'un GERÇEK
+   badge-senkron effect'iyle değişti — masaüstü artık mobil gibi foreground
+   push'ta app badge'ini güncelliyor (öncesinde hiç yapmıyordu), küçük ve
+   zararsız ama davranışsal bir ek. Banner'lı yeniden-etkinleştirme farkı
+   (masaüstünde YOK, 2026-07-31 kararı) korunmuş — hook'un banner effect'i
+   `isStandalone`'a bağlı olduğu için masaüstünde zaten hiç tetiklenmiyor,
+   ayrıca kendi banner'sız "sessiz reset" effect'i hook'un yeni `setNotifPush`
+   export'unu kullanarak korundu.
 3. 21 connect-ailesi route'un `apiError` migrasyonu (2026-08-02'den beri açık,
    bugün ele alınmadı) — SSE (`realtime/stream`) hariç.
 4. `realtime-hub.ts`/`read-cache.ts` → Upstash Redis geçişi (madde 6, hâlâ kod
