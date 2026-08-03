@@ -620,6 +620,17 @@ bölünen en büyük dosyadan (1583) bile çok daha büyük ölçekte — nükse
 1. `connect/page.tsx` + `connect/mobile/page.tsx`'i madde 6/7/8'deki aynı desenle böl
    (composer, mesaj listesi, konuşma rayı, modal'lar ayrı `_shared/` component'lerine) —
    şu an en büyük teknik borç.
+   - [x] ~~`connect/page.tsx`'in "Yeni Konuşma" modalı (`CreateConversationModal`)~~ —
+     ✅ 2026-08-03 tamamlandı (commit `7b2c13c`): `_shared/CreateConversationModal.tsx`'e
+     taşındı (~450 satır), bağımlı `GroupItem`/`RosterItem` → `_shared/groupTypes.ts`,
+     `IconComponent`/`UsersThreeIcon` → `_shared/ConnectIcon.tsx` (tek yönlü import,
+     döngü yok). `connect/page.tsx` 2597→2115 satır. tsc+eslint temiz, birebir taşıma
+     (davranış değişikliği yok), tarayıcı testi YAPILMADI (token bütçesi kısıtlıydı).
+   - **KALAN (bilinçli yarım bırakıldı, ayrı oturum gerekiyor):** ana gövde (composer,
+     mesaj listesi, konuşma rayı) hâlâ tek ~2050 satırlık component — 35-41 `useState`,
+     18-26 `useEffect` iç içe, canlı chat'i bozma riski yüksek, tek oturumda güvenle
+     bitirilemeyeceği için ERTELENDİ (kullanıcı kararı: düşük token bütçesiyle
+     başlatılmadı). `connect/mobile/page.tsx`'e (2690 satır) hiç dokunulmadı.
 2. [x] ~~`StudentTable` (ve benzer yeni bölünmüş tablo component'leri) için `React.memo` +
    `useMemo`/`useCallback` zincirini gözden geçir.~~ — ✅ 2026-08-02 tamamlandı:
    `StudentTable.tsx` `memo()` ile sarıldı (`StudentTableImpl` iç fonksiyon + `export const
