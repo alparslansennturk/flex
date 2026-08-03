@@ -10,12 +10,16 @@
  * BİLEREK "kurulum durumu" TAKİP ETMİYOR (2026-08-03 kullanıcı kararı): Safari
  * gerçek kurulumu normal sekmeye hiç bildirmiyor (kurulu PWA ayrı bir storage
  * partition'da çalışıyor, `isStandalone()` bile normal sekmeye sızmıyor —
- * gerçek cihaz testiyle doğrulandı). Bu yüzden "Nasıl Yapılır" hiçbir state
- * değiştirmiyor, sadece 3 adımlık bir popover açıyor (bkz. `stepsOpen`) —
- * banner SADECE kullanıcı bilinçli olarak "Kapat"a basarsa kayboluyor, o da
- * kalıcı (localStorage) ama Ayarlar sayfasından açıkça geri getirilebiliyor
- * (`InstallBannerSettings.tsx`). Gerçekten kurulu Dock uygulamasının kendisi
- * içindeyken (`isStandalone()` o bağlamda güvenilir) zaten hiç görünmüyor.
+ * gerçek cihaz testiyle doğrulandı). Bu yüzden "Nasıl Yapılır" hiçbir kalıcı
+ * state değiştirmiyor, sadece 3 adımlık bir popover açıyor (bkz. `stepsOpen`).
+ * Üstteki banner'ın kendi "Kapat"ı kalıcı (localStorage) — Ayarlar sayfasından
+ * açıkça geri getirilebiliyor (`InstallBannerSettings.tsx`). Popover'ın İÇİNDEKİ
+ * "Şimdilik Kapat" ise AYRI ve GEÇİCİ bir mekanizma (sessionStorage, bkz.
+ * `TEMP_DISMISS_KEY`) — "şu an uygun değilim/dikkat etmedim" durumunda banner'ı
+ * o oturum için susturur, tarayıcı kapanıp yeniden açılınca (yeni sekme/oturum)
+ * otomatik geri gelir — kalıcı "Kapat"la KARIŞTIRILMASIN, ikisi bilinçli olarak
+ * farklı davranıyor. Gerçekten kurulu Dock uygulamasının kendisi içindeyken
+ * (`isStandalone()` o bağlamda güvenilir) banner zaten hiç görünmüyor.
  */
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,9 +38,31 @@ const STEPS = [
   "FlexOS artık Dock'tan uygulama gibi açılacaktır.",
 ];
 
+const TEMP_DISMISS_KEY = "flexosSafariBannerTempDismissed";
+
+function isTempDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(TEMP_DISMISS_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export default function SafariInstallBanner({ isSafari, installed, bannerDismissed, dismissBanner }: SafariInstallBannerProps) {
   const [stepsOpen, setStepsOpen] = useState(false);
-  const visible = isSafari && !installed && !bannerDismissed;
+  const [tempDismissed, setTempDismissed] = useState(() => isTempDismissed());
+  const visible = isSafari && !installed && !bannerDismissed && !tempDismissed;
+
+  const handleTempDismiss = () => {
+    try {
+      window.sessionStorage.setItem(TEMP_DISMISS_KEY, "true");
+    } catch {
+      // sessizce yut
+    }
+    setTempDismissed(true);
+    setStepsOpen(false);
+  };
 
   return (
     <AnimatePresence>
@@ -135,6 +161,15 @@ export default function SafariInstallBanner({ isSafari, installed, bannerDismiss
                       </li>
                     ))}
                   </ol>
+
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #F2F3F5" }}>
+                    <button
+                      onClick={handleTempDismiss}
+                      style={{ width: "100%", padding: "8px 0", background: "none", border: "none", color: "#6F7B87", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      Tamam, Anladım
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
