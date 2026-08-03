@@ -13,6 +13,10 @@ import {
 
 export interface PushNotificationsState {
   notifPush: boolean;
+  /** SADECE platforma özel ek düzeltme effect'leri için (ör. masaüstünün
+   * banner'sız "sessiz reset"i) — normal akışta kullanılmaz, `toggleNotifPush`
+   * zaten `notifPush`'ı doğru yönetiyor. */
+  setNotifPush: Dispatch<SetStateAction<boolean>>;
   notifPushLoading: boolean;
   notifSound: boolean;
   notifSoundLoading: boolean;
@@ -170,7 +174,7 @@ export function usePushNotifications(
   }
 
   return {
-    notifPush, notifPushLoading, notifSound, notifSoundLoading,
+    notifPush, setNotifPush, notifPushLoading, notifSound, notifSoundLoading,
     showPushReenableBanner, setShowPushReenableBanner,
     toggleNotifPush, toggleNotifSound, unregisterToken,
   };

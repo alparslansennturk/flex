@@ -28,8 +28,8 @@ import {
   UsersRound, Plus, X, Check, Loader2,
   Star, Settings, FileText, ChevronRight, ArrowLeft,
 } from "lucide-react";
-import { onMessage, getToken } from "firebase/messaging";
-import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectRealm,
   type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView, type PresenceSignal, type PresenceStatus,
@@ -38,7 +38,6 @@ import {
   setConversationPinned, setConversationArchived, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, clearConversation, fetchStarredMessages,
   subscribeToPresence,
-  registerPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { CreateConversationModal, type CreateType } from "./_shared/CreateConversationModal";
@@ -49,8 +48,9 @@ import type { GroupItem, RosterItem } from "./_shared/groupTypes";
 import { useCloseDropdownsOnOutsideClick } from "./_shared/useCloseDropdownsOnOutsideClick";
 import type { PopoverPosition } from "./_shared/popoverPosition";
 import { usePresenceHeartbeat } from "./_shared/usePresenceHeartbeat";
+import { usePushNotifications } from "./_shared/usePushNotifications";
 import { authHeaders } from "@/app/lib/client/auth-headers";
-import { withTimeout, initials, fmtTime, dividerLabel as dividerLabelBase } from "./_shared/format";
+import { initials, fmtTime, dividerLabel as dividerLabelBase } from "./_shared/format";
 
 const TYPING_TTL_MS = 6000;
 const dividerLabel = (iso: string) => dividerLabelBase(iso, true);
@@ -145,17 +145,24 @@ export default function FlexConnectPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Masaüstü push bildirimleri (2026-07-20) — mobildeki `toggleNotifPush` ile
-  // AYNI akış (izin iste → FCM token al → sunucuya kaydet), iOS/standalone
-  // kısıtı YOK (masaüstü tarayıcı). SW: `public/sw-connect-desktop.js`,
-  // scope `/flexos/connect` (mobilinkiyle ÇAKIŞMAZ, ayrı registration).
-  const [notifPush, setNotifPush] = useState(false);
-  const [notifPushLoading, setNotifPushLoading] = useState(false);
-  const pushTokenRef = useRef<string | null>(null);
-  // Bildirim SESİ (2026-07-20 kullanıcı isteği: "kontrol edilebiliyor mu, varsayılan
-  // kapalı olsun") — bildirimin kendisinden BAĞIMSIZ, sunucudaki `soundEnabled`.
-  const [notifSound, setNotifSound] = useState(false);
-  const [notifSoundLoading, setNotifSoundLoading] = useState(false);
+  // Auth durumu — mobildeki AYNI desen (2026-08-03 eklendi, push hook'unun
+  // ihtiyacı: masaüstü öncesinde bunu izlemiyordu, sayfa zaten pre-authenticated
+  // varsayımıyla çalışıyordu; bu ekleme sadece hook'a doğru sinyali vermek için,
+  // sayfanın geri kalanı hâlâ `auth.currentUser`'a güveniyor).
+  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
+  useEffect(() => onAuthStateChanged(auth, setAuthUser), []);
+
+  // Masaüstü push bildirimleri (2026-08-03) — mobildeki AYNI hook
+  // (`usePushNotifications`), `studentPersonId` kavramı masaüstünde yok (her
+  // zaman personel) → `null` geçiliyor ("çözüldü, öğrenci değil" anlamında,
+  // `undefined` değil — hook `undefined`'ı "henüz çözülmedi, bekle" sayıyor).
+  // iOS/standalone kısıtı YOK (masaüstü tarayıcı) → ikisi de `false`. SW:
+  // `public/sw-connect-desktop.js`, scope `/flexos/connect` (mobilinkiyle
+  // ÇAKIŞMAZ, ayrı registration, aşağıda değişmeden kalıyor).
+  const {
+    notifPush, setNotifPush, notifPushLoading, notifSound, notifSoundLoading,
+    toggleNotifPush, toggleNotifSound,
+  } = usePushNotifications(authUser, null, false, false);
 
   // Masaüstü "Ayarlar" modalı (2026-07-20 kullanıcı isteği: "bir ayarlar menüsü
   // yap, bildirim ayarlarını onun içine al") — mobildeki Ayarlar/Yasal
@@ -164,33 +171,20 @@ export default function FlexConnectPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsView, setSettingsView] = useState<"main" | "legal" | "kvkk">("main");
 
-  useEffect(() => {
-    fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
-  }, []);
-
   // Push yeniden-abonelik sessiz düzeltmesi (2026-07-29) — Masaüstünde ARTIK banner
   // GÖSTERİLMİYOR (2026-07-31 kullanıcı kararı: "Desktop'ta bildirim bannerini kaldır,
-  // sadece Mobile'da kalsın") — ama stale durum düzeltmesi kaldı: `localStorage`'da
-  // bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir token kaydettiğine dair iz yoksa
-  // (ör. reinstall/profil temizliği) `notifPush` sessizce false'a çekilir, Ayarlar
-  // modalındaki anahtar bir sonraki açılışta gerçek durumu gösterir.
+  // sadece Mobile'da kalsın") — bu yüzden hook'un KENDİ banner'lı versiyonu yerine
+  // (o SADECE isStandalone=true'da tetiklenir, masaüstünde hep false) burada
+  // masaüstüne özel, banner'sız kendi küçük düzeltmesi kaldı: `localStorage`'da bu
+  // TARAYICI ÖRNEĞİNİN daha önce gerçekten bir token kaydettiğine dair iz yoksa
+  // (ör. reinstall/profil temizliği) `notifPush` sessizce false'a çekilir.
   useEffect(() => {
     if (!notifPush) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     if (typeof Notification === "undefined") return;
     if (localStorage.getItem("flexConnectPushToken")) return;
     setNotifPush(false);
-  }, [notifPush]);
-
-  async function toggleNotifSound() {
-    if (notifSoundLoading) return;
-    setNotifSoundLoading(true);
-    const next = !notifSound;
-    setNotifSound(next);
-    const ok = await setPushSoundEnabled(next);
-    if (!ok) setNotifSound(!next);
-    setNotifSoundLoading(false);
-  }
+  }, [notifPush, setNotifPush]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -199,68 +193,10 @@ export default function FlexConnectPage() {
     });
   }, []);
 
-  /**
-   * `getToken()` çağırır; SADECE hata verirse (ör. eski/uyumsuz bir VAPID key'den
-   * kalma push subscription çakışması) mevcut aboneliği temizleyip tekrar dener.
-   * Önceden bu temizlik HER çağrıda koşulsuz yapılıyordu — bkz. mobildeki AYNI
-   * fix'in gerekçesi (2026-07-29 kullanıcı bulgusu).
-   */
-  async function getOrRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
-    if (!messaging) return null;
-    try {
-      return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği");
-    } catch {
-      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-      if (existingSub) await existingSub.unsubscribe().catch(() => {});
-      return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
-    }
-  }
-
-  async function toggleNotifPush() {
-    if (notifPushLoading) return;
-    if (notifPush) {
-      setNotifPush(false);
-      await setPushNotificationsEnabled(false);
-      return;
-    }
-    setNotifPushLoading(true);
-    const toastId = toast.loading("Bildirimler etkinleştiriliyor...");
-    try {
-      const messaging = await getMessagingIfSupported();
-      if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor.", { id: toastId }); return; }
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") { toast.error("Bildirim izni verilmedi — tarayıcı ayarlarından açabilirsin.", { id: toastId }); return; }
-      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
-      if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı.", { id: toastId }); return; }
-      const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "Servis çalışanı hazır olma");
-      const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
-      if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü).", { id: toastId }); return; }
-      const registered = await registerPushToken(token);
-      if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
-      pushTokenRef.current = token;
-      localStorage.setItem("flexConnectPushToken", token);
-      await setPushNotificationsEnabled(true);
-      setNotifPush(true);
-      toast.success("Bildirimler açıldı.", { id: toastId });
-    } catch (e) {
-      console.error("[connect] push izin akışı hatası:", e);
-      const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-      toast.error(`Bildirimler açılamadı — ${detail}`, { id: toastId, duration: 8000 });
-    } finally {
-      setNotifPushLoading(false);
-    }
-  }
-
-  // Sekme açıkken (foreground) gelen push — sistem banner'ı GÖSTERİLMEZ (Firestore
-  // onSnapshot zaten canlı günceller), mobildeki AYNI ilke.
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-    getMessagingIfSupported().then((messaging) => {
-      if (!messaging) return;
-      unsub = onMessage(messaging, () => {});
-    });
-    return () => unsub?.();
-  }, []);
+  // Sekme açıkken (foreground) gelen push — artık `usePushNotifications`'ın
+  // KENDİ effect'i badge senkronunu yapıyor (2026-08-03 konsolidasyonu), bu
+  // sayfanın kendi boş/no-op versiyonu (sistem banner'ı zaten gösterilmiyor,
+  // Firestore onSnapshot canlı güncelliyor) artık gereksiz — kaldırıldı.
 
   // Üstteki 4 aksiyon ikonu (küçült/ara/bilgi/menü) — tasarımda vardı, ilk
   // portta "minimal" diye atlanmıştı, kullanıcı geri istedi (2026-07-18).
