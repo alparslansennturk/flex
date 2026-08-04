@@ -29,13 +29,22 @@
 
 ### Şu an gerçekten açık olanlar
 
-- **🔴 SIRADAKİ (2026-08-04 ilk iş): Connect mobil sayfada da mesaj kayması/tik sorunları var** —
-  masaüstü+öğrenci sayfalarında 2026-08-03/04'te 6 gerçek bulgu düzeltildi (tik geri düşme,
-  açık-sohbette-okundu, liste canlılığı, öğrenci receipts eksikliği, otomatik-seçim,
-  scroll-kayması — detay `FLEXOS_TEKNIK_BORC.md` sonunda). `connect/mobile/page.tsx`'e KISMEN
-  aynı fix'ler uygulandı (tik-merge, açık-sohbette-okundu, liste canlılığı, scroll-kayması) ama
-  kullanıcı mobilde HALA "mesaj kayıyor" gibi sorunlar bildirdi — canlı telefon/PWA testiyle
-  yeniden ele alınacak.
+- ~~Connect mobil sayfada da mesaj kayması sorunu~~ — **✅ ÇÖZÜLDÜ (2026-08-04, `cc6ac11`).**
+  Masaüstü+öğrenci sayfalarındaki 6 bulgu (2026-08-03/04, detay `FLEXOS_TEKNIK_BORC.md`
+  sonunda) `connect/mobile/page.tsx`'e kod olarak birebir taşınmıştı ama kullanıcı canlı
+  telefon/PWA testinde sohbet AÇILIŞINDA hâlâ "en baştan aşağı kayma" bildirdi — masaüstünde
+  görünmeyen mobile-özel bir kök neden vardı. Teşhis: sohbet ekranı (`MobileChatScreen`)
+  masaüstünün aksine her açılışta sıfırdan mount ediliyor (`screen` state "app"→"chat"), bu
+  taze DOM'da mobil Safari/WebKit `scrollIntoView({behavior:"auto"})`'yu bazen instant değil
+  animasyonlu uyguluyor (bilinen motor kaprisi) + `useEffect` paint'ten sonra çalıştığı için
+  önce yanlış konum bir kare boyanıp sonra zıplıyor. **Çözüm:** ilk açılışta `scrollIntoView`
+  yerine mesaj konteynerine doğrudan `scrollTop = scrollHeight` (animasyonsuz, motor
+  kaprisinden bağımsız garanti anlık) + `useLayoutEffect` (paint'ten önce çalışır, yanlış
+  konum hiç boyanmaz) — `connect/mobile/page.tsx` + `_shared/MobileChatScreen.tsx`
+  (`messagesContainerRef` yeni prop). Sohbet açıkken gelen yeni mesajdaki smooth scroll
+  (WhatsApp gibi göz önünde kayması istenen durum) dokunulmadan korundu. `tsc`/eslint temiz,
+  107/107 test geçti, kullanıcı gerçek telefonda uzun bir sohbetle doğruladı ("kayma hareketi
+  görmedim").
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
 - **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
   kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).
