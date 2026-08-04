@@ -346,7 +346,8 @@ async function main() {
 
     await sendMessage(student, group.id, "Merhaba hocam", d);
     const msgs = await listMessages(trainer, group.id, d);
-    assert("Grup: üye (öğrenci) yazabilir, eğitmen okuyabilir", msgs.length === 1);
+    // 2 bekleniyor: grup oluşurken "1 kişi gruba eklendi" sistem mesajı + öğrencinin mesajı.
+    assert("Grup: üye (öğrenci) yazabilir, eğitmen okuyabilir", msgs.length === 2);
 
     await assertRejects(
       "Grup: üye OLMAYAN öğrenci yazamaz — ForbiddenError",
@@ -667,8 +668,10 @@ async function main() {
 
     await sendMessage(trainer, groupA.id, "Grafik-1'e özel not", d);
     await sendMessage(trainer, groupB.id, "Grafik-2'ye özel not", d);
-    assert("Topluluk: eğitmen bundled gruplara AYRI AYRI da yazabilir (Grafik-1)", (await listMessages(trainer, groupA.id, d)).length === 1);
-    assert("Topluluk: eğitmen bundled gruplara AYRI AYRI da yazabilir (Grafik-2)", (await listMessages(trainer, groupB.id, d)).length === 1);
+    // 2 bekleniyor: her grup TEK üyeyle (student/student2) oluştu, o da "1 kişi
+    // gruba eklendi" sistem mesajını tetikledi + eğitmenin az önceki notu.
+    assert("Topluluk: eğitmen bundled gruplara AYRI AYRI da yazabilir (Grafik-1)", (await listMessages(trainer, groupA.id, d)).length === 2);
+    assert("Topluluk: eğitmen bundled gruplara AYRI AYRI da yazabilir (Grafik-2)", (await listMessages(trainer, groupB.id, d)).length === 2);
 
     await assertRejects(
       "Topluluk: Grafik-1'deki öğrenci Grafik-2'yi GÖREMEZ/okuyamaz — ForbiddenError",
