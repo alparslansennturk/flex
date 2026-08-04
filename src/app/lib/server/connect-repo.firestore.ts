@@ -1,6 +1,6 @@
 // NOT: Sadece server-side import edilmeli (firebase-admin client'ta çalışmaz).
 import { adminDb } from "../firebase-admin";
-import { FieldPath } from "firebase-admin/firestore";
+import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import type { ConnectConversation, ConnectMember, ConnectMessage, ConnectRealm } from "../domain/core/connect";
 import type { ConnectRepo } from "../domain/repo/connect-repo";
 
@@ -25,6 +25,18 @@ export const firestoreConnectRepo: ConnectRepo = {
 
   async saveConversation(conversation) {
     await adminDb.collection(CONVERSATIONS).doc(conversation.id).set(clean(conversation));
+  },
+
+  async incrementMessageCount(conversationId, patch) {
+    // `.update()` KISMİ günceller (saveConversation'ın `.set()` tam-overwrite'ının
+    // AKSİNE) + `FieldValue.increment` `clean()`'den (JSON round-trip, sentinel'i
+    // bozar) BİLEREK geçirilmiyor.
+    await adminDb.collection(CONVERSATIONS).doc(conversationId).update({
+      lastMessage: patch.lastMessage,
+      messageCount: FieldValue.increment(1),
+      updatedAt: patch.updatedAt,
+      updatedBy: patch.updatedBy,
+    });
   },
 
   async getConversationById(id, tenantId) {
@@ -81,6 +93,13 @@ export const firestoreConnectRepo: ConnectRepo = {
 
   async saveMember(conversationId, member) {
     await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MEMBERS).doc(member.uid).set(clean(member));
+  },
+
+  async incrementMemberReadCount(conversationId, uid, lastReadAt) {
+    await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MEMBERS).doc(uid).update({
+      lastReadAt,
+      readMessageCount: FieldValue.increment(1),
+    });
   },
 
   async getMember(conversationId, uid) {

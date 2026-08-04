@@ -9,6 +9,16 @@ export interface ConnectRepo {
   nextMessageId(): string;
 
   saveConversation(conversation: ConnectConversation): Promise<void>;
+  /** Mesaj gönderiminde `messageCount`'u ATOMİK artırır (Firestore `FieldValue.increment`)
+   * — `saveConversation`'ın tam-doküman overwrite'ı YERİNE (2026-08-04, eşzamanlı
+   * yazım güvenliği): aynı konuşmaya aynı anda birden çok mesaj gönderilirse
+   * eski "oku, +1 hesapla, tüm dokümanı geri yaz" deseni sayacı sessizce
+   * kaybedebiliyordu (klasik lost-update). Sadece bu 3 alanı kısmi günceller,
+   * dönüş değeri YOK — çağıranın yeni sayıyı bilmesine gerek yok. */
+  incrementMessageCount(
+    conversationId: string,
+    patch: { lastMessage: ConnectConversation["lastMessage"]; updatedAt: string; updatedBy: string },
+  ): Promise<void>;
   getConversationById(id: string, tenantId: string): Promise<ConnectConversation | null>;
   /** Realm + audience filtresiyle (öğrenci-görür köprü kanalları) — izolasyonun bel kemiği. */
   listConversationsByAudience(tenantId: string, realm: ConnectRealm, audience: string): Promise<ConnectConversation[]>;
@@ -18,6 +28,10 @@ export interface ConnectRepo {
   findBySourceGroupId(tenantId: string, sourceGroupId: string): Promise<ConnectConversation | null>;
 
   saveMember(conversationId: string, member: ConnectMember): Promise<void>;
+  /** Gönderenin kendi okunma sayacını ATOMİK artırır — `incrementMessageCount` ile
+   * AYNI delta (+1) mantığı, mutlak değer okuma/senkron GEREKMEZ (kendi gönderdiği
+   * mesaj kendine "okunmamış" görünmesin diye, bkz. `sendMessage`). */
+  incrementMemberReadCount(conversationId: string, uid: string, lastReadAt: string): Promise<void>;
   getMember(conversationId: string, uid: string): Promise<ConnectMember | null>;
   listMembers(conversationId: string): Promise<ConnectMember[]>;
   deleteMember(conversationId: string, uid: string): Promise<void>;

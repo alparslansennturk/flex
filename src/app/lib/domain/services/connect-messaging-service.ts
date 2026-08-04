@@ -41,19 +41,20 @@ export async function sendMessage(
     afterHours: isAfterHoursStudentToTrainerDm(principal, conversation) || undefined,
     replyTo,
   };
-  const newMessageCount = (conversation.messageCount ?? 0) + 1;
   await deps.conversations.saveMessage(conversationId, message);
-  await deps.conversations.saveConversation({
-    ...conversation,
+  // ATOMİK artış (2026-08-04) — `saveConversation`'ın tam-doküman overwrite'ıyla
+  // "oku, +1 hesapla, geri yaz" deseni YERİNE (bkz. `ConnectRepo.incrementMessageCount`
+  // yorumu): aynı konuşmaya eşzamanlı gönderilen mesajlarda sayaç kaybolmasın diye.
+  await deps.conversations.incrementMessageCount(conversationId, {
     lastMessage: { messageId: message.id, text: trimmed || `📎 ${attachments![0].fileName}`, senderUid: principal.uid, at: now },
-    messageCount: newMessageCount,
     updatedAt: now,
     updatedBy: principal.uid,
   });
 
   // Gönderenin kendi okunma damgası — yeni mesajı kendine "okunmamış" göstermesin.
+  // AYNI +1 deltası, mutlak sayıyı bilmeye gerek yok (bkz. `incrementMemberReadCount`).
   if (member) {
-    await deps.conversations.saveMember(conversationId, { ...member, lastReadAt: now, readMessageCount: newMessageCount });
+    await deps.conversations.incrementMemberReadCount(conversationId, principal.uid, now);
   }
 
   return message;

@@ -50,6 +50,11 @@ function makeConnectRepo(): ConnectRepo {
     nextConversationId: () => `conv-${++convSeq}`,
     nextMessageId: () => `msg-${++msgSeq}`,
     async saveConversation(c) { conversations.set(c.id, { ...c }); },
+    async incrementMessageCount(conversationId, patch) {
+      const c = conversations.get(conversationId);
+      if (!c) return;
+      conversations.set(conversationId, { ...c, ...patch, messageCount: (c.messageCount ?? 0) + 1 });
+    },
     async getConversationById(id, tenantId) {
       const c = conversations.get(id);
       return c && c.tenantId === tenantId ? c : null;
@@ -67,6 +72,11 @@ function makeConnectRepo(): ConnectRepo {
     async saveMember(conversationId, member) {
       if (!members.has(conversationId)) members.set(conversationId, new Map());
       members.get(conversationId)!.set(member.uid, { ...member });
+    },
+    async incrementMemberReadCount(conversationId, uid, lastReadAt) {
+      const m = members.get(conversationId)?.get(uid);
+      if (!m) return;
+      members.get(conversationId)!.set(uid, { ...m, lastReadAt, readMessageCount: (m.readMessageCount ?? 0) + 1 });
     },
     async getMember(conversationId, uid) { return members.get(conversationId)?.get(uid) ?? null; },
     async listMembers(conversationId) { return Array.from(members.get(conversationId)?.values() ?? []); },
