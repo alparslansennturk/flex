@@ -14,7 +14,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap, Pencil, Trash2, X, Smile, Check, CheckCheck, ChevronDown, Reply, Copy, Star, StarOff } from "lucide-react";
+import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap, Pencil, Trash2, X, Smile, Check, CheckCheck, ChevronDown, Reply, Copy, Star, StarOff, Clock3 } from "lucide-react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import {
@@ -31,6 +32,7 @@ import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { useCloseDropdownsOnOutsideClick } from "@/app/flexos/connect/_shared/useCloseDropdownsOnOutsideClick";
 import { computePopoverPosition, type PopoverPosition } from "@/app/flexos/connect/_shared/popoverPosition";
 import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
+import { isAfterHoursNowIstanbul } from "@/app/flexos/connect/_shared/format";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
@@ -550,6 +552,25 @@ export default function StudentConnectPage() {
                 {selected.writePolicy === "admins" && <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8A909B", fontWeight: 500 }}>Sadece yöneticiler yazabilir</p>}
               </div>
             </header>
+
+            {/* Mesai saati dışı bannerı (2026-08-04) — ESKİDEN her mesajın altında tekrar
+                eden "🌙 Mesai saati dışı" etiketiydi (personel sayfasından kaldırıldı),
+                YENİDEN TASARLANDI: sohbet başına TEK sefer, header'ın hemen altında sabit
+                banner. Bu sayfa zaten SADECE öğrenci görünümü, ekstra rol kontrolü gerekmez. */}
+            {selected.realm === "trainer_student" && selected.type === "dm" && isAfterHoursNowIstanbul() && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}
+                className="shrink-0" style={{ maxWidth: 760, margin: "12px auto 0", padding: "12px 16px", borderRadius: 10, background: "#FFF7ED", border: "1px solid #FCD34D", display: "flex", alignItems: "flex-start", gap: 12 }}
+              >
+                <Clock3 size={20} color="#D97706" style={{ flexShrink: 0, marginTop: 1 }} />
+                <div className="min-w-0">
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#92400E" }}>Mesai saati dışında yazıyorsunuz</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: "#78350F", marginTop: 2, lineHeight: 1.45 }}>
+                    Eğitmeniniz şu anda müsait olmayabilir. Bu nedenle hemen yanıt alamayabilirsiniz. Mesajınız gönderilecek ve eğitmeninize iletilecektir.
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* `paddingBottom` kasıtlı büyük (2026-07-20, bkz. personel sayfası AYNI fix)
                 — en son mesajın altında HER ZAMAN menünün sığacağı kadar boş alan bırakır. */}

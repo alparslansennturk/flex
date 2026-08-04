@@ -17,7 +17,7 @@ import {
 import { Icon, type Tokens, iconFor } from "./mobileTheme";
 import { AttachmentView } from "./AttachmentView";
 import { QUICK_REACTIONS, QUICK_EMOJIS } from "./EmojiPicker";
-import { initials, fmtTime, fmtFileSize, dayKey, PresenceDot } from "./format";
+import { initials, fmtTime, fmtFileSize, dayKey, PresenceDot, isAfterHoursNowIstanbul } from "./format";
 
 interface MobileChatScreenProps {
   T: Tokens;
@@ -129,6 +129,29 @@ export function MobileChatScreen({
         </div>
       )}
 
+      {/* Mesai saati dışı bannerı (2026-08-04) — ESKİDEN her mesajın altında tekrar
+          eden "🌙 Mesai saati dışı" etiketiydi (kaldırıldı), YENİDEN TASARLANDI:
+          sohbet başına TEK sefer, header'ın hemen altında sabit banner. SADECE
+          öğrenci→eğitmen DM'de VE öğrenci tarafında görünür (metin öğrenciye hitap
+          ediyor — "Eğitmeniniz…"), eğitmen kendi görünümünde görmez. */}
+      {studentPersonId && selected.realm === "trainer_student" && selected.type === "dm" && isAfterHoursNowIstanbul() && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}
+          style={{
+            flex: "0 0 auto", display: "flex", alignItems: "flex-start", gap: 12, margin: 12, padding: "12px 16px",
+            borderRadius: 10, background: "#FFF7ED", border: "1px solid #FCD34D",
+          }}
+        >
+          <Icon k="clock" size={20} sw={2} color="#D97706" />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#92400E" }}>Mesai saati dışında yazıyorsunuz</div>
+            <div style={{ fontSize: 12.5, fontWeight: 500, color: "#78350F", marginTop: 2, lineHeight: 1.45 }}>
+              Eğitmeniniz şu anda müsait olmayabilir. Bu nedenle hemen yanıt alamayabilirsiniz. Mesajınız gönderilecek ve eğitmeninize iletilecektir.
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <div ref={messagesContainerRef} style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
         {loadingMessages ? (
           <div className="flex justify-center py-8"><div style={{ width: 22, height: 22, border: `3px solid ${T.border}`, borderTopColor: T.brand, borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} /></div>
@@ -238,9 +261,6 @@ export function MobileChatScreen({
                           </span>
                         )}
                       </div>
-                    )}
-                    {m.afterHours && !m.deletedForEveryone && (
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted, marginTop: 3 }}>🌙 Mesai saati dışı</span>
                     )}
                     {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                       <div style={{ display: "flex", gap: 6, marginTop: 5 }}>

@@ -34,6 +34,19 @@ export function dayKey(iso: string): string {
   return new Date(iso).toDateString();
 }
 
+/** Kurumsal kural (2026-07-20, `connect-helpers.ts::isAfterHoursStudentToTrainerDm`
+ * ile AYNI pencere — 22:00-09:00) — ŞU ANIN İstanbul saatiyle mesai saati dışında
+ * olup olmadığı. Sohbet-üstü banner için (2026-08-04); sunucudaki kural mesajı
+ * gönderim anına göre işaretliyor, bu client-side yardımcı "şimdi" içindir. */
+export function isAfterHoursNowIstanbul(): boolean {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  const mins = parseInt(get("hour"), 10) * 60 + parseInt(get("minute"), 10);
+  return mins >= 22 * 60 || mins < 9 * 60;
+}
+
 /** Mesaj listesindeki tarih ayraç pilleri ("Bugün"/"Dün"/"12 Temmuz..."). */
 export function dividerLabel(iso: string, showWeekday: boolean): string {
   const d = new Date(iso);
