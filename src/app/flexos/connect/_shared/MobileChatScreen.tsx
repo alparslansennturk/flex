@@ -53,6 +53,7 @@ interface MobileChatScreenProps {
   handleDeleteMessage: (messageId: string, scope: "everyone" | "me") => Promise<void>;
   activeTypers: TypingSignal[];
   bottomRef: RefObject<HTMLDivElement | null>;
+  messagesContainerRef: RefObject<HTMLDivElement | null>;
   editingMessageId: string | null;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   draft: string;
@@ -74,7 +75,7 @@ export function MobileChatScreen({
   toggleMute, studentPersonId, chatMenuOpen, setChatMenuOpen, handleClearConversation, handleHideConversation,
   loadingMessages, messages, visibleMessages, dividerLabel, startLongPress, cancelLongPress, handleReact,
   menuMsg, setMenuMsg, menuPos, startEditMessage, startReply, handleToggleStar, handleCopy, startReplyPrivately,
-  handleDeleteMessage, activeTypers, bottomRef, editingMessageId, setEditingMessageId, draft, setDraft,
+  handleDeleteMessage, activeTypers, bottomRef, messagesContainerRef, editingMessageId, setEditingMessageId, draft, setDraft,
   replyingTo, setReplyingTo, composerEmojiOpen, setComposerEmojiOpen, attachInputRef, handleAttachFile,
   uploadProgress, draftInputRef, onDraftChange, send,
 }: MobileChatScreenProps) {
@@ -128,7 +129,7 @@ export function MobileChatScreen({
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
+      <div ref={messagesContainerRef} style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
         {loadingMessages ? (
           <div className="flex justify-center py-8"><div style={{ width: 22, height: 22, border: `3px solid ${T.border}`, borderTopColor: T.brand, borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} /></div>
         ) : (

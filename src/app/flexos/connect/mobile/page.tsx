@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * Genel Duyuru kanalı + announcementChannelId bağı).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   reauthenticateWithCredential, EmailAuthProvider, updatePassword,
@@ -294,6 +294,7 @@ export default function FlexConnectMobile() {
   const [tick, setTick] = useState(0);
   const lastTypingSentRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
   const prevMsgCountRef = useRef(0);
   const draftInputRef = useRef<HTMLInputElement>(null);
@@ -484,15 +485,31 @@ export default function FlexConnectMobile() {
   // 2026-07-25: tik-tazeleme pollingi mesaj sayısı değişmese bile `messages`'ı
   // yeni bir dizi referansıyla günceller — sadece gerçekten yeni mesaj geldiyse
   // kaydırıyoruz (bkz. flexos/connect/page.tsx aynı tarihli yorum).
-  useEffect(() => {
-    // 2026-08-03 kullanıcı bulgusu: `selectConversation`/`openChat`'ın mesajları
-    // geçici olarak `[]`'e temizlemesi `firstLoadRef`'i ARA ADIMDA tüketiyordu —
-    // gerçek veri geldiğinde bayrak zaten `false` olup "smooth" (gözle görülür
-    // kayan) scroll'a düşüyordu. Boş diziyi tamamen atlıyoruz.
+  // 2026-08-04: masaüstünde bu efekt `useEffect` ile çalışıyor ve sorunsuz — ama
+  // mobilde (gerçek iOS PWA testinde, kullanıcı bulgusu) sohbet ilk açıldığında
+  // mesajlar gözle görülür şekilde en baştan aşağı KAYIYORDU. Kök neden: sohbet
+  // ekranı (`MobileChatScreen`) masaüstünün aksine her açılışta SIFIRDAN mount
+  // ediliyor (`screen` state "app"→"chat"), yani ilk `scrollIntoView({behavior:
+  // "auto"})` çağrısı taze bir DOM'a denk geliyor. WebKit/mobil Safari bu durumda
+  // "auto"yu bazen instant değil, animasyonlu uyguluyor (bilinen motor kaprisi) —
+  // üstelik `useEffect` paint'ten SONRA çalıştığı için tarayıcı önce en üstteki
+  // (scrollTop=0) hâli bir kare boyar, sonra zıplama gelir; bu ikisi birleşince
+  // "kayma" hissi oluşuyor. Çözüm: ilk açılışta `scrollIntoView` yerine DOĞRUDAN
+  // `scrollTop = scrollHeight` (animasyonsuz, motor kaprisinden bağımsız garanti
+  // anlık) + `useLayoutEffect` (paint'ten ÖNCE çalışır, yanlış konum hiç boyanmaz).
+  // Sohbet zaten açıkken gelen yeni mesajda (WhatsApp gibi göz önünde kaymalı
+  // görünmesi istenen durum) `scrollIntoView({behavior:"smooth"})` aynen korunuyor.
+  useLayoutEffect(() => {
+    // `selectConversation`/`openChat`'ın mesajları geçici olarak `[]`'e temizlemesi
+    // `firstLoadRef`'i ARA ADIMDA tüketmesin diye boş diziyi tamamen atlıyoruz.
     if (messages.length === 0) return;
     const grew = messages.length > prevMsgCountRef.current;
-    if (firstLoadRef.current || grew) {
-      bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    if (firstLoadRef.current) {
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+      else bottomRef.current?.scrollIntoView({ behavior: "auto" });
+    } else if (grew) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     prevMsgCountRef.current = messages.length;
     firstLoadRef.current = false;
@@ -1037,7 +1054,7 @@ export default function FlexConnectMobile() {
           cancelLongPress={cancelLongPress} handleReact={handleReact} menuMsg={menuMsg} setMenuMsg={setMenuMsg}
           menuPos={menuPos} startEditMessage={startEditMessage} startReply={startReply} handleToggleStar={handleToggleStar}
           handleCopy={handleCopy} startReplyPrivately={startReplyPrivately} handleDeleteMessage={handleDeleteMessage}
-          activeTypers={activeTypers} bottomRef={bottomRef} editingMessageId={editingMessageId}
+          activeTypers={activeTypers} bottomRef={bottomRef} messagesContainerRef={messagesContainerRef} editingMessageId={editingMessageId}
           setEditingMessageId={setEditingMessageId} draft={draft} setDraft={setDraft} replyingTo={replyingTo}
           setReplyingTo={setReplyingTo} composerEmojiOpen={composerEmojiOpen} setComposerEmojiOpen={setComposerEmojiOpen}
           attachInputRef={attachInputRef} handleAttachFile={handleAttachFile} uploadProgress={uploadProgress}
