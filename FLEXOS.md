@@ -29,6 +29,59 @@
 
 ### Şu an gerçekten açık olanlar
 
+- **🔴 SIRADAKİ (2026-08-04 sonu itibarıyla): k6 yük/performans testi senaryolarını
+  tasarlamak/yazmak.** Kullanıcının asıl sorusu: "projeyi 30-40 personel + 500
+  öğrenci gerçek kullanmaya başlarsa sistem kararlı çalışır mı" — cevabı k6 ile
+  bulacağız. **Ön hazırlık TAMAMLANDI, buradan devam:**
+  - Ayrı staging Firebase projesi kuruldu: **`flexos-loadtest`** (prod `flexos-10ac4`'e
+    hiç dokunmuyor, izole — `eur3` bölgesi, aynı `firestore.rules`+indexes deploy
+    edildi). Servis hesabı: repo kökünde `service-account-staging.json` (gitignore'da,
+    makineye özel — **PC'de YOK, yeniden indirilmesi gerekir**, bkz. Firebase Console
+    → Project Settings → Service accounts → Generate new private key, project =
+    flexos-loadtest). Web config: `.env.staging.local` (aynı şekilde makineye özel/
+    gitignore'da).
+  - Parametrik seed script hazır ve ÇALIŞTIRILDI: `scripts/seed-loadtest.mjs`
+    (`npm run seed` / `npm run seed:clean`, `--profile=small|medium|large`,
+    idempotent, deterministik id'ler, `--dry-run`). **`flexos-loadtest` şu an DOLU**
+    (large profil, gerçek hedef ölçek): 500 öğrenci, 50 personel (32 eğitmen), 50
+    sınıf, 500 enrollment, 1000 ödev, 1200 yoklama, 553 Connect konuşması (~5646
+    mesaj), 5500 bildirim — 16.710 doküman, 33sn'de yazıldı.
+  - **Eksik/sıradaki adım:** k6'nın vuracağı gerçek bir "uygulama" YOK henüz — sadece
+    veri var. Konuşulan 3 parçalı plan: (1) flexos-loadtest ✅ bitti, (2) o projeye
+    bağlı ayrı bir staging Vercel deployment/preview (yeni env değişkenleriyle) —
+    HENÜZ YAPILMADI, (3) k6 script'leri (senaryolar: login/mesaj gönder/yoklama al/
+    ödev listele — auth Firebase custom token ile, k6 HTTP odaklı olduğu için
+    Connect'in gerçek-zamanlı `onSnapshot` dinleyici fan-out'unu KAPSAMIYOR, bu ayrı
+    bir simülasyon gerektirebilir, bkz. o oturumdaki tartışma) — HENÜZ YAZILMADI.
+  - Bu iş sırasında AYRICA (aynı oturumda, k6'ya hazırlanırken) 2 gerçek prod bug'ı
+    bulunup düzeltildi — aşağıdaki iki madde.
+- ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
+  `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
+  personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
+  — "eğitmenim neden cevap vermedi" beklentisini önlemek için. Personel tarafı
+  DEĞİŞMEDİ (gerçek okundu bilgisini görmeye devam ediyor). **3 katmanlı, gerçek
+  yetkilendirme** (sadece UI gizleme değil): (1) backend — `connect-view.ts::
+  buildMessageViews` öğrenci principal'ı için `readByAll`'ı hiç hesaplamadan
+  `false`'a sabitliyor, (2) frontend — `subscribeToReceipts` client dinleyicisi
+  (Firestore'u API'yi bypass ederek doğrudan okuyor) aynı kilidi tekrarlıyor, (3)
+  **Firestore Security Rules** — `ConnectMember.kind` ("staff"|"student") alanı
+  eklendi, `members/{uid}` okuma kuralı artık öğrencinin diğer PERSONEL üyelerin
+  dokümanını (dolayısıyla ham `lastReadAt`'i) hiç okuyamayacağı şekilde. Mevcut 48
+  üye dokümanı `scripts/backfill-connect-member-kind.mjs` ile (idempotent, `--dry-run`+
+  `--revert` destekli) gerçek backfill edildi, SONRA rules deploy edildi (sıra
+  bilinçli — kural alan yokken kısıtlamıyor, fail-open geçiş). **Canlı gerçek
+  hesaplarla (custom token, admin SDK) doğrulandı**: personel ikisini de okuyor,
+  öğrenci sadece kendi dokümanını okuyor, personelinki DENIED — 4/4 beklenen sonuç.
+- ~~Connect `messageCount` race condition~~ — **✅ TAMAMLANDI (2026-08-04, `a066d1b`).**
+  k6 öncesi mimari incelemesinde kullanıcı bulgusu: mesajlar zaten doğru mimaride
+  (subcollection, her mesaj kendi dokümanı) ama konuşmanın `messageCount`/
+  `lastMessage` alanı "oku, +1 hesapla, TÜM dokümanı ez" deseniyle yazılıyordu —
+  aynı konuşmaya (kalabalık sınıf grubu) eşzamanlı mesajlarda sessiz veri kaybı
+  riski (sayaç geri düşer, okunmamış rozetleri kalıcı yanlışlaşır). `FieldValue.
+  increment(1)` ile atomik hale getirildi (`ConnectRepo.incrementMessageCount`/
+  `incrementMemberReadCount`, yeni). Ayrıca bununla tamamen bağımsız, `assert-
+  connect.ts`'te önceden var olan (bugünden de önce, sistem mesajı özelliğinden beri)
+  3 eskimiş test beklentisi de düzeltildi (`66168ce`) — 96/96 geçiyor artık.
 - ~~Connect mobil sayfada da mesaj kayması sorunu~~ — **✅ ÇÖZÜLDÜ (2026-08-04, `cc6ac11`).**
   Masaüstü+öğrenci sayfalarındaki 6 bulgu (2026-08-03/04, detay `FLEXOS_TEKNIK_BORC.md`
   sonunda) `connect/mobile/page.tsx`'e kod olarak birebir taşınmıştı ama kullanıcı canlı
