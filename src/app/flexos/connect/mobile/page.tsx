@@ -456,7 +456,13 @@ export default function FlexConnectMobile() {
         let changed = false;
         const next = prev.map((m) => {
           if (!m.isMine) return m;
-          const readByAll = otherReadAts.length > 0 ? otherReadAts.every((t) => t >= m.createdAt) : undefined;
+          // 2026-08-04 kullanıcı kararı: öğrenci hiçbir koşulda "okundu" (yeşil çift
+          // tik) görmesin, sadece Gönderildi/Teslim Edildi. Bu dinleyici (`onSnapshot`)
+          // Firestore'dan HAM `lastReadAt`'i doğrudan okur, API'nin `readByAll:false`
+          // kilidini (bkz. `connect-view.ts::buildMessageViews`) bypass eder — burada
+          // AYNI kilidi client tarafında da uyguluyoruz.
+          const readByAll = studentPersonId ? false
+            : otherReadAts.length > 0 ? otherReadAts.every((t) => t >= m.createdAt) : undefined;
           const deliveredByAll = otherDeliveredAts.length > 0 ? otherDeliveredAts.every((t) => t >= m.createdAt) : undefined;
           if (readByAll === m.readByAll && deliveredByAll === m.deliveredByAll) return m;
           changed = true;
@@ -466,7 +472,7 @@ export default function FlexConnectMobile() {
       });
     });
     return unsub;
-  }, [selectedId, screen]);
+  }, [selectedId, screen, studentPersonId]);
 
   useEffect(() => {
     setTypingSignals([]);

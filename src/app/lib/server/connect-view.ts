@@ -174,6 +174,14 @@ export async function buildMessageViews(
   otherMembersLastReadAt: string[] = [],
   /** Teslim-tikleri için: DİĞER üyelerin (çağıran hariç) `lastDeliveredAt` değerleri. */
   otherMembersLastDeliveredAt: string[] = [],
+  /** Rol bazlı okundu-tiki kuralı (2026-08-04, kullanıcı kararı) — öğrenci HİÇBİR
+   * koşulda "okundu" (yeşil çift tik) görmemeli, sadece "Gönderildi"/"Teslim Edildi"
+   * (WhatsApp'ta "eğitmenim neden cevap vermedi" beklentisini önlemek için, kurumsal
+   * karar — kişisel tercih DEĞİL). Çağıran öğrenciyse (`/api/flexos/student/connect/*`
+   * route'u principal.kind==="student" ile çağırır) `readByAll` sunucuda GERÇEKTEN
+   * hesaplanmadan false'a sabitlenir — sadece UI'da gizlenmiyor, response'ta hiç
+   * true olarak yer almıyor. `deliveredByAll` etkilenmez (gerçek teslim durumu). */
+  principalIsStudent = false,
 ): Promise<ConnectMessageView[]> {
   const identities = await resolveConnectIdentities(
     messages.map((m) => m.authorUid),
@@ -183,9 +191,11 @@ export async function buildMessageViews(
     const reactionCounts: Record<string, number> = {};
     for (const emoji of Object.values(m.reactions ?? {})) reactionCounts[emoji] = (reactionCounts[emoji] ?? 0) + 1;
     const isMine = m.authorUid === principalUid;
-    const readByAll = isMine && otherMembersLastReadAt.length > 0
-      ? otherMembersLastReadAt.every((t) => t >= m.createdAt)
-      : undefined;
+    const readByAll = principalIsStudent
+      ? false
+      : isMine && otherMembersLastReadAt.length > 0
+        ? otherMembersLastReadAt.every((t) => t >= m.createdAt)
+        : undefined;
     const deliveredByAll = isMine && otherMembersLastDeliveredAt.length > 0
       ? otherMembersLastDeliveredAt.every((t) => t >= m.createdAt)
       : undefined;

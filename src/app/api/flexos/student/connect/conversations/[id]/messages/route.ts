@@ -20,7 +20,7 @@ export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
     const otherMembers = members.filter((m) => m.uid !== principal.uid);
     const otherReadAts = otherMembers.map((m) => m.lastReadAt).filter((t): t is string => !!t);
     const otherDeliveredAts = otherMembers.map((m) => m.lastDeliveredAt).filter((t): t is string => !!t);
-    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts, otherDeliveredAts);
+    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts, otherDeliveredAts, true);
     return NextResponse.json({ items: views });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
