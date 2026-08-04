@@ -9,6 +9,7 @@ import {
   isStudentsOwnTrainer,
   logAudit,
   nowISO,
+  resolveUidKind,
 } from "./connect-helpers";
 import type { ConnectDeps, ConnectPrincipal, CreateConversationInput, UpdateConversationMetaInput } from "./connect-types";
 
@@ -72,7 +73,7 @@ export async function createConversation(
     for (const uid of input.readerUids ?? []) extraReaders.add(uid);
     readerUids = [...extraReaders];
   }
-  await assertMembersMatchRealm(readerUids, input.realm, principal.tenantId, deps);
+  const readerKinds = await assertMembersMatchRealm(readerUids, input.realm, principal.tenantId, deps);
 
   const writePolicy = input.type === "channel" ? (input.writePolicy ?? "admins") : "members";
   const now = nowISO();
@@ -110,6 +111,7 @@ export async function createConversation(
         uid,
         realm: input.realm,
         role: uid === principal.uid ? "owner" : "member",
+        kind: readerKinds.get(uid),
         joinedAt: now,
       }),
     ),
@@ -352,6 +354,10 @@ export async function updateConversationMeta(
 
   const updated: ConnectConversation = { ...conversation };
   const changedFields: string[] = [];
+  // `input.adminUids` işlenirken çözülür, aşağıdaki (aynı koşullu, ayrı) ikinci
+  // blokta terfi eden ama HENÜZ üye dokümanı olmayan uid'lere `kind` yazmak için
+  // tekrar sorgulamadan kullanılır (bkz. `assertMembersMatchRealm`).
+  let adminKinds: Map<string, "staff" | "student"> = new Map();
 
   if (input.name !== undefined) {
     const trimmed = input.name.trim();
@@ -366,7 +372,7 @@ export async function updateConversationMeta(
   if (input.adminUids !== undefined) {
     if (conversation.type !== "channel") throw new ValidationError("Yayıncı listesi sadece kanallarda düzenlenebilir.");
     const nextAdmins = Array.from(new Set([conversation.ownerUid, ...input.adminUids]));
-    await assertMembersMatchRealm(nextAdmins, conversation.realm, principal.tenantId, deps);
+    adminKinds = await assertMembersMatchRealm(nextAdmins, conversation.realm, principal.tenantId, deps);
     updated.admins = nextAdmins;
     changedFields.push("admins");
   }
@@ -404,7 +410,7 @@ export async function updateConversationMeta(
       ...toPromote.map((uid) => {
         const existing = memberByUid.get(uid);
         return deps.conversations.saveMember(conversationId, {
-          ...(existing ?? { uid, realm: conversation.realm, joinedAt: nowISO() }),
+          ...(existing ?? { uid, realm: conversation.realm, kind: adminKinds.get(uid), joinedAt: nowISO() }),
           role: "admin",
         });
       }),
@@ -437,16 +443,30 @@ export async function updateConversationMeta(
         deps.conversations.listMembers(announcementChannelId),
       ]);
       const existingUids = new Set(announcementMembers.map((m) => m.uid));
+      const rosterKindByUid = new Map(rosters.flat().map((m) => [m.uid, m.kind]));
       const newUids = [...new Set(rosters.flat().map((m) => m.uid))].filter((uid) => !existingUids.has(uid));
+      // Roster üyelerinin `kind`'ı genelde zaten kendi dokümanında var (backfill/
+      // yeni-yazım) — eksikse (ör. henüz backfill edilmemiş eski doküman) tek tek
+      // çözülür, tahmin edilmez.
+      const resolvedKindByUid = new Map(
+        await Promise.all(
+          newUids
+            .filter((uid) => !rosterKindByUid.get(uid))
+            .map(async (uid) => [uid, await resolveUidKind(uid, principal.tenantId, deps)] as const),
+        ),
+      );
       await Promise.all(
-        newUids.map((uid) =>
-          deps.conversations.saveMember(announcementChannelId, {
+        newUids.map((uid) => {
+          const resolved = resolvedKindByUid.get(uid);
+          const kind = rosterKindByUid.get(uid) ?? (resolved === "unknown" ? undefined : resolved);
+          return deps.conversations.saveMember(announcementChannelId, {
             uid,
             realm: "trainer_student",
             role: "member",
+            kind,
             joinedAt: nowISO(),
-          }),
-        ),
+          });
+        }),
       );
     }
   }

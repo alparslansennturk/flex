@@ -71,7 +71,7 @@ export function isAfterHoursStudentToTrainerDm(principal: ConnectPrincipal, conv
 
 /** Hedef uid'in gerçekten `staff` mı `student` mı olduğunu çözer — realm/üye
  * doğrulaması için (bkz. FLEX_CONNECT.md §1: öğrenci staff realm'e ASLA eklenemez). */
-async function resolveUidKind(
+export async function resolveUidKind(
   uid: string,
   tenantId: string,
   deps: Pick<ConnectDeps, "persons" | "flexosUsers">,
@@ -83,19 +83,25 @@ async function resolveUidKind(
   return "unknown";
 }
 
+/** Realm uyuşmazlığını reddeder VE çözülen kind'ları döner (2026-08-04) — çağıran
+ * taraflar zaten `resolveUidKind`'i tetikliyordu, üye dokümanına `kind` yazarken
+ * (rol bazlı okundu-tiki güvenliği için) AYNI sonucu tekrar sorgulamadan kullanır. */
 export async function assertMembersMatchRealm(
   uids: string[],
   realm: ConnectRealm,
   tenantId: string,
   deps: Pick<ConnectDeps, "persons" | "flexosUsers">,
-): Promise<void> {
+): Promise<Map<string, "staff" | "student">> {
   const kinds = await Promise.all(uids.map((uid) => resolveUidKind(uid, tenantId, deps)));
+  const result = new Map<string, "staff" | "student">();
   kinds.forEach((kind, i) => {
     if (kind === "unknown") throw new ValidationError(`Kullanıcı bulunamadı: ${uids[i]}`);
     if (realm === "staff" && kind === "student") {
       throw new ForbiddenError("connect.staff.no-student"); // öğrenci staff realm'e ASLA eklenemez
     }
+    result.set(uids[i], kind);
   });
+  return result;
 }
 
 /**

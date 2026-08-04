@@ -532,6 +532,20 @@ service cloud.firestore {
       return conv.realm == "trainer_student" && conv.audience == "all_students";
     }
 
+    // Rol bazlı okundu-tiki güvenliği (2026-08-04, kullanıcı kararı) — öğrenci
+    // hiçbir koşulda bir PERSONEL üyenin dokümanını (dolayısıyla `lastReadAt`
+    // okundu-bilgisini) okuyamamalı, ne API üzerinden ne doğrudan `onSnapshot`
+    // ile. `ConnectMember.kind` bunun için var (bkz. `domain/core/connect.ts`
+    // yorumu + `scripts/backfill-connect-member-kind.mjs`). Kendi dokümanı HER
+    // ZAMAN okunabilir (uid==request.auth.uid, aşağıdaki `allow read`'de ayrı
+    // kolla korunuyor). ESKİ dokümanlarda (backfill'den önce) `kind` alanı yok —
+    // `resource.data.kind` o durumda `null` olur, `null == "staff"` false verir,
+    // yani kısıtlama SADECE alan gerçekten set edildikten sonra devreye girer
+    // (kademeli/güvenli geçiş — backfill tamamlanana kadar davranış ESKİSİYLE AYNI).
+    function isConnectStaffMember(conversationId, uid) {
+      return get(/databases/$(database)/documents/connect_conversations/$(conversationId)/members/$(uid)).data.kind == "staff";
+    }
+
     match /connect_conversations/{conversationId} {
       allow read: if isConnectMember(conversationId) ||
         (resource.data.realm == "trainer_student" && resource.data.audience == "all_students");
@@ -539,9 +553,16 @@ service cloud.firestore {
 
       // Üyelik + okunma + tercih (2026-07-18 revizyonu: memberUids[] ve ayrı
       // `reads` koleksiyonu YOK — hepsi burada). Kendi dokümanını (lastReadAt/
-      // muted/pinned) + konuşmanın diğer üyelerini (roster/"428 üye") okur.
+      // muted/pinned) HER ZAMAN okur. Konuşmanın DİĞER üyelerinin dokümanını
+      // (roster/"428 üye" + okundu-tikleri) okumak için: PERSONEL ise herkesi
+      // okur (değişmedi); ÖĞRENCİ ise SADECE diğer ÖĞRENCİ üyeleri okur, hiçbir
+      // PERSONEL üyenin dokümanına (dolayısıyla `lastReadAt`'ine) erişemez.
       match /members/{uid} {
-        allow read: if isSignedIn() && (uid == request.auth.uid || isConnectMember(conversationId));
+        allow read: if isSignedIn() && (
+          uid == request.auth.uid ||
+          (isConnectMember(conversationId) &&
+            (isConnectStaffMember(conversationId, request.auth.uid) || resource.data.kind != "staff"))
+        );
         allow write: if false;
       }
 

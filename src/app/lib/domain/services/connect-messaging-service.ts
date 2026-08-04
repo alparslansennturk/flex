@@ -276,7 +276,7 @@ export async function markRead(principal: ConnectPrincipal, conversationId: stri
     const audienceOpen = conversation.realm === "trainer_student" && conversation.audience === "all_students";
     if (!audienceOpen) return;
     await deps.conversations.saveMember(conversationId, {
-      uid: principal.uid, realm: conversation.realm, role: "member",
+      uid: principal.uid, realm: conversation.realm, role: "member", kind: principal.kind,
       joinedAt: ts, lastReadAt: ts, lastDeliveredAt: ts, readMessageCount: conversation.messageCount ?? 0,
     });
     return;

@@ -77,6 +77,15 @@ export interface ConnectMember {
   uid: string; // == doküman id
   realm: ConnectRealm; // parent conversation.realm denormalize — defansif izolasyon sorgusu
   role: ConnectMemberRole;
+  /** Bu üyenin GLOBAL kimlik türü — personel mi öğrenci mi (2026-08-04, `role`
+   * [owner/admin/member/guest, konuşma-İÇİ yetki] ile KARIŞTIRILMASIN).
+   * `ConnectPrincipal.kind` ile AYNI kaynak (`resolveUidKind`). Firestore Security
+   * Rules bunu okuyarak öğrencinin diğer STAFF üyelerin dokümanını (dolayısıyla
+   * `lastReadAt` okundu-bilgisini) okumasını engeller. ESKİ dokümanlarda
+   * (backfill'den önce) yok olabilir — bkz. `scripts/backfill-connect-member-kind.mjs`;
+   * kural, alan eksikken davranışı ESKİ (kısıtlamasız) haliyle korur, kısıtlama
+   * SADECE alan set edildikten sonra devreye girer (kademeli/güvenli geçiş). */
+  kind?: "staff" | "student";
   joinedAt: ISODateTime;
   lastReadAt?: ISODateTime;
   /** WhatsApp'taki çift GRİ tik (2026-07-22, kullanıcı isteği) — mesaj bu üyenin

@@ -22,7 +22,7 @@ export async function addMember(
   if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
   if (!conversation.admins.includes(principal.uid)) throw new ForbiddenError("connect.member.add");
 
-  await assertMembersMatchRealm([targetUid], conversation.realm, principal.tenantId, deps);
+  const kinds = await assertMembersMatchRealm([targetUid], conversation.realm, principal.tenantId, deps);
   const existing = await deps.conversations.getMember(conversationId, targetUid);
   if (existing) return; // zaten üye
 
@@ -30,6 +30,7 @@ export async function addMember(
     uid: targetUid,
     realm: conversation.realm,
     role,
+    kind: kinds.get(targetUid),
     joinedAt: nowISO(),
     guestTitle: role === "guest" ? guestTitle : undefined,
   });
