@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed": "node scripts/seed-loadtest.mjs",
+    "seed:clean": "node scripts/seed-loadtest.mjs --clean"
   },
   "dependencies": {
     "@react-email/components": "^1.0.10",

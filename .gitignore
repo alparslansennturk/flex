@@ -2,6 +2,7 @@
 
 # Firebase service account (hassas — asla commit'leme)
 service-account.json
+service-account-*.json
 
 # dependencies
 /node_modules
