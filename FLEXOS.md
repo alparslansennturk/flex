@@ -38,6 +38,15 @@
     başarısı %75.1'e düşmüştü (yük değil kota kaynaklı) — Blaze'e geçildi
     (mevcut billing hesabı, yeni kart yok), sonrasında **%100 (3754/3754),
     p95 19.7s→1.38s** (§11).
+  - **✅ `send_message` N+1 gecikmesi DÜZELTİLDİ** (aynı oturum, `295e1a4`
+    ile push edildi) — `notifyNewMessage` (konuşmadaki her üye için ayrı
+    Firestore okuma/yazma) artık `after()` (Next.js) ile HTTP yanıtı
+    döndükten SONRA çalışıyor, yanıtı bloklamıyor. İki route'ta da uygulandı
+    (`connect/conversations/[id]/messages` + `student/connect/...`).
+    `notifyNewMessage` zaten kendi içinde try/catch'li (non-fatal) olduğundan
+    mesajın kaydını etkilemiyor. **Ölçülmüş before/after yok** (fix, tam
+    sistem testinden SONRA yapıldı) — bir dahaki Connect k6 koşumunda
+    `flexos_message_duration`'ın düştüğü doğrulanmalı.
   - **Tam sistem testi** (Connect hariç, `full-system.js`, 6 persona, 500
     öğrenci/20 personel/40 sınıf, VUS=30/90s sabit baseline): baseline p95
     **1678ms** → 3 optimizasyon sonrası p95 **858ms** (~%49 iyileşme), 3

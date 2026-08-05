@@ -237,10 +237,18 @@ Kaynağı bulundu — `connect-push-service.ts::notifyNewMessage` mesaj
 gönderildikten sonra, HTTP yanıtı DÖNMEDEN ÖNCE, konuşmadaki HER ÜYE için ayrı
 ayrı Firestore okuma+yazma yapıyor (sınıf odalarında ~10 öğrenci = ~10 paralel
 ama senkron bekletilen alt-istek). 500 öğrenci ölçeğinde kalabalık sınıflarda
-bu gecikme büyür. **Olası çözüm (uygulanmadı, sadece tespit):** bildirim
-gönderimini `waitUntil`/fire-and-forget yaparak HTTP yanıtını bloklamaması —
-zaten `try/catch` içinde olduğu için mesajın başarıyla kaydedilmesini
-etkilemiyor, sadece yanıt süresini gereksiz uzatıyor.
+bu gecikme büyür.
+
+**✅ DÜZELTİLDİ (2026-08-05, aynı oturum, `295e1a4` ile push edildi):** her
+iki mesaj route'unda (`connect/conversations/[id]/messages` ve
+`student/connect/conversations/[id]/messages`) `notifyNewMessage` çağrısı
+Next.js `after()` ile HTTP yanıtı DÖNDÜKTEN SONRAYA ertelendi — zaten
+`try/catch` içinde (non-fatal) olduğundan mesajın kaydını etkilemiyor, sadece
+yanıt süresini artık uzatmıyor. **Ölçülmüş before/after yok** — bu fix, yukarıdaki
+tam sistem testinden SONRA yapıldı (tam sistem testi zaten Connect'i
+kapsamıyordu, §12). Doğrulamak için Connect k6 senaryosunu (§6) tekrar
+çalıştırıp `flexos_message_duration`'ın diğer 4 senaryoyla aynı seviyeye
+düştüğünü kontrol et.
 
 ---
 
