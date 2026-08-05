@@ -46,11 +46,21 @@ const manifest = {}; // izlenen kayıtlar — cleanup.js için
 
 function log(module, op, ok, detail) {
   results.push({ module, op, ok, detail: detail || "" });
-  console.log(`${ok ? "✅" : "❌"} [${module}] ${op}${detail ? " — " + detail : ""}`);
+  // 2026-08-05 Sonar bulgusu (S5145): API yanıtından gelen `detail` JSON.stringify
+  // ile basılıyor — satır sonu/kontrol karakteri enjekte edip sahte log satırı
+  // oluşturmayı (log forging) engeller. Gerçek risk yok (yerel test scripti,
+  // kendi dev sunucumuza konuşuyor) ama bedeli yok.
+  console.log(`${ok ? "✅" : "❌"} [${module}] ${op}${detail ? " — " + JSON.stringify(detail) : ""}`);
 }
 
 let idToken = null;
 async function api(method, urlPath, body) {
+  // 2026-08-05 Sonar bulgusu (S8476/S7044): `urlPath` bu dosyanın KENDİ sabit
+  // string çağrılarından geliyor (dışarıdan asla alınmıyor) ama statik analiz
+  // "tainted" sayıyor — ucuz bir allowlist kontrolüyle netleştiriliyor.
+  if (typeof urlPath !== "string" || !urlPath.startsWith("/api/")) {
+    throw new Error(`Geçersiz urlPath: ${JSON.stringify(urlPath)}`);
+  }
   const res = await fetch(BASE + urlPath, {
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
@@ -88,12 +98,12 @@ async function main() {
   const refGroup = groupsRes.json.items.find((g) => g.code === refCode) || groupsRes.json.items[0];
   if (!refGroup) throw new Error("Referans katalog ID'leri için gerçek bir grup bulunamadı.");
   const REF = { branchOfficeId: refGroup.branchOfficeId, educationId: refGroup.educationId, sectionId: refGroup.sectionId };
-  console.log(`Referans grup: ${refGroup.code}`, REF, "\n");
+  console.log(`Referans grup: ${JSON.stringify(refGroup.code)}`, REF, "\n");
 
   const roleDefsRes = await api("GET", "/api/flexos/role-defs");
   const nonTrainerRole = (roleDefsRes.json?.items || []).find((r) => r.id !== "egitmen");
   const REF_ROLE_ID = nonTrainerRole ? nonTrainerRole.id : "satis";
-  console.log("Kullanıcılar testi için rol:", REF_ROLE_ID, "\n");
+  console.log("Kullanıcılar testi için rol:", JSON.stringify(REF_ROLE_ID), "\n");
 
   // ============================================================
   // 1) EĞİTMENLER

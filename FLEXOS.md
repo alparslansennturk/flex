@@ -72,6 +72,35 @@
     deploy edilip API ile doğrulandı.
   - Connect'in gerçek-zamanlı `onSnapshot` dinleyici fan-out'u bu testin
     KAPSAMI DIŞINDA (k6 saf HTTP, WebSocket/dinleyici simülasyonu ayrı bir iş).
+- ~~SonarCloud kod kalitesi taraması~~ — **🟡 KURULUM BİTTİ, GÜVENLİK DÜZELTİLDİ,
+  YARIN TAM DEĞERLENDİRME** (2026-08-05). Kullanıcı Sonar puanlarının düşük
+  çıktığını fark etti (Security E/112, Reliability D/2.5k, 133k satır). Kök
+  neden: `main`'in içinde hâlâ duran eski Flex Core (dashboard/attend/core/
+  student/league, middleware ile "ölü" ilan edilmiş, ~17k satır) + `_design/`
+  (statik tasarım export'u, ~4.6k satır) taranıyordu. `sonar.inclusions` ile
+  sadece aktif FlexOS kapsamı (flexos/lib/api-flexos/api-cron/components/
+  services/types/login/kök dosyalar/scripts) taranacak şekilde ayarlandı
+  (detay → [[sonarcloud_inclusions_active_scope_2026_08_05]] hafıza kaydı).
+  Gerçek/aktif kod ~107-113k satır çıktı (133k'nın ~17k'ı eski pasif sayfa,
+  ~11k'ı `_design`+eski api idi).
+  - **Yeniden analiz sonrası (gerçek aktif koda göre): Security hâlâ E (100
+    bulgu), Reliability D (2.2k), Maintainability A.** Security E'nin GERÇEK
+    kaynağı incelendi (API'den `api/issues/search` ile, UI'da geçici 503 vardı):
+    100 bulgunun 84'ü TEK kural (`Math.random()` güvenli mi — S2245), bunların
+    neredeyse tamamı yanlış pozitif (oyun rastgeleliği: Kitap/Kolaj/Sosyal
+    GameScreen'ler, login sayfası autofill-engelleme kozmetiği) — SADECE 1'i
+    gerçekti: `generateActivationCode()` hesap aktivasyon kodu üretiyordu,
+    kriptografik güvenli değildi. 2 BLOCKER + 2 HIGH + 12 LOW ise `scripts/`
+    altındaki dev/ops araçlarında (OAuth callback/Drive migration/CRUD test/
+    welcome-mail script'leri) — kullanıcı girdisi/API yanıtı kaçırılmadan HTML'e
+    basılması veya log'a ham yazılması. **Hepsi düzeltildi** (`crypto.randomInt`,
+    `escapeHtml`, path/Drive-ID allowlist doğrulaması, `JSON.stringify` ile log
+    sarma) — `tsc`+`vitest` (107/107) temiz, `node --check` ile 4 script de
+    doğrulandı. Henüz push edilmedi/yeni analiz koşmadı.
+  - **Reliability D (2.2k bulgu) henüz incelenmedi** — yarın ele alınacak.
+  - **SIRADAKİ (yarın):** Bu fix'i push et → yeni Sonar analizini bekle →
+    Security rating'in gerçekten düzelip düzelmediğini doğrula → Reliability
+    D'yi aynı yöntemle (API'den gerçek bulgu listesi çekip triaj) incele.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi

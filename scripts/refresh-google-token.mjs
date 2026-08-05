@@ -24,6 +24,12 @@ if (!clientId || !clientSecret) {
 const PORT = 4000;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 
+// 2026-08-05 Sonar bulgusu: OAuth callback'ten/response'tan gelen değerler HTML'e
+// kaçırılmadan basılıyordu (yansıtılmış XSS deseni) — bu yerel, tek seferlik bir
+// dev scripti olsa da (internet'e açık değil) ucuz ve doğru olan düzeltme HTML
+// kaçışı eklemek.
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 const authUrl =
   "https://accounts.google.com/o/oauth2/v2/auth?" +
   new URLSearchParams({
@@ -53,8 +59,8 @@ const server = http.createServer(async (req, res) => {
   const error = url.searchParams.get("error");
 
   if (error) {
-    res.end(`<h2>Hata: ${error}</h2><p>Pencereyi kapatabilirsiniz.</p>`);
-    console.error("OAuth hatası:", error);
+    res.end(`<h2>Hata: ${escapeHtml(error)}</h2><p>Pencereyi kapatabilirsiniz.</p>`);
+    console.error("OAuth hatası:", JSON.stringify(error));
     server.close();
     return;
   }
@@ -81,8 +87,8 @@ const server = http.createServer(async (req, res) => {
     const data = await tokenRes.json();
 
     if (!data.refresh_token) {
-      res.end(`<h2>Refresh token alınamadı.</h2><pre>${JSON.stringify(data, null, 2)}</pre>`);
-      console.error("Token yanıtı:", data);
+      res.end(`<h2>Refresh token alınamadı.</h2><pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`);
+      console.error("Token yanıtı:", JSON.stringify(data));
       server.close();
       return;
     }
@@ -96,12 +102,12 @@ const server = http.createServer(async (req, res) => {
 
     res.end("<h2>Başarılı! Yeni refresh token .env.local'e kaydedildi.</h2><p>Bu pencereyi kapatabilirsiniz.</p>");
     console.log("\nYeni refresh token .env.local'e kaydedildi.");
-    console.log("Token:", data.refresh_token.substring(0, 20) + "...");
+    console.log("Token:", JSON.stringify(data.refresh_token.substring(0, 20) + "..."));
     server.close();
     process.exit(0);
 
   } catch (err) {
-    res.end(`<h2>Hata</h2><pre>${err.message}</pre>`);
+    res.end(`<h2>Hata</h2><pre>${escapeHtml(err.message)}</pre>`);
     console.error(err);
     server.close();
   }

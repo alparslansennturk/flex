@@ -82,7 +82,22 @@ async function getToken() {
 
 // ─── Drive yardımcıları ───────────────────────────────────────────────────────
 
+// 2026-08-05 Sonar bulgusu (S8476): Drive dosya/klasör ID'leri (Firestore'daki
+// kendi verimizden geliyor) doğrudan URL'e enjekte ediliyordu — statik analiz
+// bunu "doğrulanmamış tainted veri" sayıyor. Drive ID'lerinin bilinen karakter
+// kümesiyle (alfanumerik + -/_) eşleşip eşleşmediği kontrol ediliyor.
+function assertDriveId(id) {
+  // `[dry:...]` — DRY_RUN'da ensureFolder'ın döndürdüğü yer tutucu, gerçek bir
+  // Drive isteğine hiç gitmez (findFolder/ensureFolder DRY_RUN'da fetch'e girmeden
+  // döner) ama zincirleme sonraki çağrılara parentId olarak akabiliyor.
+  if (typeof id !== "string" || !/^([\w-]+|\[dry:.*\])$/.test(id)) {
+    throw new Error(`Geçersiz Drive ID: ${JSON.stringify(id)}`);
+  }
+  return id;
+}
+
 async function findFolder(name, parentId) {
+  assertDriveId(parentId);
   const token = await getToken();
   const q = encodeURIComponent(`name = '${name.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&pageSize=1`, { headers: { Authorization: `Bearer ${token}` } });
@@ -106,6 +121,7 @@ async function ensureFolder(name, parentId) {
 }
 
 async function listChildren(parentId, onlyFolders = false) {
+  assertDriveId(parentId);
   const token = await getToken();
   const parts = [`'${parentId}' in parents`, "trashed = false"];
   if (onlyFolders) parts.push("mimeType = 'application/vnd.google-apps.folder'");
@@ -116,6 +132,9 @@ async function listChildren(parentId, onlyFolders = false) {
 
 async function moveFile(fileId, fromId, toId) {
   if (DRY_RUN) return;
+  assertDriveId(fileId);
+  assertDriveId(fromId);
+  assertDriveId(toId);
   const token = await getToken();
   await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?addParents=${toId}&removeParents=${fromId}&fields=id`,
     { method: "PATCH", headers: { Authorization: `Bearer ${token}` } });

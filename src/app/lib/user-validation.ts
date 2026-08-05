@@ -1,4 +1,5 @@
 // Server-side only (Admin SDK bağlamında kullanılır)
+import { randomInt } from "crypto";
 
 export type NewUserRole = "admin" | "instructor" | "student" | "accountant";
 export type UserType    = "internal" | "external";
@@ -14,11 +15,14 @@ export function validateRole(role: string): role is NewUserRole {
 }
 
 // 8 karakter büyük harf + rakam
+// 2026-08-05 Sonar bulgusu: Math.random() kriptografik olarak öngörülebilir —
+// hesap aktivasyonu gibi güvenlik-hassas bir kod için uygun değil, crypto.randomInt
+// (kriptografik güvenli, unbiased) kullanılıyor.
 export function generateActivationCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ambiguous chars removed (0,O,1,I)
   let code = "";
   for (let i = 0; i < 8; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += chars[randomInt(chars.length)];
   }
   return code;
 }

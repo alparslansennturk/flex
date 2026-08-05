@@ -90,12 +90,12 @@ async function sendWelcomeAll() {
 
   if (!res.ok) {
     const text = await res.text();
-    console.error(`[hata] Endpoint ${res.status} döndü:`, text);
+    console.error(`[hata] Endpoint ${res.status} döndü:`, JSON.stringify(text));
     process.exit(1);
   }
 
   const data = await res.json();
-  console.log("[2/2] Sonuç:", data);
+  console.log("[2/2] Sonuç:", JSON.stringify(data));
   return data;
 }
 
@@ -108,12 +108,12 @@ async function sendWelcomeAll() {
   const result = await sendWelcomeAll();
 
   console.log("\n=== Tamamlandı ===");
-  console.log(`  Gönderilen : ${result.sent}`);
-  console.log(`  Atlanan    : ${result.skipped}  (email yok)`);
-  console.log(`  Başarısız  : ${result.failed}`);
+  console.log(`  Gönderilen : ${JSON.stringify(result.sent)}`);
+  console.log(`  Atlanan    : ${JSON.stringify(result.skipped)}  (email yok)`);
+  console.log(`  Başarısız  : ${JSON.stringify(result.failed)}`);
 
   if (result.errors?.length) {
     console.log("  Hatalar:");
-    result.errors.forEach(e => console.log("   -", e));
+    result.errors.forEach(e => console.log("   -", JSON.stringify(e)));
   }
 })();
