@@ -9,6 +9,9 @@ export interface GroupRepo {
   save(group: Group): Promise<void>;
   getById(id: string, tenantId: string): Promise<Group | null>;
   list(tenantId: string, trainerId?: string): Promise<Group[]>;
+  /** Belirli id'leri tek seferde çeker (tam koleksiyon taraması yerine) — persons
+   * sayfalı listesinin daraltılmış join'i için. En fazla 30'luk parçalar. */
+  getByIds(ids: string[], tenantId: string): Promise<Group[]>;
   /** Grubu sil (boş grup — kayıtlı öğrenci kontrolü serviste yapılır). */
   delete(id: string, tenantId: string): Promise<void>;
 }

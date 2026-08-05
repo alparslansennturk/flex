@@ -16,7 +16,7 @@
  *   alanlar — wiring adımında modele eklenecek/eşlenecek (bkz. FLEXOS.md Durum bloğu).
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -143,27 +143,53 @@ export default function OgrenciHavuzuPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ student: Student; enrollmentId: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadStudents = useCallback(async (signal?: AbortSignal) => {
+  const toStudent = (it: PersonApiItem): Student => ({
+    id: it.id,
+    name: it.name,
+    email: it.email ?? "",
+    phone: it.phone ?? "",
+    status: (it.status as StatusKey) ?? "beklemede",
+    subeler: it.subeler ?? [],
+    gender: it.gender ?? "",
+    branches: it.branches ?? [],
+    groups: it.groups ?? [],
+    educations: it.educations ?? [],
+    assignableEnrollments: it.assignableEnrollments ?? [],
+  });
+
+  // ── Sayfalama (2026-08-05, k6 yük testi bulgusu — bkz. LOAD_TEST.md) ────────
+  // Filtre/arama YOKKEN varsayılan "gözat" modu — sadece `PAGE_LIMIT` kadar kişi +
+  // onların join'i çekilir (org büyüklüğünden BAĞIMSIZ maliyet). Arama kutusuna
+  // yazılır YA DA bir dropdown filtre uygulanır uygulanmaz (`hasLoadedFull` bir kez
+  // true olunca) TÜM liste çekilip bugünkü (2026-08-05 öncesi) davranışa dönülür —
+  // filtreleme her zaman TAM veri üzerinde doğru sonuç versin diye. NOT (bilinen,
+  // kabul edilen sınır): BRANS_LIST/EGITIM_LIST dropdown seçenekleri "gözat" modunda
+  // sadece o ana kadar yüklenmiş kişilerden türer — tam liste çekilince (arama/filtre
+  // ilk kullanıldığında) otomatik tamamlanır.
+  const PAGE_LIMIT = 50;
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasLoadedFull, setHasLoadedFull] = useState(false);
+  // 2026-08-05 /code-review bulgusu (GERÇEK): kullanıcı "Daha Fazla Yükle" ile 2-3 sayfa
+  // (100-150 kişi) yüklemişken başka biri satış/kayıt değişikliği yapıp `students.changed`
+  // broadcast edince, `loadStudents` (aşağıda) `hasLoadedFull` hâlâ false olduğu için
+  // `loadInitialPage`'e düşüp listeyi SESSİZCE ilk 50'ye sıfırlıyordu — kullanıcının
+  // yüklediği ekstra sayfalar kayboluyordu. Artık "en az bir kez daha fazla yüklendi" işareti
+  // tutuluyor, bu durumda realtime/genel yenileme tam listeye YÜKSELİYOR (page 1'e DÜŞMÜYOR).
+  const [hasLoadedExtra, setHasLoadedExtra] = useState(false);
+
+  const loadInitialPage = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/flexos/persons", { headers: await authHeaders(), signal });
+      const res = await fetch(`/api/flexos/persons?limit=${PAGE_LIMIT}`, { headers: await authHeaders(), signal });
       if (!res.ok) throw new Error(String(res.status));
       const json = await res.json();
       const items: PersonApiItem[] = json.items ?? [];
       if (signal?.aborted) return;
-      setStudents(items.map((it) => ({
-        id: it.id,
-        name: it.name,
-        email: it.email ?? "",
-        phone: it.phone ?? "",
-        status: (it.status as StatusKey) ?? "beklemede",
-        subeler: it.subeler ?? [],
-        gender: it.gender ?? "",
-        branches: it.branches ?? [],
-        groups: it.groups ?? [],
-        educations: it.educations ?? [],
-        assignableEnrollments: it.assignableEnrollments ?? [],
-      })));
+      setStudents(items.map(toStudent));
+      setNextCursor(json.nextCursor ?? null);
+      setHasLoadedFull(false);
+      setHasLoadedExtra(false);
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Öğrenciler yüklenemedi.");
     } finally {
@@ -171,13 +197,62 @@ export default function OgrenciHavuzuPage() {
     }
   }, []);
 
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/flexos/persons?limit=${PAGE_LIMIT}&cursor=${encodeURIComponent(nextCursor)}`, { headers: await authHeaders() });
+      if (!res.ok) throw new Error(String(res.status));
+      const json = await res.json();
+      const items: PersonApiItem[] = json.items ?? [];
+      setStudents((prev) => [...prev, ...items.map(toStudent)]);
+      setNextCursor(json.nextCursor ?? null);
+      setHasLoadedExtra(true);
+    } catch {
+      toast.error("Daha fazla öğrenci yüklenemedi.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore]);
+
+  const loadAll = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/flexos/persons", { headers: await authHeaders(), signal });
+      if (!res.ok) throw new Error(String(res.status));
+      const json = await res.json();
+      const items: PersonApiItem[] = json.items ?? [];
+      if (signal?.aborted) return;
+      setStudents(items.map(toStudent));
+      setNextCursor(null);
+      setHasLoadedFull(true);
+      setHasLoadedExtra(false);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") toast.error("Öğrenciler yüklenemedi.");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+
+  // Diğer akışların (satış/transfer/mezuniyet sonrası, realtime sync) çağırdığı ortak
+  // yenileme — hangi moddaysak (sayfalı gözat / tam liste) o modda kalarak tazeler.
+  // `hasLoadedExtra` de tam listeye YÜKSELTİR (bkz. yukarıdaki yorum) — "Daha Fazla
+  // Yükle" ile genişletilmiş bir görünüm realtime/genel yenilemede page 1'e DÜŞMEZ.
+  const loadStudents = useCallback(async (signal?: AbortSignal) => {
+    if (hasLoadedFull || hasLoadedExtra) await loadAll(signal);
+    else await loadInitialPage(signal);
+  }, [hasLoadedFull, hasLoadedExtra, loadAll, loadInitialPage]);
+
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-      await loadStudents(ac.signal);
+      // Mount'ta HER ZAMAN hafif ilk sayfa — `loadStudents` (mod-farkında sarmalayıcı)
+      // DEĞİL, çünkü onun kimliği `hasLoadedFull` değiştikçe değişir ve bu effect'i
+      // (deps'te olsaydı) gereksiz yere tekrar tetiklerdi.
+      await loadInitialPage(ac.signal);
       try {
         const res = await fetch("/api/flexos/branch-offices", { headers: await authHeaders(), signal: ac.signal });
         const json = res.ok ? await res.json() : { items: [] };
@@ -187,11 +262,30 @@ export default function OgrenciHavuzuPage() {
       }
     })();
     return () => ac.abort();
-  }, [router, loadStudents]);
+  }, [router, loadInitialPage]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı öğrenci ekleyip/kaydını
   // değiştirdiğinde (satış, transfer, mezuniyet dahil) SSE üzerinden haber alınır.
   useRealtimeSync(["students.changed", "sales.changed"], useCallback(() => { void loadStudents(); }, [loadStudents]));
+
+  // Arama/filtre (UYGULANMIŞ — `filtered` useMemo'yu SÜRÜKLEYEN aynı state) ilk kez
+  // aktif olduğu an TAM listeyi çeker — "gözat" modunun ucuzluğu SADECE filtresiz
+  // haldeyken geçerli, filtreleme yanlış/eksik sonuç vermesin diye bir kez tetiklenip
+  // `hasLoadedFull=true` olduktan sonra bu effect bir daha devreye girmez (bkz. loadAll).
+  // `loadAllRequestedRef` — GERÇEK bulgu (2026-08-05, tarayıcı testinde): `hasLoadedFull`
+  // state güncellemesi asenkron/re-render'a bağlı, hızlı yazarken (her tuş vuruşu bu
+  // effect'i tetikliyor) React state daha "yakalamadan" birden fazla `loadAll()` isteği
+  // eşzamanlı gidiyordu (4 istek tek "Test" yazarken). `ref` senkron güncellendiği için
+  // ikinci tuşa basılana kadar state henüz commit olmasa bile tekrar tetiklenmeyi engeller.
+  const loadAllRequestedRef = useRef(false);
+  useEffect(() => {
+    const filterActive = query.trim().length > 0 || statusFilter.length > 0 || subeFilter !== "Tümü" || bransFilter !== "Tümü" || egitimFilter !== "Tümü";
+    if (filterActive && !hasLoadedFull && !loadAllRequestedRef.current) {
+      loadAllRequestedRef.current = true;
+      void loadAll();
+    }
+    if (!filterActive) loadAllRequestedRef.current = false;
+  }, [query, statusFilter, subeFilter, bransFilter, egitimFilter, hasLoadedFull, loadAll]);
 
   // ── Gruba Ata: modal aç + kişinin TÜM grupsuz eğitimlerinin (paket satışıysa birden
   //    fazla olabilir — Grafik Tasarım + Dijital Pazarlama + Video gibi) gruplarını TEK
@@ -517,6 +611,20 @@ export default function OgrenciHavuzuPage() {
             onOpenTransfer={openTransfer}
             onOpenDelete={openDelete}
           />
+
+          {/* Sayfalı "gözat" modunda (filtre/arama YOK) ve daha fazla kayıt varsa. */}
+          {!hasLoadedFull && nextCursor && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+              <button
+                className="oh-filter"
+                style={{ ...S.filterBtn, opacity: loadingMore ? 0.6 : 1, cursor: loadingMore ? "default" : "pointer" }}
+                onClick={loadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Yükleniyor…" : "Daha Fazla Yükle"}
+              </button>
+            </div>
+          )}
         </FlexPageContent>
         </motion.div>
 

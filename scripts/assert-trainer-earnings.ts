@@ -47,6 +47,7 @@ function makeGroupRepo(groups: Group[]): GroupRepo {
     async list(tid, trainerId) {
       return [...map.values()].filter((g) => g.tenantId === tid && (!trainerId || g.trainerId === trainerId));
     },
+    async getByIds(ids, tid) { return ids.map((id) => map.get(id)).filter((g): g is Group => !!g && g.tenantId === tid); },
     async delete(id) { map.delete(id); },
   };
 }
@@ -63,6 +64,15 @@ function makeAttendanceRepo(records: Attendance[]): AttendanceRepo {
     // servis buna güvenir (ikinci kez filtrelemez).
     async listByGroup(gid, tid, month) {
       return [...map.values()].filter((r) => r.tenantId === tid && r.groupId === gid && (!month || r.month === month));
+    },
+    async listByTrainer(trainerId, tid, month) {
+      return [...map.values()].filter((r) => r.tenantId === tid && r.trainerId === trainerId && (!month || r.month === month));
+    },
+    async listByMonth(tid, month) {
+      return [...map.values()].filter((r) => r.tenantId === tid && r.month === month);
+    },
+    async listByDateRange(tid, from, to) {
+      return [...map.values()].filter((r) => r.tenantId === tid && r.date >= from && r.date <= to);
     },
     async list(tid) { return [...map.values()].filter((r) => r.tenantId === tid); },
     async delete(id) { map.delete(id); },

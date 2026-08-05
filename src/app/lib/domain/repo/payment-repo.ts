@@ -10,4 +10,6 @@ export interface PaymentRepo {
   list(tenantId: string): Promise<Payment[]>;
   listBySale(saleId: string, tenantId: string): Promise<Payment[]>;
   listByPerson(personId: string, tenantId: string): Promise<Payment[]>;
+  /** BELİRLİ kişi id'lerinin ödemeleri — persons sayfalı listesi için (30'luk chunk). */
+  listByPersonIds(personIds: string[], tenantId: string): Promise<Payment[]>;
 }

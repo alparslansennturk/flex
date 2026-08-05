@@ -3,6 +3,7 @@ import { adminDb } from "../firebase-admin";
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import type { Person } from "../domain/core/person";
 import type { PersonRepo } from "../domain/repo/person-repo";
+import { getDocsByIds } from "./firestore-chunk";
 
 /**
  * PersonRepo'nun Firestore implementasyonu (altyapı adapter'ı).
@@ -34,23 +35,7 @@ export const firestorePersonRepo: PersonRepo = {
   },
 
   async getByIds(ids, tenantId) {
-    const uniqueIds = [...new Set(ids)];
-    if (uniqueIds.length === 0) return [];
-    // Firestore "in" sorgusu en fazla 30 değer kabul eder → 30'luk parçalara böl.
-    const chunks: string[][] = [];
-    for (let i = 0; i < uniqueIds.length; i += 30) chunks.push(uniqueIds.slice(i, i + 30));
-
-    const results = await Promise.all(
-      chunks.map((chunk) =>
-        adminDb
-          .collection(COLLECTION)
-          .where(FieldPath.documentId(), "in", chunk)
-          .get(),
-      ),
-    );
-    return results
-      .flatMap((snap) => snap.docs.map((d) => d.data() as Person))
-      .filter((p) => p.tenantId === tenantId); // kiracı izolasyonu
+    return getDocsByIds<Person>(COLLECTION, ids, tenantId);
   },
 
   async update(id, tenantId, data) {
@@ -106,6 +91,35 @@ export const firestorePersonRepo: PersonRepo = {
     return snap.docs
       .map((d) => d.data() as Person)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  },
+
+  async listPage(tenantId, { limit, cursor }) {
+    // `list()`'in aksine BURADA gerçek Firestore orderBy kullanılıyor (composite
+    // index deploy edildi, bkz. firestore.indexes.json) — `createdAt DESC, __name__
+    // DESC` kompozit sıralama, aynı milisaniyede oluşmuş kayıtlarda bile kararlı/
+    // tekil sayfalama garantisi (bkz. PersonRepo arayüz yorumu).
+    let q = adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .orderBy("createdAt", "desc")
+      .orderBy(FieldPath.documentId(), "desc");
+
+    if (cursor) {
+      const sep = cursor.lastIndexOf("|");
+      const cursorCreatedAt = sep >= 0 ? cursor.slice(0, sep) : cursor;
+      const cursorId = sep >= 0 ? cursor.slice(sep + 1) : "";
+      q = q.startAfter(cursorCreatedAt, cursorId);
+    }
+
+    // +1 fazla çekilir — tam `limit` kadar sonuç varsa "sonraki sayfa var mı" bunu
+    // bilmenin tek ucuz yolu (ekstra bir count sorgusu yerine).
+    const snap = await q.limit(limit + 1).get();
+    const docs = snap.docs.slice(0, limit);
+    const items = docs.map((d) => d.data() as Person);
+    const hasMore = snap.docs.length > limit;
+    const last = items[items.length - 1];
+    const nextCursor = hasMore && last ? `${last.createdAt}|${last.id}` : null;
+    return { items, nextCursor };
   },
 
   async clearAuthUid(id, tenantId) {

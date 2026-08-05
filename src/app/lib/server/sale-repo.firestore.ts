@@ -2,6 +2,7 @@
 import { adminDb } from "../firebase-admin";
 import type { Sale } from "../domain/eduos/sale";
 import type { SaleRepo } from "../domain/repo/sale-repo";
+import { listDocsByFieldIn } from "./firestore-chunk";
 
 const COLLECTION = "flexos_sales";
 
@@ -42,5 +43,9 @@ export const firestoreSaleRepo: SaleRepo = {
       .where("personId", "==", personId)
       .get();
     return snap.docs.map((d) => d.data() as Sale);
+  },
+
+  async listByPersonIds(personIds, tenantId) {
+    return listDocsByFieldIn<Sale>(COLLECTION, "personId", tenantId, personIds);
   },
 };

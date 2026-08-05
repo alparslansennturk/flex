@@ -5,6 +5,7 @@ import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { cancelSale } from "@/app/lib/domain/services/sale-service";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateCache } from "@/app/lib/server/read-cache";
 import { apiError } from "@/app/lib/server/api-error";
 
 /**
@@ -31,6 +32,7 @@ export const POST = withAuth(async (req: NextRequest, caller, { params }: { para
       enrollments: firestoreEnrollmentRepo,
     });
 
+    invalidateCache(`sales:${actor.tenantId}`);
     broadcast(actor.tenantId, { type: "sales.changed", id });
     broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({

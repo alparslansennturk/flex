@@ -48,6 +48,7 @@ function makeGroupRepo(groups: Group[] = []): GroupRepo {
     async save(g) { map.set(g.id, { ...g }); },
     async getById(id, tid) { const g = map.get(id); return g && g.tenantId === tid ? g : null; },
     async list(tid) { return [...map.values()].filter((g) => g.tenantId === tid); },
+    async getByIds(ids, tid) { return ids.map((id) => map.get(id)).filter((g): g is Group => !!g && g.tenantId === tid); },
     async delete(id) { map.delete(id); },
   };
 }
@@ -63,6 +64,10 @@ function makePersonRepo(persons: Person[] = []): PersonRepo {
     async findByAuthUid() { return null; },
     async getByAuthUids() { return []; },
     async list(tid) { return [...map.values()].filter((p) => p.tenantId === tid); },
+    async listPage(tid, { limit }) {
+      const items = [...map.values()].filter((p) => p.tenantId === tid).slice(0, limit);
+      return { items, nextCursor: null };
+    },
     async update(id, tid, data) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, ...data }); },
     async clearAuthUid(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, authUid: undefined }); },
     async delete(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.delete(id); },
@@ -83,6 +88,7 @@ function makeEnrollmentRepo(enrollments: Enrollment[] = []): EnrollmentRepo {
     async listByGroupIds(gids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && gids.includes(e.groupId ?? "")); },
     async listBySale(sid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === sid); },
     async listByPerson(pid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === pid); },
+    async listByPersonIds(pids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && pids.includes(e.personId)); },
     async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }

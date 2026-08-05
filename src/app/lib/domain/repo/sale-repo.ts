@@ -10,4 +10,6 @@ export interface SaleRepo {
   getById(id: string, tenantId: string): Promise<Sale | null>;
   list(tenantId: string): Promise<Sale[]>;
   listByPerson(personId: string, tenantId: string): Promise<Sale[]>;
+  /** BELİRLİ kişi id'lerinin satışları — persons sayfalı listesi için (30'luk chunk). */
+  listByPersonIds(personIds: string[], tenantId: string): Promise<Sale[]>;
 }

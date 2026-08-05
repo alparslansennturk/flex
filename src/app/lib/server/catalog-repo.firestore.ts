@@ -1,5 +1,6 @@
 // NOT: Sadece server-side (firebase-admin). Katalog yeni koleksiyonlar (flexos_*).
 import { adminDb } from "../firebase-admin";
+import { getDocsByIds } from "./firestore-chunk";
 import type { Branch } from "../domain/eduos/branch";
 import type { BranchOffice } from "../domain/eduos/branch-office";
 import type { Education } from "../domain/eduos/education";
@@ -21,6 +22,10 @@ function makeRepo<T extends { id: string; tenantId: string }>(collection: string
       if (!snap.exists) return null;
       const data = snap.data() as T;
       return data.tenantId === tenantId ? data : null;
+    },
+    // persons sayfalı listesi join'i için.
+    async getByIds(ids: string[], tenantId: string): Promise<T[]> {
+      return getDocsByIds<T>(collection, ids, tenantId);
     },
   };
 }

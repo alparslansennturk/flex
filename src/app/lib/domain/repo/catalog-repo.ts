@@ -11,6 +11,8 @@ export interface BranchRepo {
   save(branch: Branch): Promise<void>;
   getById(id: string, tenantId: string): Promise<Branch | null>;
   list(tenantId: string): Promise<Branch[]>;
+  /** Belirli id'leri tek seferde çeker — persons sayfalı listesi join'i için. */
+  getByIds(ids: string[], tenantId: string): Promise<Branch[]>;
 }
 export interface BranchOfficeRepo {
   nextId(): string;
@@ -18,6 +20,8 @@ export interface BranchOfficeRepo {
   getById(id: string, tenantId: string): Promise<BranchOffice | null>;
   list(tenantId: string): Promise<BranchOffice[]>;
   delete(id: string, tenantId: string): Promise<boolean>;
+  /** Belirli id'leri tek seferde çeker — persons sayfalı listesi join'i için. */
+  getByIds(ids: string[], tenantId: string): Promise<BranchOffice[]>;
 }
 export interface LabRepo {
   nextId(): string;
@@ -32,6 +36,8 @@ export interface EducationRepo {
   getById(id: string, tenantId: string): Promise<Education | null>;
   list(tenantId: string, branchId?: string): Promise<Education[]>;
   delete(id: string, tenantId: string): Promise<boolean>;
+  /** Belirli id'leri tek seferde çeker — persons sayfalı listesi join'i için. */
+  getByIds(ids: string[], tenantId: string): Promise<Education[]>;
 }
 export interface SectionRepo {
   nextId(): string;

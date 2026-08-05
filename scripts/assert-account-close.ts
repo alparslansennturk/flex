@@ -47,6 +47,10 @@ function makePersonRepo(seed: Person[]): PersonRepo {
     async findByAuthUid(authUid, tid) { return [...map.values()].find((p) => p.tenantId === tid && p.authUid === authUid) ?? null; },
     async getByAuthUids(authUids, tid) { return [...map.values()].filter((p) => p.tenantId === tid && authUids.includes(p.authUid ?? "")); },
     async list(tid) { return [...map.values()].filter((p) => p.tenantId === tid); },
+    async listPage(tid, { limit }) {
+      const items = [...map.values()].filter((p) => p.tenantId === tid).slice(0, limit);
+      return { items, nextCursor: null };
+    },
     async update(id, tid, data) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, ...data }); },
     async clearAuthUid(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, authUid: undefined }); },
     async delete(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.delete(id); },
@@ -65,6 +69,7 @@ function makeEnrollmentRepo(seed: Enrollment[]): EnrollmentRepo {
     async listByGroupIds(gids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && gids.includes(e.groupId ?? "")); },
     async listBySale(sid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === sid); },
     async listByPerson(pid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === pid); },
+    async listByPersonIds(pids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && pids.includes(e.personId)); },
     async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }
@@ -76,6 +81,7 @@ function makeSaleRepo(seed: Sale[] = []): SaleRepo {
     async getById() { return null; },
     async list(tid) { return seed.filter((s) => s.tenantId === tid); },
     async listByPerson(pid, tid) { return seed.filter((s) => s.tenantId === tid && s.personId === pid); },
+    async listByPersonIds(pids, tid) { return seed.filter((s) => s.tenantId === tid && pids.includes(s.personId)); },
   };
 }
 
@@ -85,6 +91,7 @@ function makePaymentRepo(seed: Payment[] = []): PaymentRepo {
     async saveMany() {},
     async list(tid) { return seed.filter((p) => p.tenantId === tid); },
     async listByPerson(pid, tid) { return seed.filter((p) => p.tenantId === tid && p.personId === pid); },
+    async listByPersonIds(pids, tid) { return seed.filter((p) => p.tenantId === tid && pids.includes(p.personId)); },
     async listBySale() { return []; },
   };
 }

@@ -42,6 +42,35 @@ export const firestoreAttendanceRepo: AttendanceRepo = {
     return snap.docs.map((d) => d.data() as Attendance);
   },
 
+  async listByTrainer(trainerId, tenantId, month) {
+    let q = adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("trainerId", "==", trainerId);
+    if (month) q = q.where("month", "==", month);
+    const snap = await q.get();
+    return snap.docs.map((d) => d.data() as Attendance);
+  },
+
+  async listByMonth(tenantId, month) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("month", "==", month)
+      .get();
+    return snap.docs.map((d) => d.data() as Attendance);
+  },
+
+  async listByDateRange(tenantId, from, to) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("date", ">=", from)
+      .where("date", "<=", to)
+      .get();
+    return snap.docs.map((d) => d.data() as Attendance);
+  },
+
   async list(tenantId) {
     const snap = await adminDb.collection(COLLECTION).where("tenantId", "==", tenantId).get();
     return snap.docs.map((d) => d.data() as Attendance);

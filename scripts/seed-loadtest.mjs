@@ -9,7 +9,7 @@
  * Kullanım:
  *   npm run seed                          # profile=large (varsayılan), yaz
  *   node scripts/seed-loadtest.mjs --dry-run             # sadece sayaç, yazma yok
- *   node scripts/seed-loadtest.mjs --profile=small        # small|medium|large
+ *   node scripts/seed-loadtest.mjs --profile=small        # small|medium|large|system
  *   npm run seed:clean                     # ÖNCE bu profildeki eski seed verisini SİLER, sonra yazar
  *   node scripts/seed-loadtest.mjs --clean --dry-run       # ne silineceğini göster, silme
  *
@@ -65,10 +65,27 @@ const PROFILES = {
     assignmentsPerClass: 20, sessionsPerClass: 24, notifPerPerson: 10,
     templates: 20, staffChannels: 3,
   },
+  // "system" — 2026-08-05, kullanıcı isteği: Connect DIŞINDA tüm modülleri (satış/
+  // eğitim-op/eğitmen/admin-koordinatör/öğrenci) kapsayan orta ölçekli tam-sistem
+  // testi için. Rol dağılımı ağırlıklı-RASTGELE DEĞİL, deterministik sayılarla
+  // (`roleCounts`) — k6'nın her rolden yeterli/bilinen sayıda hesaba ihtiyacı var.
+  // DM mesaj aralığı diğer profillerden bilerek düşük (2000-5000 toplam mesaj hedefi,
+  // Connect zaten ayrı test edildiği için burada odak değil).
+  system: {
+    students: 500, staff: 20, classes: 40,
+    assignmentsPerClass: 13, sessionsPerClass: 50, notifPerPerson: 8,
+    templates: 15, staffChannels: 2,
+    roleCounts: { genel_mudur: 3, satis_temsilcisi: 3, ogrenci_isleri: 3, egitmen: 8, egitim_koordinatoru: 3 },
+    dmMessageRange: [1, 6],
+    // Ödev değerlendirme (grading) senaryosunun hedefi olacak teslimler — sınıf
+    // başına ilk N ödeve, ilk M öğrenciden "submitted" (henüz notlanmamış) kayıt.
+    submissionsAssignmentsPerClass: 3,
+    submissionsStudentsPerAssignment: 3,
+  },
 };
 const PROFILE = PROFILES[PROFILE_NAME];
 if (!PROFILE) {
-  console.error(`Bilinmeyen profil: "${PROFILE_NAME}" — small|medium|large olmalı.`);
+  console.error(`Bilinmeyen profil: "${PROFILE_NAME}" — small|medium|large|system olmalı.`);
   process.exit(1);
 }
 
@@ -162,6 +179,7 @@ async function runClean() {
   for (const col of [
     "flexos_users", "flexos_trainers", "persons", "flexos_groups",
     "enrollments", "flexos_assignment_templates", "flexos_assignments", "flexos_attendance",
+    "flexos_submissions",
   ]) {
     total += await deleteBySeedTag(col);
   }
@@ -239,12 +257,28 @@ function weightedRole() {
   return "egitmen";
 }
 
+// `roleCounts` varsa (ör. "system" profili) rol dağılımı DETERMİNİSTİK — idempotentlik
+// için rastgele shuffle YOK, sabit blok sırası yeterli (hangi uid'in hangi rolde
+// olduğu önemli değil, sadece SAYILAR sabit olmalı — tekrar çalıştırınca aynı sonuç).
+function deterministicRoles(counts, expectedTotal) {
+  const roles = [];
+  for (const [role, n] of Object.entries(counts)) {
+    for (let k = 0; k < n; k++) roles.push(role);
+  }
+  if (roles.length !== expectedTotal) {
+    console.error(`roleCounts toplamı (${roles.length}) PROFILE.staff (${expectedTotal}) ile uyuşmuyor.`);
+    process.exit(1);
+  }
+  return roles;
+}
+const DETERMINISTIC_ROLES = PROFILE.roleCounts ? deterministicRoles(PROFILE.roleCounts, PROFILE.staff) : null;
+
 const staffList = []; // { flexosUserId, authUid, name, surname, role, trainerId? }
 for (let i = 1; i <= PROFILE.staff; i++) {
   const isFemale = Math.random() < 0.5;
   const name = pick(isFemale ? FIRST_NAMES_F : FIRST_NAMES_M);
   const surname = pick(LAST_NAMES);
-  const role = weightedRole();
+  const role = DETERMINISTIC_ROLES ? DETERMINISTIC_ROLES[i - 1] : weightedRole();
   const uid = staffUid(i);
   const fid = flexosUserId(i);
 
@@ -369,7 +403,9 @@ console.log(`✓ Ödev şablonu: ${templates.length}`);
 // 5) Ödevler (flexos_assignments) — sınıf başına N adet
 // ═══════════════════════════════════════════════════════════════════
 let assignmentCount = 0;
+const assignmentsByClass = new Map(); // groupId → [assignmentId,...] (submission seed'i için, aşağıda)
 for (const cls of classList) {
+  const classAssignmentIds = [];
   for (let ai = 1; ai <= PROFILE.assignmentsPerClass; ai++) {
     const aid = assignmentId(classList.indexOf(cls) + 1, ai);
     const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + randInt(-30, 30));
@@ -388,9 +424,42 @@ for (const cls of classList) {
       createdAt: nowIso(), createdBy: "seed:loadtest",
     });
     assignmentCount++;
+    classAssignmentIds.push(aid);
   }
+  assignmentsByClass.set(cls.groupId, classAssignmentIds);
 }
 console.log(`✓ Ödev: ${assignmentCount}`);
+
+// ═══════════════════════════════════════════════════════════════════
+// 5b) Teslimler (flexos_submissions) — SADECE `submissionsAssignmentsPerClass`/
+// `submissionsStudentsPerAssignment` tanımlıysa (ör. "system" profili). Amaç: k6'nın
+// "ödev değerlendir" (grade) senaryosunun hedef alacağı, henüz notlanmamış
+// ("submitted") gerçek teslim kayıtları — bunlar olmadan `PATCH .../grade` hiçbir
+// şeye yazamaz. `submissionDocId` formülü (`submission-helpers.ts`) ile BİREBİR aynı:
+// `${tenantId}_${assignmentId}_${personId}`.
+// ═══════════════════════════════════════════════════════════════════
+let submissionCount = 0;
+if (PROFILE.submissionsAssignmentsPerClass && PROFILE.submissionsStudentsPerAssignment) {
+  for (const cls of classList) {
+    const targetAssignments = (assignmentsByClass.get(cls.groupId) ?? []).slice(0, PROFILE.submissionsAssignmentsPerClass);
+    const targetStudents = cls.students.slice(0, PROFILE.submissionsStudentsPerAssignment);
+    for (const aid of targetAssignments) {
+      for (const student of targetStudents) {
+        const sid = `${TENANT_ID}_${aid}_${student.personId}`;
+        const submittedAt = pastIso(10);
+        w(db.collection("flexos_submissions").doc(sid), {
+          id: sid, tenantId: TENANT_ID,
+          assignmentId: aid, groupId: cls.groupId, personId: student.personId,
+          status: "submitted", iteration: 1, isLate: false,
+          submittedAt, lastSubmittedAt: submittedAt,
+          createdAt: submittedAt, createdBy: student.authUid,
+        });
+        submissionCount++;
+      }
+    }
+  }
+}
+console.log(`✓ Teslim (ödev değerlendirme hedefi): ${submissionCount}`);
 
 // ═══════════════════════════════════════════════════════════════════
 // 6) Yoklama (flexos_attendance) — sınıf başına N oturum, id=`${groupId}_${date}`
@@ -490,6 +559,9 @@ for (const cls of classList) {
 }
 
 // 7b) Öğrenci ↔ kendi eğitmeni DM'leri (her öğrenci için bir tane)
+// `dmMessageRange` profil override'ı (ör. "system" — toplam mesaj sayısını
+// 2000-5000 aralığında tutmak için diğer profillerden daha dar bir aralık).
+const [DM_MIN, DM_MAX] = PROFILE.dmMessageRange ?? [2, 14];
 for (const cls of classList) {
   for (const student of cls.students) {
     totalMessages += seedConversation({
@@ -498,7 +570,7 @@ for (const cls of classList) {
         { uid: cls.trainer.authUid, role: "owner", kind: "staff" },
         { uid: student.authUid, role: "member", kind: "student" },
       ],
-      messageTarget: randInt(2, 14),
+      messageTarget: randInt(DM_MIN, DM_MAX),
     });
     convCount++;
   }

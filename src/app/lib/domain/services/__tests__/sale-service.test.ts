@@ -51,6 +51,10 @@ function makeInMemoryRepos() {
     findByAuthUid: async () => null,
     getByAuthUids: async () => [],
     list: async (tenantId) => [...persons.values()].filter((p) => p.tenantId === tenantId),
+    listPage: async (tenantId, { limit }) => {
+      const items = [...persons.values()].filter((p) => p.tenantId === tenantId).slice(0, limit);
+      return { items, nextCursor: null };
+    },
     update: async (id, _tenantId, data) => {
       const existing = persons.get(id);
       if (existing) persons.set(id, { ...existing, ...data });
@@ -69,6 +73,8 @@ function makeInMemoryRepos() {
     list: async (tenantId) => [...sales.values()].filter((s) => s.tenantId === tenantId),
     listByPerson: async (personId, tenantId) =>
       [...sales.values()].filter((s) => s.tenantId === tenantId && s.personId === personId),
+    listByPersonIds: async (personIds, tenantId) =>
+      [...sales.values()].filter((s) => s.tenantId === tenantId && personIds.includes(s.personId)),
   };
 
   const enrollmentRepo: EnrollmentRepo = {
@@ -91,6 +97,8 @@ function makeInMemoryRepos() {
       [...enrollments.values()].filter((e) => e.tenantId === tenantId && e.saleId === saleId),
     listByPerson: async (personId, tenantId) =>
       [...enrollments.values()].filter((e) => e.tenantId === tenantId && e.personId === personId),
+    listByPersonIds: async (personIds, tenantId) =>
+      [...enrollments.values()].filter((e) => e.tenantId === tenantId && personIds.includes(e.personId)),
     delete: async (id) => { enrollments.delete(id); },
   };
 
@@ -102,6 +110,7 @@ function makeInMemoryRepos() {
       return b && b.tenantId === tenantId ? b : null;
     },
     list: async (tenantId) => [...bundles.values()].filter((b) => b.tenantId === tenantId),
+    getByIds: async (ids, tenantId) => ids.map((id) => bundles.get(id)).filter((b): b is Bundle => !!b && b.tenantId === tenantId),
     delete: async (id) => { bundles.delete(id); },
   };
 
@@ -111,6 +120,7 @@ function makeInMemoryRepos() {
     list: async (tenantId) => payments.filter((p) => p.tenantId === tenantId),
     listBySale: async (saleId, tenantId) => payments.filter((p) => p.tenantId === tenantId && p.saleId === saleId),
     listByPerson: async (personId, tenantId) => payments.filter((p) => p.tenantId === tenantId && p.personId === personId),
+    listByPersonIds: async (personIds, tenantId) => payments.filter((p) => p.tenantId === tenantId && personIds.includes(p.personId)),
   };
 
   return { persons, sales, enrollments, bundles, payments, personRepo, saleRepo, enrollmentRepo, bundleRepo, paymentRepo };

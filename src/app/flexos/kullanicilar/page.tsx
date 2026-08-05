@@ -188,33 +188,102 @@ export default function KullanicilarPage() {
   // Öğrenciler sekmesi — gerçek /api/flexos/persons (Öğrenci Havuzu ile AYNI kaynak).
   // accountStatus/lastLogin backend'de canlı `users/{uid}.isActivated` + Firebase Auth
   // `lastSignInTime`'dan salt-okunur türetiliyor (bkz. persons route).
-  const fetchStudents = useCallback(async (signal?: AbortSignal) => {
+  //
+  // 2026-08-05 (LOAD_TEST.md, k6 bulgusu) — Havuz sayfasıyla AYNI "C" sayfalama deseni:
+  // arama/durum filtresi YOKKEN sadece `STU_PAGE_LIMIT` kişi çekilir; filtre aktif
+  // olur olmaz (bir kez) tam liste çekilip doğru sonuç garanti edilir.
+  const STU_PAGE_LIMIT = 50;
+  const [stuNextCursor, setStuNextCursor] = useState<string | null>(null);
+  const [stuLoadingMore, setStuLoadingMore] = useState(false);
+  const [stuHasLoadedFull, setStuHasLoadedFull] = useState(false);
+  // 2026-08-05 /code-review bulgusu (gerçek, Havuz sayfasıyla AYNI sorun): kullanıcı
+  // "Daha Fazla Yükle" ile ekstra sayfalar yüklemişken realtime `students.changed` veya
+  // "Ekle"den dönüş `fetchStudents`'ı tetikleyince, `stuHasLoadedFull` hâlâ false olduğu
+  // için sessizce `fetchStudentsPage`'e düşüp listeyi ilk 50'ye sıfırlıyordu. Artık "en az
+  // bir kez daha fazla yüklendi" işareti tutuluyor, bu durumda da tam listeye YÜKSELİYOR.
+  const [stuHasLoadedExtra, setStuHasLoadedExtra] = useState(false);
+
+  const toStudentItem = (p: {
+    id: string; name: string; email: string;
+    lastLogin: string | null; accountStatus: "aktif" | "askıda" | "pasif"; createdAt: string;
+  }): StudentUserItem => ({
+    id: p.id, name: p.name, email: p.email,
+    lastLogin: p.lastLogin, status: p.accountStatus, createdAt: p.createdAt,
+  });
+
+  const fetchStudentsPage = useCallback(async (signal?: AbortSignal) => {
     const user = auth.currentUser;
     if (!user) return;
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/flexos/persons", {
+      const res = await fetch(`/api/flexos/persons?withAccountStatus=true&limit=${STU_PAGE_LIMIT}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal,
       });
       if (!res.ok) throw new Error("fetch failed");
       const json = await res.json();
       if (!signal?.aborted) {
-        const items: StudentUserItem[] = (json.items ?? []).map((p: {
-          id: string; name: string; email: string;
-          lastLogin: string | null; accountStatus: "aktif" | "askıda" | "pasif"; createdAt: string;
-        }) => ({
-          id: p.id, name: p.name, email: p.email,
-          lastLogin: p.lastLogin, status: p.accountStatus, createdAt: p.createdAt,
-        }));
-        setStudents(items);
+        setStudents((json.items ?? []).map(toStudentItem));
+        setStuNextCursor(json.nextCursor ?? null);
+        setStuHasLoadedFull(false);
+        setStuHasLoadedExtra(false);
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") {
-        console.error("[kullanicilar] öğrenci verisi yüklenemedi:", e);
-      }
+      if ((e as Error).name !== "AbortError") console.error("[kullanicilar] öğrenci verisi yüklenemedi:", e);
     }
   }, []);
+
+  const fetchMoreStudents = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user || !stuNextCursor || stuLoadingMore) return;
+    setStuLoadingMore(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/flexos/persons?withAccountStatus=true&limit=${STU_PAGE_LIMIT}&cursor=${encodeURIComponent(stuNextCursor)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      setStudents((prev) => [...prev, ...(json.items ?? []).map(toStudentItem)]);
+      setStuNextCursor(json.nextCursor ?? null);
+      setStuHasLoadedExtra(true);
+    } catch (e) {
+      console.error("[kullanicilar] daha fazla öğrenci yüklenemedi:", e);
+    } finally {
+      setStuLoadingMore(false);
+    }
+  }, [stuNextCursor, stuLoadingMore]);
+
+  const fetchStudentsAll = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/persons?withAccountStatus=true", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      if (!signal?.aborted) {
+        setStudents((json.items ?? []).map(toStudentItem));
+        setStuNextCursor(null);
+        setStuHasLoadedFull(true);
+        setStuHasLoadedExtra(false);
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") console.error("[kullanicilar] öğrenci verisi yüklenemedi:", e);
+    }
+  }, []);
+
+  // Realtime sync + "Ekle"den dönüş gibi genel yenilemeler — hangi moddaysak
+  // (sayfalı/tam) o modda kalarak tazeler. `stuHasLoadedExtra` de tam listeye
+  // YÜKSELTİR — "Daha Fazla Yükle" ile genişletilmiş görünüm sessizce ilk sayfaya
+  // DÜŞMEZ (bkz. yukarıdaki 2026-08-05 /code-review yorumu).
+  const fetchStudents = useCallback(async (signal?: AbortSignal) => {
+    if (stuHasLoadedFull || stuHasLoadedExtra) await fetchStudentsAll(signal);
+    else await fetchStudentsPage(signal);
+  }, [stuHasLoadedFull, stuHasLoadedExtra, fetchStudentsAll, fetchStudentsPage]);
 
   // Eğitmenler sekmesi — gerçek /api/flexos/trainers (Eğitmen Kadrosu ile AYNI kaynak),
   // sadece özet alanlar (ücret/müsaitlik/not BURADA yok — tam CRUD /flexos/egitmenler'de).
@@ -281,12 +350,14 @@ export default function KullanicilarPage() {
       const capSet = await fetchMe(ac.signal);
       if (ac.signal.aborted) return;
       if (capSet.has("role.manage") || capSet.has("user.create")) fetchUsers(ac.signal);
-      if (capSet.has("person.read")) fetchStudents(ac.signal);
+      // `fetchStudents` (mod-farkında sarmalayıcı) DEĞİL — kimliği `stuHasLoadedFull`
+      // değiştikçe değişir, bu effect'i (deps'te olsaydı) gereksiz tekrar tetikler.
+      if (capSet.has("person.read")) fetchStudentsPage(ac.signal);
       if (capSet.has("trainer.read")) fetchTrainers(ac.signal);
       fetchOffices(ac.signal);
     })();
     return () => { ac.abort(); };
-  }, [router, fetchMe, fetchUsers, fetchStudents, fetchTrainers, fetchOffices]);
+  }, [router, fetchMe, fetchUsers, fetchStudentsPage, fetchTrainers, fetchOffices]);
 
   // Ekle sayfasından dönünce listeyi yenile (SADECE Personel'i görebilen biri için).
   useEffect(() => {
@@ -325,6 +396,21 @@ export default function KullanicilarPage() {
 
   const stuTotalPages = Math.max(1, Math.ceil(stuFiltered.length / PAGE_SIZE));
   const stuPageItems = stuFiltered.slice((stuPage - 1) * PAGE_SIZE, stuPage * PAGE_SIZE);
+
+  // Arama/durum filtresi ilk kez aktif olduğu an tam listeyi çeker (bkz. fetchStudentsPage
+  // yorumu) — filtreleme sadece o ana kadar yüklenmiş "gözat" sayfasında değil, TÜM
+  // öğrenciler üzerinde doğru sonuç versin diye. `ref` kilidi — Havuz sayfasındaki AYNI
+  // gerçek bulgu (2026-08-05, tarayıcı testi): state güncellemesi asenkron olduğu için
+  // hızlı yazarken birden fazla eşzamanlı tam-liste isteği gidiyordu.
+  const stuLoadAllRequestedRef = useRef(false);
+  useEffect(() => {
+    const filterActive = stuSearch.trim().length > 0 || stuStatusFilter !== "Tümü";
+    if (filterActive && !stuHasLoadedFull && !stuLoadAllRequestedRef.current) {
+      stuLoadAllRequestedRef.current = true;
+      void fetchStudentsAll();
+    }
+    if (!filterActive) stuLoadAllRequestedRef.current = false;
+  }, [stuSearch, stuStatusFilter, stuHasLoadedFull, fetchStudentsAll]);
   useEffect(() => setStuPage(1), [stuSearch, stuStatusFilter]);
 
   // eğitmen filtreleme
@@ -712,6 +798,21 @@ export default function KullanicilarPage() {
                   </div>
                 )}
                 <Pagination total={stuFiltered.length} totalPages={stuTotalPages} page={stuPage} setPage={setStuPage} />
+                {!stuHasLoadedFull && stuNextCursor && (
+                  <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
+                    <button
+                      onClick={fetchMoreStudents}
+                      disabled={stuLoadingMore}
+                      style={{
+                        padding: "9px 18px", borderRadius: 10, border: "1px solid #E2E5EA",
+                        background: "#fff", color: "#414B59", fontSize: 13, fontWeight: 600,
+                        cursor: stuLoadingMore ? "default" : "pointer", opacity: stuLoadingMore ? 0.6 : 1,
+                      }}
+                    >
+                      {stuLoadingMore ? "Yükleniyor…" : "Daha Fazla Yükle"}
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}

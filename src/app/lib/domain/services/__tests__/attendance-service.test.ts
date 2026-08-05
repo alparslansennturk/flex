@@ -42,6 +42,9 @@ function makeRepos(group: Group = makeGroup()) {
     getByGroupAndDate: async (groupId, date, tenantId) =>
       [...attendance.values()].find((r) => r.tenantId === tenantId && r.groupId === groupId && r.date === date) ?? null,
     listByGroup: async (groupId, tenantId) => [...attendance.values()].filter((r) => r.tenantId === tenantId && r.groupId === groupId),
+    listByTrainer: async (trainerId, tenantId) => [...attendance.values()].filter((r) => r.tenantId === tenantId && r.trainerId === trainerId),
+    listByMonth: async (tenantId, month) => [...attendance.values()].filter((r) => r.tenantId === tenantId && r.month === month),
+    listByDateRange: async (tenantId, from, to) => [...attendance.values()].filter((r) => r.tenantId === tenantId && r.date >= from && r.date <= to),
     list: async (tenantId) => [...attendance.values()].filter((r) => r.tenantId === tenantId),
     delete: async (id) => { attendance.delete(id); },
   };
@@ -54,6 +57,7 @@ function makeRepos(group: Group = makeGroup()) {
       return g && g.tenantId === tenantId ? g : null;
     },
     list: async (tenantId) => [...groups.values()].filter((g) => g.tenantId === tenantId),
+    getByIds: async (ids, tenantId) => ids.map((id) => groups.get(id)).filter((g): g is Group => !!g && g.tenantId === tenantId),
     delete: async (id) => { groups.delete(id); },
   };
 

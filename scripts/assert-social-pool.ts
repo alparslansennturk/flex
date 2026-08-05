@@ -89,6 +89,7 @@ function makeGroupRepo(groups: Group[]): GroupRepo {
     async save(g) { map.set(g.id, { ...g }); },
     async getById(id, tid) { const g = map.get(id); return g && g.tenantId === tid ? g : null; },
     async list(tid) { return [...map.values()].filter((g) => g.tenantId === tid); },
+    async getByIds(ids, tid) { return ids.map((id) => map.get(id)).filter((g): g is Group => !!g && g.tenantId === tid); },
     async delete(id) { map.delete(id); },
   };
 }
@@ -131,6 +132,7 @@ function makeEnrollmentRepo(enrollments: Enrollment[]): EnrollmentRepo {
     async listByGroupIds(gids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && gids.includes(e.groupId ?? "")); },
     async listBySale(saleId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === saleId); },
     async listByPerson(personId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === personId); },
+    async listByPersonIds(personIds, tid) { return [...map.values()].filter((e) => e.tenantId === tid && personIds.includes(e.personId)); },
     async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }

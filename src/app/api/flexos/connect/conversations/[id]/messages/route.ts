@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { staffPrincipalFromCaller } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
@@ -64,7 +64,12 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
       attachments = [{ storagePath, webViewLink: publicUrl(storagePath), fileName, fileSize, mimeType }];
     }
     const message = await sendMessage(principal, id, body.text ?? "", connectDeps, attachments, body.replyTo);
-    await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
+    // Bildirim gönderimi (§ konuşmadaki her üye için ayrı okuma/yazma) yanıtı
+    // bloklamasın — `after()` ile response döndükten SONRA çalışır (k6 yük
+    // testinde bulundu, 2026-08-05: bu adım tek başına p95'i ~1.2s uzatıyordu).
+    // `notifyNewMessage` kendi içinde try/catch'li (non-fatal) — burada tekrar
+    // sarmalamaya gerek yok.
+    after(() => notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo));
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

@@ -9,7 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "node scripts/seed-loadtest.mjs",
-    "seed:clean": "node scripts/seed-loadtest.mjs --clean"
+    "seed:clean": "node scripts/seed-loadtest.mjs --clean",
+    "k6:deploy": "bash scripts/k6/deploy-staging.sh",
+    "k6:tokens": "node scripts/k6/generate-tokens.mjs",
+    "k6:run": "k6 run scripts/k6/loadtest.js"
   },
   "dependencies": {
     "@react-email/components": "^1.0.10",

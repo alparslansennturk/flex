@@ -21,6 +21,18 @@ export interface PersonRepo {
   getByAuthUids(authUids: string[], tenantId: string): Promise<Person[]>;
   /** Kiracıya ait tüm kişileri listele. */
   list(tenantId: string): Promise<Person[]>;
+  /**
+   * Sayfalı liste — `createdAt DESC, id DESC` KOMPOZİT sırayla, en fazla `limit` kayıt.
+   * Tek `createdAt` ile sıralama YETERSİZ: aynı milisaniyede oluşturulmuş birden fazla
+   * kayıt varsa (ör. `seed-loadtest.mjs` gibi toplu yazımlar, ya da gerçek bir toplu
+   * içe aktarma) `startAfter(createdAt)` bu kayıtları atlayabilir/tekrar edebilir —
+   * `id` (Firestore doc id, her zaman benzersiz) ikinci sıralama alanı olarak eklenip
+   * cursor `"${createdAt}|${id}"` şeklinde kodlanır, sonuç HER KOŞULDA kararlı/tekil.
+   * Havuz/Kullanıcılar'ın "filtre yokken hafif gözat" modu için (2026-08-05, persons
+   * pagination tasarımı) — Firestore şeması değişmez, `createdAt`+`id` kompozit
+   * orderBy'ı için yeni bir composite index gerekir (bkz. firestore.indexes.json).
+   */
+  listPage(tenantId: string, opts: { limit: number; cursor?: string }): Promise<{ items: Person[]; nextCursor: string | null }>;
   /** Mevcut kişiyi kısmi güncelle (merge). */
   update(id: string, tenantId: string, data: Partial<Person>): Promise<void>;
   /** `authUid` alanını TAMAMEN kaldırır (hesap kapatma — `update` ile yapılamaz, `undefined`

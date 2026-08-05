@@ -29,32 +29,40 @@
 
 ### Şu an gerçekten açık olanlar
 
-- **🔴 SIRADAKİ (2026-08-04 sonu itibarıyla): k6 yük/performans testi senaryolarını
-  tasarlamak/yazmak.** Kullanıcının asıl sorusu: "projeyi 30-40 personel + 500
-  öğrenci gerçek kullanmaya başlarsa sistem kararlı çalışır mı" — cevabı k6 ile
-  bulacağız. **Ön hazırlık TAMAMLANDI, buradan devam:**
-  - Ayrı staging Firebase projesi kuruldu: **`flexos-loadtest`** (prod `flexos-10ac4`'e
-    hiç dokunmuyor, izole — `eur3` bölgesi, aynı `firestore.rules`+indexes deploy
-    edildi). Servis hesabı: repo kökünde `service-account-staging.json` (gitignore'da,
-    makineye özel — **PC'de YOK, yeniden indirilmesi gerekir**, bkz. Firebase Console
-    → Project Settings → Service accounts → Generate new private key, project =
-    flexos-loadtest). Web config: `.env.staging.local` (aynı şekilde makineye özel/
-    gitignore'da).
-  - Parametrik seed script hazır ve ÇALIŞTIRILDI: `scripts/seed-loadtest.mjs`
-    (`npm run seed` / `npm run seed:clean`, `--profile=small|medium|large`,
-    idempotent, deterministik id'ler, `--dry-run`). **`flexos-loadtest` şu an DOLU**
-    (large profil, gerçek hedef ölçek): 500 öğrenci, 50 personel (32 eğitmen), 50
-    sınıf, 500 enrollment, 1000 ödev, 1200 yoklama, 553 Connect konuşması (~5646
-    mesaj), 5500 bildirim — 16.710 doküman, 33sn'de yazıldı.
-  - **Eksik/sıradaki adım:** k6'nın vuracağı gerçek bir "uygulama" YOK henüz — sadece
-    veri var. Konuşulan 3 parçalı plan: (1) flexos-loadtest ✅ bitti, (2) o projeye
-    bağlı ayrı bir staging Vercel deployment/preview (yeni env değişkenleriyle) —
-    HENÜZ YAPILMADI, (3) k6 script'leri (senaryolar: login/mesaj gönder/yoklama al/
-    ödev listele — auth Firebase custom token ile, k6 HTTP odaklı olduğu için
-    Connect'in gerçek-zamanlı `onSnapshot` dinleyici fan-out'unu KAPSAMIYOR, bu ayrı
-    bir simülasyon gerektirebilir, bkz. o oturumdaki tartışma) — HENÜZ YAZILMADI.
-  - Bu iş sırasında AYRICA (aynı oturumda, k6'ya hazırlanırken) 2 gerçek prod bug'ı
-    bulunup düzeltildi — aşağıdaki iki madde.
+- ~~k6 yük/performans testi altyapısı + tam sistem testi + 3 optimizasyon +
+  persons pagination~~ — **✅ UÇTAN UCA TAMAMLANDI (2026-08-05).** Tam kurulum,
+  tüm ölçüm tabloları ve tekrar çalıştırma rehberi → **`LOAD_TEST.md`** (kalıcı
+  referans, bu özet sadece son durum).
+  - **Connect testi** (5 senaryo, `large` profil): %0 hata. **Blaze kota
+    bulgusu**: 60 VU'da Firestore Spark plan günlük kotası tükenip checks
+    başarısı %75.1'e düşmüştü (yük değil kota kaynaklı) — Blaze'e geçildi
+    (mevcut billing hesabı, yeni kart yok), sonrasında **%100 (3754/3754),
+    p95 19.7s→1.38s** (§11).
+  - **Tam sistem testi** (Connect hariç, `full-system.js`, 6 persona, 500
+    öğrenci/20 personel/40 sınıf, VUS=30/90s sabit baseline): baseline p95
+    **1678ms** → 3 optimizasyon sonrası p95 **858ms** (~%49 iyileşme), 3
+    koşumda da %0 hata (§12). Optimize edilen 2 uç en büyük kazancı gösterdi:
+    `ops_attendance_report` 1634ms→688ms avg, `student_affairs_persons`
+    (Havuz) 1433ms→688ms avg — optimize EDİLMEYEN uçlar (satış/not verme)
+    kabaca sabit kaldı, yani iyileşme hedeflenen yerde gerçekleşti.
+  - **3 optimizasyon** (kullanıcı onayıyla, sırayla): (1) `attendance/report`
+    push-filtrelerini Firestore query seviyesine taşı, (2) `sales` list'e
+    60sn cache ekle, (3) `persons`'ta hesap-durumu (accountStatus) cross-check'i
+    opt-in yap (`?withAccountStatus=true`).
+  - **`persons` pagination** (Seçenek C, kullanıcı onaylı): geriye-uyumlu
+    `?limit=&cursor=`, `createdAt DESC + __name__ DESC` composite cursor.
+    Havuz/Kullanıcılar sayfaları ilk 50 + "Daha Fazla Yükle", filtre aktifken
+    tam listeye yükseliyor. Prod'a index deploy edildi.
+  - **/code-review 6 bulgu, hepsi düzeltildi** (detay `LOAD_TEST.md` §14):
+    2 gerçek frontend hatası (realtime sync "Daha Fazla Yükle" ile genişletilen
+    listeyi sessizce sıfırlıyordu — Havuz+Kullanıcılar), 1 gerçek backend
+    hatası (assigned-scope eğitmen pagination'da kendi öğrencilerini
+    görememe riski — artık tam-listeye yönlendiriliyor), cron batch atomiklik
+    fix'i doğrulandı, 2 DRY refactor (`firestore-chunk.ts` ortak helper,
+    `buildJoinMaps()`). `tsc`+`vitest` (107/107) temiz, staging'e yeniden
+    deploy edilip API ile doğrulandı.
+  - Connect'in gerçek-zamanlı `onSnapshot` dinleyici fan-out'u bu testin
+    KAPSAMI DIŞINDA (k6 saf HTTP, WebSocket/dinleyici simülasyonu ayrı bir iş).
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi

@@ -63,6 +63,7 @@ function makeGroupRepo(seed: Group[]): GroupRepo {
     async list(tenantId, trainerId) {
       return Array.from(map.values()).filter((g) => g.tenantId === tenantId && (!trainerId || g.trainerId === trainerId));
     },
+    async getByIds(ids, tenantId) { return ids.map((id) => map.get(id)).filter((g): g is Group => !!g && g.tenantId === tenantId); },
     async delete(id) { map.delete(id); },
   };
 }
@@ -85,6 +86,7 @@ function makeEducationRepo(seed: Education[] = []): EducationRepo {
     async save(e) { map.set(e.id, { ...e }); },
     async getById(id, tenantId) { const e = map.get(id); return e && e.tenantId === tenantId ? e : null; },
     async list(tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId); },
+    async getByIds(ids, tenantId) { return ids.map((id) => map.get(id)).filter((e): e is Education => !!e && e.tenantId === tenantId); },
     async delete() { return true; },
   };
 }
@@ -96,6 +98,7 @@ function makeBranchRepo(seed: Branch[] = []): BranchRepo {
     async save(b) { map.set(b.id, { ...b }); },
     async getById(id, tenantId) { const b = map.get(id); return b && b.tenantId === tenantId ? b : null; },
     async list(tenantId) { return Array.from(map.values()).filter((b) => b.tenantId === tenantId); },
+    async getByIds(ids, tenantId) { return ids.map((id) => map.get(id)).filter((b): b is Branch => !!b && b.tenantId === tenantId); },
   };
 }
 
@@ -130,6 +133,10 @@ function makePersonRepo(seed: Person[]): PersonRepo {
       return Array.from(map.values()).filter((p) => p.tenantId === tenantId && authUids.includes(p.authUid ?? ""));
     },
     async list(tenantId) { return Array.from(map.values()).filter((p) => p.tenantId === tenantId); },
+    async listPage(tenantId, { limit }) {
+      const items = Array.from(map.values()).filter((p) => p.tenantId === tenantId).slice(0, limit);
+      return { items, nextCursor: null };
+    },
     async update(id, tenantId, data) { const p = map.get(id); if (p && p.tenantId === tenantId) map.set(id, { ...p, ...data }); },
     async clearAuthUid(id, tenantId) { const p = map.get(id); if (p && p.tenantId === tenantId) map.set(id, { ...p, authUid: undefined }); },
     async delete(id, tenantId) { const p = map.get(id); if (p && p.tenantId === tenantId) map.delete(id); },
@@ -150,6 +157,7 @@ function makeEnrollmentRepo(seed: Enrollment[]): EnrollmentRepo {
     async listByGroupIds(groupIds, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && groupIds.includes(e.groupId ?? "")); },
     async listBySale(saleId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.saleId === saleId); },
     async listByPerson(personId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.personId === personId); },
+    async listByPersonIds(personIds, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && personIds.includes(e.personId)); },
     async delete(id, tenantId) { const e = map.get(id); if (e && e.tenantId === tenantId) map.delete(id); },
   };
 }

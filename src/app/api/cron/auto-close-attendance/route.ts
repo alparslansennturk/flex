@@ -125,15 +125,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ closed: 0, checked: unclosed.length });
   }
 
-  const batch = adminDb.batch();
+  // Firestore batch tek commit'te EN FAZLA 500 işlem kabul eder — bkz. `auto-close-
+  // flexos-attendance`'teki AYNI fix (2026-08-05 k6 taraması). 500'lük parçalara bölündü.
+  //
+  // 2026-08-05 /code-review bulgusu (gerçek): tek chunk'ın commit'i patlarsa (network
+  // blip vb.) fonksiyon try/catch'siz çöküyordu — ÖNCEKİ chunk'lar Firestore'da KALICI
+  // olarak `attendanceClosed:true` yazılmış oluyordu (geri alınmıyor) ama aşağıdaki
+  // aktivite-log adımı hiç çalışmıyordu VE bir sonraki cron turu bu kayıtları zaten
+  // kapalı sayıp bir daha hiç denemiyordu — sessiz, kalıcı bir log kaybı. Artık her
+  // chunk kendi try/catch'inde, SADECE gerçekten commit edilenler `closedDocs`'a girip
+  // aktivite logu/yanıt onlar üzerinden hesaplanıyor.
   const now = new Date();
-  toClose.forEach(d => {
-    batch.update(d.ref, { attendanceClosed: true, autoClosedAt: now });
-  });
-  await batch.commit();
+  const closedDocs: typeof toClose = [];
+  for (let i = 0; i < toClose.length; i += 500) {
+    const chunk = toClose.slice(i, i + 500);
+    const batch = adminDb.batch();
+    chunk.forEach(d => {
+      batch.update(d.ref, { attendanceClosed: true, autoClosedAt: now });
+    });
+    try {
+      await batch.commit();
+      closedDocs.push(...chunk);
+    } catch (e) {
+      console.error("[auto-close-attendance] batch commit başarısız, sonraki chunk'larla devam ediliyor:", e);
+    }
+  }
 
   await Promise.allSettled(
-    toClose.map(d => {
+    closedDocs.map(d => {
       const data = d.data();
       const groupCode = data.groupCode ?? data.groupId ?? d.id;
       const trDate = formatTRDate(data.date);
@@ -148,5 +167,5 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  return NextResponse.json({ closed: toClose.length, checked: unclosed.length });
+  return NextResponse.json({ closed: closedDocs.length, failed: toClose.length - closedDocs.length, checked: unclosed.length });
 }

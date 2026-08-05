@@ -89,6 +89,23 @@
         { "fieldPath": "realm",     "order": "ASCENDING" },
         { "fieldPath": "audience", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "flexos_attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "date",     "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "persons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__",  "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

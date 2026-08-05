@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { studentPrincipalFromRequest } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
@@ -56,7 +56,9 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     // writePolicy servis katmanında uygulanır — öğrenci sadece üye olduğu group/dm'e
     // yazabilir; audience kanalları (writePolicy:"admins") ASLA yazamaz (sadece okur).
     const message = await sendMessage(principal, id, body.text ?? "", connectDeps, attachments, body.replyTo);
-    await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
+    // Bildirim gönderimini yanıttan sonraya ertele — bkz. staff route'undaki AYNI
+    // yorum (2026-08-05, k6 bulgusu). `notifyNewMessage` kendi içinde try/catch'li.
+    after(() => notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo));
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

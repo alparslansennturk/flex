@@ -2,6 +2,7 @@
 import { adminDb } from "../firebase-admin";
 import type { Payment } from "../domain/eduos/payment";
 import type { PaymentRepo } from "../domain/repo/payment-repo";
+import { listDocsByFieldIn } from "./firestore-chunk";
 
 const COLLECTION = "flexos_payments";
 
@@ -49,5 +50,9 @@ export const firestorePaymentRepo: PaymentRepo = {
       .where("personId", "==", personId)
       .get();
     return snap.docs.map((d) => d.data() as Payment);
+  },
+
+  async listByPersonIds(personIds, tenantId) {
+    return listDocsByFieldIn<Payment>(COLLECTION, "personId", tenantId, personIds);
   },
 };

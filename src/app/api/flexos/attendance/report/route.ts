@@ -31,9 +31,30 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const fromFilter = req.nextUrl.searchParams.get("from") ?? undefined;
   const toFilter = req.nextUrl.searchParams.get("to") ?? undefined;
 
+  // 2026-08-05 k6 bulgusu: bu uç `flexos_attendance`'ın TAMAMINI (filtre verilse BİLE)
+  // okuyup JS'te filtreliyordu — 2000 kayıtta p95 ~3s, koleksiyon büyüdükçe SINIRSIZ
+  // büyüyen bir maliyet. Filtreler artık Firestore sorgu seviyesine iniyor: en dar
+  // filtre (groupId > trainerId > month > from/to) seçilip geri kalanı (varsa, nadir
+  // kombinasyon) küçültülmüş küme üzerinde JS'te uygulanıyor — sonuç AYNI, maliyet
+  // en yaygın kullanımda (Yoklama Raporu ekranı HER ZAMAN from/to gönderir, hiçbir
+  // sayfa filtresiz çağırmaz) koleksiyon boyutundan bağımsız hale geliyor.
+  let recordsPromise: Promise<Awaited<ReturnType<typeof firestoreAttendanceRepo.list>>>;
+  if (groupIdFilter) {
+    recordsPromise = firestoreAttendanceRepo.listByGroup(groupIdFilter, actor.tenantId, monthFilter);
+  } else if (trainerIdFilter) {
+    recordsPromise = firestoreAttendanceRepo.listByTrainer(trainerIdFilter, actor.tenantId, monthFilter);
+  } else if (fromFilter && toFilter) {
+    recordsPromise = firestoreAttendanceRepo.listByDateRange(actor.tenantId, fromFilter, toFilter);
+  } else if (monthFilter) {
+    recordsPromise = firestoreAttendanceRepo.listByMonth(actor.tenantId, monthFilter);
+  } else {
+    // Gerçekten hiçbir filtre yok — nadir/dokümante edilmiş pahalı yol.
+    recordsPromise = firestoreAttendanceRepo.list(actor.tenantId);
+  }
+
   try {
     const [records, groups, trainers, educations, branches] = await Promise.all([
-      firestoreAttendanceRepo.list(actor.tenantId),
+      recordsPromise,
       firestoreGroupRepo.list(actor.tenantId),
       firestoreTrainerRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
@@ -45,6 +66,10 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     const eduMap = new Map(educations.map((e) => [e.id, e]));
     const branchMap = new Map(branches.map((b) => [b.id, b.name]));
 
+    // Yukarıdaki sorgu seçimi HER ZAMAN uygulanan filtreyi Firestore'a indirse de,
+    // NADİR bir kombinasyon (ör. hem groupId hem from/to birlikte) için kalan
+    // filtreler burada küçültülmüş küme üzerinde güvenle tekrarlanıyor — sonucu
+    // DEĞİŞTİRMEZ, sadece ikinci bir filtre zaten dar kümede ucuz.
     const items = records
       .filter((r) => !groupIdFilter || r.groupId === groupIdFilter)
       .filter((r) => !trainerIdFilter || r.trainerId === trainerIdFilter)

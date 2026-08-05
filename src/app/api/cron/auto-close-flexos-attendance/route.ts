@@ -109,18 +109,37 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ closed: 0, checked: unclosed.length });
   }
 
-  const batch = adminDb.batch();
+  // Firestore batch tek commit'te EN FAZLA 500 işlem kabul eder. 2026-08-05 k6 taraması:
+  // aynı saatte biten çok sayıda ders varsa (gerçekçi — çoğu grup ayn ~19:00-22:00 aralığında
+  // bitiyor) bu cron sessizce 500 hatasıyla düşebilirdi, kimse fark etmezdi (arka plan işi).
+  // 500'lük parçalara bölünüp ayrı commit'lerle yazılıyor.
+  //
+  // 2026-08-05 /code-review bulgusu (gerçek, `auto-close-attendance`'teki AYNI sorun):
+  // bir chunk'ın commit'i patlarsa fonksiyon try/catch'siz çöküyordu — ÖNCEKİ chunk'lar
+  // kalıcı olarak kapanmış yazılmış oluyordu ama yanıt 500 dönüp hiç başarılı olmamış
+  // gibi görünüyordu. Artık her chunk kendi try/catch'inde, yanıt/özet SADECE gerçekten
+  // kapatılanları yansıtıyor.
   const nowISO = new Date().toISOString();
-  toClose.forEach((d) => {
-    batch.update(d.ref, { attendanceClosed: true, closedAt: nowISO });
-  });
-  await batch.commit();
+  const closedDocs: typeof toClose = [];
+  for (let i = 0; i < toClose.length; i += 500) {
+    const chunk = toClose.slice(i, i + 500);
+    const batch = adminDb.batch();
+    chunk.forEach((d) => {
+      batch.update(d.ref, { attendanceClosed: true, closedAt: nowISO });
+    });
+    try {
+      await batch.commit();
+      closedDocs.push(...chunk);
+    } catch (e) {
+      console.error("[auto-close-flexos-attendance] batch commit başarısız, sonraki chunk'larla devam ediliyor:", e);
+    }
+  }
 
   // Sadece log amaçlı — bilgi kaybı olmasın diye tarih formatlı liste dönüyor.
-  const closedSummary = toClose.map((d) => {
+  const closedSummary = closedDocs.map((d) => {
     const data = d.data() as Attendance;
     return `${data.groupId} ${formatTRDate(data.date)}`;
   });
 
-  return NextResponse.json({ closed: toClose.length, checked: unclosed.length, closedSummary });
+  return NextResponse.json({ closed: closedDocs.length, failed: toClose.length - closedDocs.length, checked: unclosed.length, closedSummary });
 }

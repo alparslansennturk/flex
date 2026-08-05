@@ -44,6 +44,7 @@ function makeGroupRepo(seed: Group[]): GroupRepo {
         (g) => g.tenantId === tenantId && (!trainerId || g.trainerId === trainerId),
       );
     },
+    async getByIds(ids, tenantId) { return ids.map((id) => map.get(id)).filter((g): g is Group => !!g && g.tenantId === tenantId); },
     async delete(id) { map.delete(id); },
   };
 }

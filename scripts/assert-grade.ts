@@ -39,6 +39,7 @@ function makeGroupRepo(groups: Group[]): GroupRepo {
       return g;
     },
     async list(tid) { return [...map.values()].filter((g) => g.tenantId === tid); },
+    async getByIds(ids, tid) { return ids.map((id) => map.get(id)).filter((g): g is Group => !!g && g.tenantId === tid); },
     async delete(id) { map.delete(id); },
   };
 }

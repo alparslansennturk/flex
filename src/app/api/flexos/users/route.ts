@@ -50,8 +50,15 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     const withAuthUid = visibleUsers.filter((u) => u.authUid);
     if (withAuthUid.length > 0) {
       const uids = withAuthUid.map((u) => u.authUid!);
-      const authUsersResult = await adminAuth.getUsers(uids.map((uid) => ({ uid }))).catch(() => ({ users: [] }));
-      const verifiedByUid = new Map(authUsersResult.users.map((au) => [au.uid, au.emailVerified]));
+      // `adminAuth.getUsers()` tek çağrıda EN FAZLA 100 identifier kabul eder (SDK sert
+      // sınırı, senkron throw) — 100'lük parçalara bölünüp paralel çağrılıyor (bkz.
+      // `persons/route.ts`'teki AYNI fix, 2026-08-05 k6 bulgusu).
+      const uidChunks: string[][] = [];
+      for (let i = 0; i < uids.length; i += 100) uidChunks.push(uids.slice(i, i + 100));
+      const authUsersChunks = await Promise.all(
+        uidChunks.map((chunk) => adminAuth.getUsers(chunk.map((uid) => ({ uid }))).catch(() => ({ users: [] }))),
+      );
+      const verifiedByUid = new Map(authUsersChunks.flatMap((r) => r.users).map((au) => [au.uid, au.emailVerified]));
       for (const u of withAuthUid) {
         if (verifiedByUid.get(u.authUid!) === false) pendingByUserId.add(u.id);
       }

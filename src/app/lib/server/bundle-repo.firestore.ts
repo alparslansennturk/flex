@@ -1,6 +1,7 @@
 import { adminDb } from "../firebase-admin";
 import type { Bundle } from "../domain/eduos/bundle";
 import type { BundleRepo } from "../domain/repo/bundle-repo";
+import { getDocsByIds } from "./firestore-chunk";
 
 const COLLECTION = "flexos_bundles";
 
@@ -30,6 +31,10 @@ export const firestoreBundleRepo: BundleRepo = {
     return snap.docs
       .map((d) => d.data() as Bundle)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  },
+
+  async getByIds(ids, tenantId) {
+    return getDocsByIds<Bundle>(COLLECTION, ids, tenantId);
   },
 
   async delete(id) {

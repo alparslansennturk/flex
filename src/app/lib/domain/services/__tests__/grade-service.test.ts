@@ -48,6 +48,7 @@ function makeRepos() {
       return g && g.tenantId === tenantId ? g : null;
     },
     list: async (tenantId) => [...groups.values()].filter((g) => g.tenantId === tenantId),
+    getByIds: async (ids, tenantId) => ids.map((id) => groups.get(id)).filter((g): g is Group => !!g && g.tenantId === tenantId),
     delete: async (id) => { groups.delete(id); },
   };
 

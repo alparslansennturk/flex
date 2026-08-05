@@ -38,6 +38,7 @@ function makeSaleRepo(sales: Sale[]): SaleRepo {
     },
     async list(tid) { return [...map.values()].filter((s) => s.tenantId === tid); },
     async listByPerson(pid, tid) { return [...map.values()].filter((s) => s.tenantId === tid && s.personId === pid); },
+    async listByPersonIds(pids, tid) { return [...map.values()].filter((s) => s.tenantId === tid && pids.includes(s.personId)); },
   };
 }
 
@@ -59,6 +60,7 @@ function makeEnrollmentRepo(enrollments: Enrollment[]): EnrollmentRepo {
     async listByGroupIds(gids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && gids.includes(e.groupId ?? "")); },
     async listBySale(sid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === sid); },
     async listByPerson(pid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === pid); },
+    async listByPersonIds(pids, tid) { return [...map.values()].filter((e) => e.tenantId === tid && pids.includes(e.personId)); },
     async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }

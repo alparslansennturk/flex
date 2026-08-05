@@ -5,6 +5,7 @@ import { can } from "@/app/lib/domain/access/can";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import type { Guardian } from "@/app/lib/domain/eduos/sale";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateCache } from "@/app/lib/server/read-cache";
 import { apiError } from "@/app/lib/server/api-error";
 
 /**
@@ -62,6 +63,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     sale.updatedBy = actor.uid;
     await firestoreSaleRepo.save(sale); // set = tam yazım (merge edilmiş obje)
 
+    invalidateCache(`sales:${actor.tenantId}`);
     broadcast(actor.tenantId, { type: "sales.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {

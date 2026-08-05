@@ -2,6 +2,7 @@
 import { adminDb } from "../firebase-admin";
 import type { Group } from "../domain/core/group";
 import type { GroupRepo } from "../domain/repo/group-repo";
+import { getDocsByIds } from "./firestore-chunk";
 
 // Canlı `groups` koleksiyonu KULLANIMDA → yeni model ayrı koleksiyona yazar.
 // Cutover'da migrate edilir.
@@ -34,6 +35,10 @@ export const firestoreGroupRepo: GroupRepo = {
     if (trainerId) q = q.where("trainerId", "==", trainerId);
     const snap = await q.get();
     return snap.docs.map((d) => d.data() as Group);
+  },
+
+  async getByIds(ids, tenantId) {
+    return getDocsByIds<Group>(COLLECTION, ids, tenantId);
   },
 
   async delete(id) {

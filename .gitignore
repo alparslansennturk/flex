@@ -60,3 +60,8 @@ next-env.d.ts
 /scripts/crud-smoke-test/manifest.json
 /scripts/crud-smoke-test/results.json
 /scripts/crud-smoke-test/cleanup-report.json
+
+# k6 yük testi — canlı Firebase ID token'ları içerir, asla commit'lenmez
+/scripts/k6/.tokens.json
+/scripts/k6/.tokens-system.json
+/scripts/k6/results/
