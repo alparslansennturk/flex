@@ -244,11 +244,14 @@ export function MobileChatScreen({
                             </span>
                           </>
                         ) : (
-                          // Metin+saat AYNI satır akışında (2026-07-20, WhatsApp gibi) — masaüstüyle
-                          // AYNI teknik: saat "inline-flex" bir birim olarak metnin peşine eklenir.
-                          <span style={{ fontSize: 17, lineHeight: 1.6, color: T.text, fontWeight: 500 }}>
-                            {m.text}
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10, fontWeight: 600, color: m.isMine ? T.text2 : T.muted, whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                          // 2026-08-05 kullanıcı bulgusu: saat metinle AYNI inline akışta olunca
+                          // (eski "WhatsApp gibi" deneme, 2026-07-20) mesaj sarıldığında (wrap)
+                          // saat metnin bittiği yere düşüp sola kayıyordu. Ekli-dosyalı mesajlarla
+                          // AYNI, kanıtlanmış desene geçirildi: saat HER ZAMAN ayrı bir blokta,
+                          // `justify-content: flex-end` ile satır sayısından bağımsız hep sağda.
+                          <>
+                            <span style={{ display: "block", fontSize: 17, lineHeight: 1.6, color: T.text, fontWeight: 500 }}>{m.text}</span>
+                            <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, fontSize: 10, fontWeight: 600, color: m.isMine ? T.text2 : T.muted, marginTop: 2 }}>
                               {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
                               {m.isMine && (
                                 m.readByAll
@@ -258,7 +261,7 @@ export function MobileChatScreen({
                                     : <Icon k="check" size={14} sw={2.5} color={T.text2} />
                               )}
                             </span>
-                          </span>
+                          </>
                         )}
                       </div>
                     )}

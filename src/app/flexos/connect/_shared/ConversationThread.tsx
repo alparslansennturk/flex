@@ -314,9 +314,9 @@ export function ConversationThread({
                               </span>
                             </>
                           ) : (
-                            <span style={{ fontSize: 14, lineHeight: 1.7, color: "#26303D", fontWeight: 450 }}>
-                              {m.text}
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                            <>
+                              <span style={{ display: "block", fontSize: 14, lineHeight: 1.7, color: "#26303D", fontWeight: 450 }}>{m.text}</span>
+                              <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
                                 {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
                                 {m.isMine && (
                                   <span className="group-hover:opacity-0 transition-opacity">
@@ -324,7 +324,7 @@ export function ConversationThread({
                                   </span>
                                 )}
                               </span>
-                            </span>
+                            </>
                           )}
 
                           {!m.deletedForEveryone && (

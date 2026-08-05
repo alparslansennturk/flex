@@ -115,6 +115,16 @@
   (WhatsApp gibi göz önünde kayması istenen durum) dokunulmadan korundu. `tsc`/eslint temiz,
   107/107 test geçti, kullanıcı gerçek telefonda uzun bir sohbetle doğruladı ("kayma hareketi
   görmedim").
+- **🔴 YENİ AÇIK (2026-08-05, kullanıcı bulgusu — HENÜZ KÖK NEDEN ARAŞTIRILMADI,
+  kullanıcı "şimdi değil, sonra düzeltelim" dedi):** Kurulu PWA'da (telefon, dünkü
+  derste) "Yoklama Al"a basınca sayfa PWA'nın kendi penceresinde değil, ayrı bir
+  tarayıcı sekmesinde açıldı. Muhtemel şüpheliler (doğrulanmadı): `manifest.json`
+  `scope`/`start_url` yoklama route'unu kapsamıyor olabilir, bir `<a target="_blank">`
+  veya `window.open` kullanılıyor olabilir, ya da bir push-bildirim tıklamasından
+  geliyorsa `notificationclick` handler'ı `clients.openWindow` yerine varsayılan
+  tarayıcı davranışına düşüyor olabilir. Sıradaki oturumda kullanıcıya nereden
+  tıkladığı (ana ekran ikonu / bildirim / PWA içi bağlantı) sorulup üzerinden
+  gidilecek.
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
 - **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
   kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).
