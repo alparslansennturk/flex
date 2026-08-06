@@ -143,9 +143,43 @@
       da zincirleme silindi. `dashboard/logs/page.tsx`'teki `otp: "Giriş Kodu"`
       TYPE_LABEL'ı KORUNDU (Firestore'daki geçmiş mailLogs kayıtlarını
       göstermeye devam ediyor). `tsc`+`vitest`(107/107)+`build` temiz.
-  - **Reliability D (2.2k bulgu) henüz incelenmedi** — sırada.
-  - **SIRADAKİ:** OTP silme commit'ini push et → Reliability D'yi aynı
-    yöntemle (API'den gerçek bulgu listesi çekip triaj) incele.
+  - **✅ Veri bütünlüğü fix'i (2026-08-06, `2708a6d`):** Sonar'ın "İncelenmeli"
+    diye bıraktığı 10 bulgu (6 pool-item ID + 2 Drive-ek ID + 2 upload-jobId,
+    hepsi Math.random tabanlı) kullanıcı isteğiyle SECURITY değil VERİ
+    BÜTÜNLÜĞÜ açısından değerlendirildi — uzun ömürlü/persist edilen ID'lerde
+    çakışma riski gerçek bir mühendislik sorunu. Hepsi `crypto.randomUUID()`'ye
+    geçirildi (6 dosya: Sosyal/Kitap/Kolaj pool panelleri ×2 kopya,
+    TaskAccordion, OdevOlusturModal, EditAssignmentModal) — Sonar'ı susturmak
+    için değil, gerçekten daha doğru olduğu için (128-bit, çakışma pratik
+    olarak imkansız). Bu fix Sonar'daki 10 bulguyu da otomatik temizledi
+    (kod artık Math.random hiç kullanmıyor). `tsc`+`vitest`(107/107)+`build`
+    temiz.
+  - **✅✅ SonarCloud Security triage TAMAMLANDI (2026-08-06) — Rating
+    C(3.0) → A(1.0), açık Security issue: 92 → 0.** Kullanıcı sıkı kurallarla
+    (önce doğrula, sadece 6 FP kategorisi + 1 WontFix kategorisi, şüpheli
+    olan tek bir issue'yu bile otomatik işaretleme, her kategori ayrı
+    gerekçe) SonarCloud arayüzünden gerçek tıklamalarla (API/DOM-script
+    denemeleri güvenlik sınıflandırıcısı tarafından haklı olarak engellendi)
+    triaj yaptırdı:
+    - **70 issue False Positive**: Gameplay randomness 25 (10 dosya) + Seed/demo
+      scriptleri 14 (3 dosya) + k6 load test 15 (2 dosya) + Chrome autofill
+      workaround 3 (3 dosya) + Kozmetik avatar seçimi 6 (4 dosya) + Audit/trace
+      ID 7 (7 dosya) — her kategori kendi teknik gerekçesiyle.
+    - **12 issue Won't Fix (Accept)**: JSON.stringify ile zaten CR/LF-güvenli
+      log satırları (crud-smoke-test/run.js, migrate-drive-folders.mjs,
+      refresh-google-token.mjs, reset-and-send-welcome.mjs) — kod hack'lenmedi,
+      "statik analiz sınırlaması" olarak işaretlendi.
+    - Dosya facet'inde `⌘+click` ile çoklu dosya seçimi keşfedildi (kullanıcı
+      önerdi) — kategori başına tek toplu işlem, dosya başına değil.
+    - Doğrulama tamamen SonarCloud'un salt-okunur `/api/issues/search` API'siyle
+      yapıldı (yazma denemeleri CSRF/güvenlik korumalarına takıldı, bu doğru
+      ve beklenen bir engeldi — kod/cookie hack'i denenmedi).
+  - **SIRADAKİ (PC'de devam):** Reliability D (2.2k bulgu) — Security'de
+    kullanılan AYNI yöntemle: API'den (`/api/issues/search`,
+    `impactSoftwareQualities=RELIABILITY`) gerçek bulgu listesini çek →
+    dosya/rule bazlı sınıflandır → gerçek bug'ları kodla düzelt → gerçek
+    false positive'leri (varsa) aynı sıkı kurallarla (önce doğrula, şüpheli
+    olanı atla, kategori başına ayrı gerekçe) triaj et.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
