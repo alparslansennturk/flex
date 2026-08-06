@@ -490,7 +490,7 @@ export default function PresentationPage() {
       {/* Nokta Navigasyon */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2">
         {SCENES.map((_, i) => (
-          <button
+          <button type="button"
             key={i}
             onClick={() => setIndex(i)}
             className={`rounded-full transition-all duration-300 ${
@@ -503,7 +503,7 @@ export default function PresentationPage() {
       </div>
 
       {/* Tam Ekran Kontrol Butonu */}
-      <button 
+      <button type="button" 
         onClick={toggleFullscreen}
         className="absolute top-6 right-8 z-50 border border-white/[0.08] bg-slate-900/40 hover:bg-slate-800/60 text-slate-400 hover:text-white transition-all duration-300 rounded-xl px-5 py-2.5 text-sm font-medium tracking-wide flex items-center gap-2 backdrop-blur-md shadow-xl"
       >

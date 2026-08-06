@@ -332,7 +332,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       <style>{css}</style>
       {/* 2026-07-12 kullanıcı isteği: logo sabit duruyordu, artık tıklanınca Ana Sayfa'yla
           aynı hedefe gidiyor. */}
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         onClick={go(homeHref)}
         style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 52px", cursor: "pointer", width: "fit-content" }}
       >
@@ -372,7 +372,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Core'dan çıkmadan halledebilsin diye. */}
         {(canSee("education.create", false) || canSee("branch.create", true)) && (
           <>
-            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
               <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
               <motion.span
@@ -381,7 +381,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {eduOpen && (
                 <motion.div
@@ -409,7 +409,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             dahil KİMSE görmez — Satış katmanı standalone kurulumda anlamsız. */}
         {!standaloneMode && (canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
-            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
               <span style={{ flex: 1 }}>Satışlar</span>
               <motion.span
@@ -418,7 +418,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {salesOpen && (
                 <motion.div
@@ -459,7 +459,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             2026-07-25 kullanıcı kararı: Sınıflar artık Öğrenciler'den ÖNCE. */}
         {canSee("group.read", true) && (
           <>
-            <a className="fs-navlink" style={gruplarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !gruplarOpen; setGruplarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={gruplarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !gruplarOpen; setGruplarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: gruplarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.graduation }} />
               <span style={{ flex: 1 }}>Gruplar</span>
               <motion.span
@@ -468,7 +468,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {gruplarOpen && (
                 <motion.div
@@ -514,7 +514,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
-            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: odevActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.clipboard }} />
               <span style={{ flex: 1 }}>Ödevler</span>
               <motion.span
@@ -523,7 +523,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {odevOpen && (
                 <motion.div
@@ -552,7 +552,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             yarım bırakmasın); Detay + Rapor normal navigasyon (2026-07-02 düzeltmesi). */}
         {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
           <>
-            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: yoklamaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.calendar }} />
               <span style={{ flex: 1 }}>Yoklamalar</span>
               <motion.span
@@ -561,7 +561,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {yoklamaOpen && (
                 <motion.div
@@ -585,7 +585,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Sertifikasyon — akordiyon: Sertifika Notu (grup bazlı not girişi) + Sertifika Ayarları. */}
         {canSee("grade.finalize", true) && (
           <>
-            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: sertifikaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.award }} />
               <span style={{ flex: 1 }}>Sertifikasyon</span>
               <motion.span
@@ -594,7 +594,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {sertifikaOpen && (
                 <motion.div
@@ -621,7 +621,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             bir üstünde dursun diye. */}
         {(canSee("role.manage", false) || canSee("user.create", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
           <>
-            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <button type="button" className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
               <span style={{ flex: 1 }}>Kullanıcılar</span>
               <motion.span
@@ -630,7 +630,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 dangerouslySetInnerHTML={{ __html: IC.chevDown }}
               />
-            </a>
+            </button>
             <AnimatePresence initial={false}>
               {kullanicilarOpen && (
                 <motion.div
@@ -680,20 +680,20 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
  *  kullanıcı kararı: "öğrencide eğitmendeki gibi olacak" (gradient, genişlik, Item stili). */
 export function Item({ icon, label, onClick, active }: { icon: string; label: string; onClick: () => void; active?: boolean }) {
   return (
-    <a className="fs-navlink" style={active ? S.itemActive : S.navItem} onClick={onClick}>
+    <button type="button" className="fs-navlink" style={active ? S.itemActive : S.navItem} onClick={onClick}>
       <span style={{ display: "inline-flex", color: active ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: icon }} />
       <span style={{ flex: 1 }}>{label}</span>
-    </a>
+    </button>
   );
 }
 
 function SubItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <a className="fs-navlink fs-navlink-sub" style={active ? S.subActive : S.subItem} onClick={onClick}>
+    <button type="button" className="fs-navlink fs-navlink-sub" style={active ? S.subActive : S.subItem} onClick={onClick}>
       {active && <span style={S.subBar} />}
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: active ? "#fb923c" : "#5b7298", flex: "0 0 auto" }} />
       <span style={{ flex: 1 }}>{label}</span>
-    </a>
+    </button>
   );
 }
 
@@ -710,11 +710,14 @@ export const S: Record<string, CSSProperties> = {
   // olmadığı için titreşecek bir şey de kalmıyor — `scrollbarGutter:"stable"` bu yüzden
   // kaldırıldı (görünmeyen bir şey için yer ayırmanın anlamı yok).
   sidebar: { height: "100%", overflowY: "auto", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
-  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" },
-  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
-  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "4px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 13.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "4px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 13.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
+  // border/background/fontFamily/textAlign/width: S6844 fix'iyle <a onClick> -> <button
+  // type="button"> geçişinde tarayıcının varsayılan buton görünümünü (kenarlık, gri
+  // arkaplan, farklı font) geçersiz kılmak için eklendi — görsel olarak eskisiyle birebir.
+  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s", border: "none", background: "none", fontFamily: "inherit", textAlign: "left", width: "100%" },
+  parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none", background: "none", fontFamily: "inherit", textAlign: "left", width: "100%" },
+  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)", border: "none", fontFamily: "inherit", textAlign: "left", width: "100%" },
+  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "4px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 13.5, fontWeight: 500, cursor: "pointer", transition: "all .15s", border: "none", background: "none", fontFamily: "inherit", textAlign: "left", width: "100%" },
+  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "4px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 13.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)", border: "none", fontFamily: "inherit", textAlign: "left", width: "100%" },
   subBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
 };
 

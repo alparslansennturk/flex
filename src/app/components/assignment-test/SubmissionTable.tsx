@@ -91,7 +91,7 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
         {/* Status filter */}
         <div className="flex items-center gap-1 bg-surface-50 rounded-xl p-1 border border-surface-200">
           {STATUS_FILTER_OPTIONS.map(opt => (
-            <button
+            <button type="button"
               key={opt.value}
               onClick={() => setStatusFilter(opt.value)}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all cursor-pointer ${
@@ -110,7 +110,7 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-[12px] font-bold text-surface-500">{selected.length} seçili</span>
             {onBulkRevision && (
-              <button
+              <button type="button"
                 onClick={() => { onBulkRevision(selected); setSelected([]); }}
                 className="px-3 py-1.5 rounded-xl border border-orange-200 text-orange-600 text-[12px] font-bold hover:bg-orange-50 transition-colors cursor-pointer"
               >
@@ -118,14 +118,14 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
               </button>
             )}
             {onBulkApprove && (
-              <button
+              <button type="button"
                 onClick={() => { onBulkApprove(selected); setSelected([]); }}
                 className="px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-[12px] font-bold hover:bg-emerald-600 transition-colors cursor-pointer"
               >
                 Onayla
               </button>
             )}
-            <button
+            <button type="button"
               onClick={() => setSelected([])}
               className="px-3 py-1.5 rounded-xl border border-surface-200 text-surface-500 text-[12px] font-bold hover:bg-surface-50 transition-colors cursor-pointer"
             >
@@ -147,7 +147,7 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
             <thead>
               <tr className="border-b border-surface-100 bg-surface-50">
                 <th className="px-4 py-3 w-10">
-                  <button
+                  <button type="button"
                     onClick={() => toggleAll(filteredIds)}
                     className="text-surface-400 hover:text-base-primary-600 transition-colors cursor-pointer"
                   >
@@ -165,10 +165,12 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
               {sorted.map(row => (
                 <tr
                   key={row.id}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   onClick={() => router.push(`${basePath}/${row.id}`)}
                   className="border-b border-surface-50 last:border-0 hover:bg-surface-50/70 cursor-pointer transition-colors group"
                 >
-                  <td className="px-4 py-3" onClick={e => { e.stopPropagation(); toggleSelect(row.id); }}>
+                  <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="px-4 py-3" onClick={e => { e.stopPropagation(); toggleSelect(row.id); }}>
                     <div className="text-surface-300 hover:text-base-primary-600 transition-colors cursor-pointer">
                       {selected.includes(row.id) ? <CheckSquare size={15} className="text-base-primary-600" /> : <Square size={15} />}
                     </div>
@@ -216,7 +218,7 @@ function SortTh({ label, sortKey, current, dir, onSort }: {
   const active = current === sortKey;
   return (
     <th className="px-4 py-3">
-      <button
+      <button type="button"
         onClick={() => onSort(sortKey)}
         className={`flex items-center gap-1 text-[12px] font-bold transition-colors cursor-pointer
           ${active ? "text-base-primary-600" : "text-surface-500 hover:text-surface-700"}`}

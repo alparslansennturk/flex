@@ -276,10 +276,10 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                   <span className="rounded-full" style={{ width: 6, height: 6, background: "#2ECC71" }} />Çevrimiçi
                 </div>
               </div>
-              <button title="Tam Ekrana Geç" onClick={() => router.push(fullPageHref)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 32, height: 32, borderRadius: 9, color: "#8FA3BE" }}>
+              <button type="button" title="Tam Ekrana Geç" onClick={() => router.push(fullPageHref)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 32, height: 32, borderRadius: 9, color: "#8FA3BE" }}>
                 <ExternalLink size={16} />
               </button>
-              <button title="Kapat" onClick={() => setOpen(false)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 32, height: 32, borderRadius: 9, color: "#8FA3BE" }}>
+              <button type="button" title="Kapat" onClick={() => setOpen(false)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 32, height: 32, borderRadius: 9, color: "#8FA3BE" }}>
                 <X size={17} />
               </button>
             </div>
@@ -291,7 +291,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                     <Search size={15} color="#A2A8B2" className="absolute pointer-events-none" style={{ left: 12, top: "50%", transform: "translateY(-50%)" }} />
                     <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ara…" className="w-full outline-none" style={{ height: 38, padding: "0 12px 0 35px", borderRadius: 10, border: "1px solid #E9EBEF", background: "#F4F5F7", fontSize: 13.5, fontWeight: 500 }} />
                   </div>
-                  <button
+                  <button type="button"
                     title={showPinnedOnly ? "Tümünü göster" : "Sadece Favoriler"}
                     onClick={() => setShowPinnedOnly((v) => !v)}
                     className="flex items-center justify-center shrink-0 cursor-pointer transition-colors"
@@ -307,7 +307,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                     </p>
                   ) : (
                     filtered.map((c) => (
-                      <div key={c.id} onClick={() => selectConversation(c.id)} className="flex items-center gap-2.5 cursor-pointer transition-colors" style={{ padding: "9px 10px", borderRadius: 11 }}>
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={c.id} onClick={() => selectConversation(c.id)} className="flex items-center gap-2.5 cursor-pointer transition-colors" style={{ padding: "9px 10px", borderRadius: 11 }}>
                         <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 42, height: 42, borderRadius: 12, background: c.colorKey ?? "#EEF1F5", color: c.colorKey ? "#fff" : "#5A616C" }}>
                           {c.type === "dm" ? initials(c.name) : <Users size={17} />}
                         </div>
@@ -328,7 +328,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
             ) : (
               <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F7F8FA" }}>
                 <div className="shrink-0 flex items-center gap-2.5" style={{ padding: "10px 12px", background: "#fff", borderBottom: "1px solid #E9EBEF" }}>
-                  <button onClick={() => setSelectedId(null)} title="Geri" className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 30, height: 30, borderRadius: 9, color: "#5A616C" }}>
+                  <button type="button" onClick={() => setSelectedId(null)} title="Geri" className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 30, height: 30, borderRadius: 9, color: "#5A616C" }}>
                     <ChevronLeft size={18} />
                   </button>
                   <div className="flex items-center justify-center shrink-0" style={{ width: 32, height: 32, borderRadius: 10, background: "#EAF1FB", color: "#2867bd" }}>
@@ -337,7 +337,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                   <div className="min-w-0 flex-1">
                     <div className="truncate" style={{ fontSize: 13.5, fontWeight: 800, color: "#1B1F26" }}>{selected.name}</div>
                   </div>
-                  <button
+                  <button type="button"
                     title={selected.pinned ? "Favorilerden Çıkar" : "Favorilere Ekle"}
                     onClick={togglePinSelected}
                     className="flex items-center justify-center shrink-0 cursor-pointer transition-colors"
@@ -383,7 +383,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                                 style={{ top: "100%", marginTop: 4, [m.isMine ? "right" : "left"]: 0 }}
                               >
                                 <div className="relative" data-connect-dropdown>
-                                  <button
+                                  <button type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 120));
@@ -403,7 +403,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                                   )}
                                 </div>
                                 <div className="relative" data-connect-dropdown>
-                                  <button
+                                  <button type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 150));
@@ -422,16 +422,16 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                                       style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 9, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 150, overflow: "hidden" }}
                                     >
                                       {m.isMine && (
-                                        <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "8px 11px", fontSize: 12, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <button type="button" onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "8px 11px", fontSize: 12, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                           <Pencil size={12} /> Düzenle
                                         </button>
                                       )}
                                       {m.isMine && (
-                                        <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "8px 11px", fontSize: 12, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                        <button type="button" onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "8px 11px", fontSize: 12, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                                           <Trash2 size={12} /> Herkes İçin Sil
                                         </button>
                                       )}
-                                      <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "8px 11px", fontSize: 12, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <button type="button" onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "8px 11px", fontSize: 12, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                         <X size={12} /> Benim İçin Sil
                                       </button>
                                     </div>,
@@ -444,7 +444,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                           {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                             <div className="flex gap-1 flex-wrap" style={{ marginTop: 3, justifyContent: m.isMine ? "flex-end" : "flex-start" }}>
                               {Object.entries(m.reactionCounts).map(([emoji, count]) => (
-                                <button
+                                <button type="button"
                                   key={emoji}
                                   onClick={() => handleReact(m.id, emoji)}
                                   className="inline-flex items-center gap-1 cursor-pointer transition-all"
@@ -475,7 +475,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                     {editingMessageId && (
                       <div className="flex items-center justify-between" style={{ padding: "5px 10px", marginBottom: 5, borderRadius: 9, background: "#EAF1FB" }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: "#205297" }}>Mesajı düzenliyorsun</span>
-                        <button onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 18, height: 18, borderRadius: 6, color: "#205297" }}>
+                        <button type="button" onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 18, height: 18, borderRadius: 6, color: "#205297" }}>
                           <X size={12} />
                         </button>
                       </div>
@@ -497,7 +497,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                         style={{ border: "none", background: "transparent", fontSize: 13.5, lineHeight: 1.4, color: "#1B1F26", padding: "7px 2px", maxHeight: 80, minHeight: 20 }}
                       />
                       <EmojiButton onPick={(e) => setDraft((d) => d + e)} size={32} />
-                      <button onClick={send} disabled={!draft.trim() || sending} title="Gönder" className="flex items-center justify-center shrink-0 transition-colors" style={{ width: 34, height: 34, borderRadius: 10, border: "none", color: "#fff", background: draft.trim() ? "#2867bd" : "#C3CAD4", cursor: draft.trim() ? "pointer" : "default" }}>
+                      <button type="button" onClick={send} disabled={!draft.trim() || sending} title="Gönder" className="flex items-center justify-center shrink-0 transition-colors" style={{ width: 34, height: 34, borderRadius: 10, border: "none", color: "#fff", background: draft.trim() ? "#2867bd" : "#C3CAD4", cursor: draft.trim() ? "pointer" : "default" }}>
                         {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                       </button>
                     </div>
@@ -523,7 +523,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
               className="absolute"
               style={{ right: 0, bottom: 70, whiteSpace: "nowrap", background: "#fff", border: "1px solid #E4E6EB", borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", padding: 5 }}
             >
-              <button
+              <button type="button"
                 onClick={() => { setOpen(true); setHovering(false); }}
                 className="flex items-center gap-2 cursor-pointer transition-colors"
                 style={{ padding: "9px 13px", borderRadius: 8, border: "none", background: "transparent", color: "#1B1F26", fontSize: 13, fontWeight: 700 }}
@@ -536,7 +536,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
 
         {/* Varsayılan: doğrudan tıklama TAM EKRAN açar (mobil dahil, hover yoksa
             zaten tek yol bu). Mini pencere zaten açıksa tıklama onu kapatır (X). */}
-        <button
+        <button type="button"
           onClick={() => { if (open) setOpen(false); else router.push(fullPageHref); }}
           title="Flex Connect"
           className="flex items-center justify-center cursor-pointer transition-transform"

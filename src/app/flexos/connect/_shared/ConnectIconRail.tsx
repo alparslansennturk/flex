@@ -57,7 +57,7 @@ export function ConnectIconRail({
           const active = navTab === key;
           const count = key === "star" || key === "archived" ? 0 : conversations.filter((c) => c.type === key && !c.archived).reduce((sum, c) => sum + c.unreadCount, 0);
           return (
-            <button
+            <button type="button"
               key={key} title={label} onClick={() => setNavTab(key)}
               className="relative flex items-center justify-center cursor-pointer transition-all"
               style={{ width: 46, height: 46, borderRadius: 13, border: "none", color: active ? "#fff" : "#8FA3BE", background: active ? "#2867bd" : "transparent" }}
@@ -73,14 +73,14 @@ export function ConnectIconRail({
         })}
       </div>
       <div className="mt-auto flex flex-col items-center gap-3">
-        <button
+        <button type="button"
           title="Yıldızlı Mesajlarım" onClick={openStarred}
           className="flex items-center justify-center cursor-pointer transition-all"
           style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: "#8FA3BE", background: "transparent" }}
         >
           <Star size={19} />
         </button>
-        <button
+        <button type="button"
           title="Ayarlar"
           onClick={() => { setSettingsView("main"); setSettingsOpen(true); }}
           className="flex items-center justify-center cursor-pointer transition-all"
@@ -89,7 +89,7 @@ export function ConnectIconRail({
           <Settings size={19} />
         </button>
         <div className="relative" data-connect-dropdown>
-          <button
+          <button type="button"
             title={`${staffDirectoryList.find((u) => u.uid === auth.currentUser?.uid)?.name ?? auth.currentUser?.displayName ?? "Sen"} — ${presenceLabel(presenceMap.get(auth.currentUser?.uid ?? ""))}`}
             onClick={() => setPresenceMenuOpen((v) => !v)}
             className="relative rounded-full flex items-center justify-center font-bold text-white cursor-pointer"
@@ -108,7 +108,7 @@ export function ConnectIconRail({
                 { status: "in_class" as const, label: "Derste", color: "#F59E0B" },
                 { status: "dnd" as const, label: "Rahatsız Etmeyin", color: "#F59E0B" },
               ]).map((opt) => (
-                <button
+                <button type="button"
                   key={opt.status}
                   onClick={async () => {
                     setPresenceMenuOpen(false);

@@ -506,7 +506,7 @@ export default function AktiviteMerkeziPage() {
       </main>
 
       {/* Dropdown click-away */}
-      {openDd && <div onClick={() => setOpenDd(null)} style={{ position: "fixed", inset: 0, zIndex: 15 }} />}
+      {openDd && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setOpenDd(null)} style={{ position: "fixed", inset: 0, zIndex: 15 }} />}
 
       <EkleModal open={ekleOpen} onClose={() => setEkleOpen(false)} form={ekleForm} setForm={setEkleForm} saving={ekleSaving} onSave={handleEkle} />
     </div>

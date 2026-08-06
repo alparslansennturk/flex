@@ -105,7 +105,7 @@ function JobItem({ job, onCancel, onRemove, onRetry }: JobItemProps) {
       {/* Action buttons */}
       <div className="flex gap-1.5 justify-end">
         {isActive && (
-          <button
+          <button type="button"
             onClick={onCancel}
             className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-surface-200 text-surface-500 hover:border-status-danger-300 hover:text-status-danger-500 transition-colors cursor-pointer"
           >
@@ -113,7 +113,7 @@ function JobItem({ job, onCancel, onRemove, onRetry }: JobItemProps) {
           </button>
         )}
         {job.status === "error" && (
-          <button
+          <button type="button"
             onClick={onRetry}
             className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-surface-200 text-surface-500 hover:border-base-primary-300 hover:text-base-primary-600 transition-colors cursor-pointer"
           >
@@ -121,7 +121,7 @@ function JobItem({ job, onCancel, onRemove, onRetry }: JobItemProps) {
           </button>
         )}
         {isDone && (
-          <button
+          <button type="button"
             onClick={onRemove}
             className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-surface-200 text-surface-400 hover:border-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
           >
@@ -269,7 +269,7 @@ export function UploadQueueUI({ studentId, taskId, groupId, note }: UploadQueueU
 
       {/* Clear completed */}
       {hasCompleted && (
-        <button
+        <button type="button"
           onClick={clearCompleted}
           className="text-[12px] font-medium text-surface-500 hover:text-base-primary-700 transition-colors cursor-pointer"
         >

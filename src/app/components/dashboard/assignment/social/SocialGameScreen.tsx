@@ -512,7 +512,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
             padding: "20px 32px",
             borderBottom: "1px solid rgba(255,255,255,0.07)",
           }}>
-            <button
+            <button type="button"
               onClick={() => router.push("/dashboard")}
               style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.35)", background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600 }}
             >
@@ -683,7 +683,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                 </p>
 
                 {/* Arşive Kaydet */}
-                <button
+                <button type="button"
                   onClick={handleArchive}
                   disabled={archiving || archived}
                   style={{
@@ -705,7 +705,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                     veya
                   </p>
                   {!confirmFinish ? (
-                    <button
+                    <button type="button"
                       onClick={() => setConfirmFinish(true)}
                       style={{ fontSize: 14, fontWeight: 700, color: "rgba(248,113,113,0.70)", background: "none", border: "none", cursor: "pointer" }}
                     >
@@ -724,13 +724,13 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                         Tüm çekişler kayıt altına alındı.
                       </p>
                       <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-                        <button
+                        <button type="button"
                           onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                           style={{ padding: "8px 20px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}
                         >
                           Evet, Tamamla
                         </button>
-                        <button
+                        <button type="button"
                           onClick={() => setConfirmFinish(false)}
                           style={{ padding: "8px 20px", borderRadius: 10, background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
                         >
@@ -756,7 +756,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
             {/* idle → Başlat */}
             {phase === "idle" && !allDone && (
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <button
+                <button type="button"
                   onClick={handleBeginPicking}
                   style={{
                     padding: "16px 52px", borderRadius: 100,
@@ -768,7 +768,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                   Başlat
                 </button>
                 {draws.length > 0 && !confirmFinish && (
-                  <button
+                  <button type="button"
                     onClick={() => setConfirmFinish(true)}
                     style={{
                       padding: "16px 28px", borderRadius: 100, fontSize: 15, fontWeight: 700,
@@ -783,11 +783,11 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                     <span style={{ fontSize: 13, color: "rgba(255,255,255,0.40)" }}>
                       {remainingStudents.length} öğrenci atlanacak. Seçimi bitir?
                     </span>
-                    <button onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
+                    <button type="button" onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                       style={{ padding: "10px 20px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}>
                       Evet
                     </button>
-                    <button onClick={() => setConfirmFinish(false)}
+                    <button type="button" onClick={() => setConfirmFinish(false)}
                       style={{ padding: "10px 20px", borderRadius: 10, background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}>
                       İptal
                     </button>
@@ -798,7 +798,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
 
             {/* ready → Çekiliş Başlat */}
             {phase === "ready" && (
-              <button
+              <button type="button"
                 onClick={handleStartSpin}
                 disabled={!poolReady}
                 style={{
@@ -838,7 +838,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
             {/* frozen → Yeni Çekim + Arşive Kaydet */}
             {phase === "frozen" && !allDone && (
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <button
+                <button type="button"
                   onClick={handleArchive}
                   disabled={archiving || archived}
                   style={{
@@ -853,7 +853,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                 >
                   {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
                 </button>
-                <button
+                <button type="button"
                   onClick={handleAdvance}
                   style={{
                     padding: "16px 40px", borderRadius: 100,
@@ -1021,7 +1021,7 @@ function ResultOverlay({
 
         {/* Butonlar */}
         <div style={{ padding: "20px 40px 28px", display: "flex", gap: 12, justifyContent: "flex-end" }}>
-          <button
+          <button type="button"
             onClick={onClose}
             style={{
               padding: "12px 28px", borderRadius: 12,
@@ -1031,7 +1031,7 @@ function ResultOverlay({
           >
             Kapat
           </button>
-          <button
+          <button type="button"
             onClick={noMoreStudents ? onClose : onAdvance}
             style={{
               padding: "12px 32px", borderRadius: 12,

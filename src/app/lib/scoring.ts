@@ -84,7 +84,7 @@ export interface GradedTaskEntry {
  */
 /** NaN / Infinity güvenlik kalkanı */
 export function safe(n: number): number {
-  return isFinite(n) && !isNaN(n) ? n : 0;
+  return Number.isFinite(n) && !Number.isNaN(n) ? n : 0;
 }
 
 /**

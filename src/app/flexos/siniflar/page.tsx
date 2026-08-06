@@ -145,7 +145,7 @@ function SınıflarPageInner() {
               </span>
             </div>
             {canManageGroups && (
-              <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
+              <button type="button" className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
                 <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Yeni Grup
               </button>
             )}

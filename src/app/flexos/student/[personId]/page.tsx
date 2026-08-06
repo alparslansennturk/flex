@@ -65,14 +65,14 @@ type Filter = "all" | "active" | "completed";
 function fmtDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", weekday: "short" });
 }
 
 function fmtCreatedAt(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return "";
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const weekday = d.toLocaleDateString("tr-TR", { weekday: "short" });
@@ -192,7 +192,7 @@ export default function FlexosStudentDashboard() {
               {(["all", "active", "completed"] as Filter[]).map((f) => {
                 const labels: Record<Filter, string> = { all: "Tümü", active: "Aktif Ödevler", completed: "Tamamlananlar" };
                 return (
-                  <button
+                  <button type="button"
                     key={f}
                     onClick={() => setFilter(f)}
                     className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
@@ -254,7 +254,7 @@ export default function FlexosStudentDashboard() {
                   ) : (
                     <div className="space-y-1">
                       {announcements.map((ann, i) => (
-                        <button
+                        <button type="button"
                           key={ann.id}
                           onClick={() => setSelectedAnn(ann)}
                           className="w-full text-left flex gap-3 py-3 border-b border-surface-100 last:border-0 hover:bg-surface-50 rounded-xl px-2 transition-colors cursor-pointer"
@@ -280,11 +280,11 @@ export default function FlexosStudentDashboard() {
       </div>
 
       {selectedAnn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelectedAnn(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelectedAnn(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
             <p className="text-[15px] font-semibold text-text-primary leading-snug whitespace-pre-wrap">{selectedAnn.text}</p>
             <p className="text-[12px] text-surface-400">{selectedAnn.authorName} · {fmtCreatedAt(selectedAnn.createdAt)}</p>
-            <button
+            <button type="button"
               onClick={() => setSelectedAnn(null)}
               className="mt-2 w-full py-2 rounded-xl bg-surface-100 text-[13px] font-semibold text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer"
             >
@@ -307,7 +307,7 @@ function StudentTaskAccordion({ row, personId, isActiveSection }: { row: Assignm
 
   return (
     <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
@@ -383,7 +383,7 @@ function StudentTaskAccordion({ row, personId, isActiveSection }: { row: Assignm
                 </a>
               ) : <div />}
 
-              <button
+              <button type="button"
                 onClick={() => router.push(`/flexos/student/${personId}/${assignment.id}`)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white cursor-pointer transition-colors"
                 style={{ backgroundColor: "#5E63C2" }}

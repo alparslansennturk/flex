@@ -23,7 +23,7 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 function getRootId(): string {
   return (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "")
-    .replace(/^["']|["']$/g, "")
+    .replaceAll(/^["']|["']$/g, "")
     .trim();
 }
 

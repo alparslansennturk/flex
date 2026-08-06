@@ -5,6 +5,9 @@ import NotificationBell from "@/app/components/notifications/NotificationBell";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 
+const SHOW_BRANCH_SELECTOR = false; // CRM hazır olunca true yap
+const SHOW_FLEX_LOGO = false; // CRM hazır olunca true yap
+
 export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClassName, onBack }: { activeTabLabel?: string; innerClassName?: string; onBack?: () => void }) {
   const pathname = usePathname();
   const { user } = useUser();
@@ -73,7 +76,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClas
         {/* SOL TARAF: Karşılama ve Başlık */}
         <div className="flex items-center gap-4 truncate pr-4">
           {onBack && (
-            <button
+            <button type="button"
               onClick={onBack}
               className="w-10 h-10 rounded-xl hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0 mr-4"
             >
@@ -128,8 +131,8 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClas
           </div>
 
           {/* ŞUBE SEÇİMİ — CRM hazır olunca SHOW_BRANCH_SELECTOR = true yap */}
-          {false && <div className="relative ml-6" ref={dropdownRef}>
-            <button
+          {SHOW_BRANCH_SELECTOR && <div className="relative ml-6" ref={dropdownRef}>
+            <button type="button"
               onClick={() => setIsBranchOpen(!isBranchOpen)}
               className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition-all w-[140px] border border-transparent cursor-pointer ${isBranchOpen ? 'bg-surface-50 border-surface-200 shadow-sm' : 'bg-transparent hover:bg-surface-50'}`}
             >
@@ -140,7 +143,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClas
             {isBranchOpen && (
               <div className="absolute top-[calc(100%+8px)] left-0 w-48 bg-white border border-surface-200 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 {otherBranches.map((branch) => (
-                  <button
+                  <button type="button"
                     key={branch}
                     onClick={() => handleBranchSelect(branch)}
                     className="w-full text-left px-5 py-2.5 text-[13px] font-medium text-base-primary-900 hover:bg-surface-50 border-b border-surface-50 last:border-0 transition-colors cursor-pointer"
@@ -153,7 +156,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClas
           </div>}
 
           {/* FLEX LOGO — CRM hazır olunca SHOW_FLEX_LOGO = true yap */}
-          {false && <div className="flex items-center gap-1.5 cursor-pointer group ml-6 pl-6 border-l border-surface-200">
+          {SHOW_FLEX_LOGO && <div className="flex items-center gap-1.5 cursor-pointer group ml-6 pl-6 border-l border-surface-200">
             <span className="text-[22px] font-bold text-base-primary-500 tracking-tighter">flex</span>
             <ChevronRight size={18} className="text-base-primary-500 group-hover:translate-x-0.5 transition-transform" />
           </div>}

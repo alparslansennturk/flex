@@ -11,7 +11,7 @@ export default function ManagementPanel() {
       {/* SEKMELER - Mavi Alt Çizgili Modern Menü */}
       <div className="flex gap-10 border-b border-surface-200">
         {['gruplar', 'öğrenciler', 'ayarlar'].map((tab) => (
-          <button
+          <button type="button"
             key={tab}
             onClick={() => setActiveSubTab(tab as 'gruplar' | 'öğrenciler' | 'ayarlar')}
             className={`pb-5 text-[15px] font-semibold transition-all relative whitespace-nowrap ${
@@ -46,7 +46,7 @@ export default function ManagementPanel() {
                     className="w-full pl-12 pr-4 py-3 bg-surface-50 border border-surface-200 rounded-2xl text-[14px] outline-none focus:border-[#3A7BD5] transition-all font-medium"
                   />
                 </div>
-                <button className="flex items-center gap-2 bg-[#FF8D28] text-white px-8 py-3 rounded-2xl font-bold text-[14px] hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-[#FF8D28]/20 shrink-0">
+                <button type="button" className="flex items-center gap-2 bg-[#FF8D28] text-white px-8 py-3 rounded-2xl font-bold text-[14px] hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-[#FF8D28]/20 shrink-0">
                   <PlusCircle size={20} /> Yeni Grup Ekle
                 </button>
               </div>
@@ -60,7 +60,7 @@ export default function ManagementPanel() {
                   <div className="w-14 h-14 bg-[#F4F7FB] rounded-2xl flex items-center justify-center text-[#3A7BD5] text-[18px] font-bold">
                     A1
                   </div>
-                  <button className="text-text-placeholder hover:text-[#10294C] p-2 hover:bg-surface-50 rounded-lg transition-colors">
+                  <button type="button" className="text-text-placeholder hover:text-[#10294C] p-2 hover:bg-surface-50 rounded-lg transition-colors">
                     <MoreVertical size={22} />
                   </button>
                 </div>

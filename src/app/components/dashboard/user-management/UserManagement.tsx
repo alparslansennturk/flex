@@ -177,7 +177,7 @@ export default function UserManagement() {
 };
 
     const formatPhoneNumber = (value: string) => {
-        let digits = value.replace(/\D/g, "");
+        let digits = value.replaceAll(/\D/g, "");
         if (digits.length > 0 && !digits.startsWith("0")) digits = "0" + digits;
         digits = digits.substring(0, 11);
         const len = digits.length;
@@ -272,7 +272,7 @@ export default function UserManagement() {
                     <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Sistem erişimlerini ve yetki matrisini yönetin.</p>
                 </div>
                 {activeTab === 'users' && (
-                    <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setSelectedBranches([]); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
+                    <button type="button" onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setSelectedBranches([]); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
                         <UserPlus size={18} /><span>Kullanıcı Oluştur</span>
                     </button>
                 )}
@@ -280,7 +280,7 @@ export default function UserManagement() {
 
             {/* Tab Bar */}
             <div className="flex gap-1 mt-6 bg-neutral-100 p-1 rounded-2xl w-fit">
-                <button
+                <button type="button"
                     onClick={() => { setActiveTab('users'); sessionStorage.setItem("usermgmt_active_tab", 'users'); }}
                     className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'users' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
                 >
@@ -290,7 +290,7 @@ export default function UserManagement() {
                         {staffUsers.length}
                     </span>
                 </button>
-                <button
+                <button type="button"
                     onClick={() => { setActiveTab('students'); sessionStorage.setItem("usermgmt_active_tab", 'students'); }}
                     className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'students' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
                 >

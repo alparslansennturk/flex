@@ -19,7 +19,7 @@ import type { Group } from "@/app/lib/domain/core/group";
 const TR_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 function formatTRDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
-  return `${parseInt(d, 10)} ${TR_MONTHS[parseInt(m, 10) - 1]} ${y}`;
+  return `${Number.parseInt(d, 10)} ${TR_MONTHS[Number.parseInt(m, 10) - 1]} ${y}`;
 }
 
 /** Türkiye saati (UTC+3) ile şimdiki dakikayı döndürür (gece yarısından). */

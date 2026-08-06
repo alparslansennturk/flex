@@ -16,7 +16,7 @@ export default function Footer() {
     <footer className="w-full bg-[#10294C] border-t border-white/5 mt-auto font-inter">
       <div className="w-[94%] mx-auto py-6 min-h-[80px] flex items-center justify-between transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[2000px]">
 
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           className="flex items-center gap-1 select-none cursor-pointer"
           onClick={() => router.push('/dashboard')}
         >

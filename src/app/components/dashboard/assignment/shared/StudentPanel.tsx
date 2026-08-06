@@ -20,7 +20,7 @@ export default function StudentPanel({
   accentColor = "#689adf",
 }: Props) {
   const accentRgb = accentColor.startsWith("#")
-    ? `${parseInt(accentColor.slice(1,3),16)},${parseInt(accentColor.slice(3,5),16)},${parseInt(accentColor.slice(5,7),16)}`
+    ? `${Number.parseInt(accentColor.slice(1,3),16)},${Number.parseInt(accentColor.slice(3,5),16)},${Number.parseInt(accentColor.slice(5,7),16)}`
     : "104,154,223";
   return (
     <div className="w-72 flex flex-col shrink-0" style={{ background: "#060D1A", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
@@ -71,7 +71,7 @@ export default function StudentPanel({
                 {isDone && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Check size={12} strokeWidth={3} style={{ color: "#68d391" }} />
-                    <button
+                    <button type="button"
                       onClick={() => onViewResult(s.id)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
                       style={{ background: `rgba(${accentRgb},0.12)`, color: accentColor }}

@@ -47,8 +47,8 @@ export const GlobalConfirmationModal: React.FC<GlobalModalProps> = ({ isOpen, ty
                     : "Bu kayıt arşive taşınacak."}
             </p>
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 h-13 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-[14px] hover:bg-neutral-200 transition-colors cursor-pointer">Vazgeç</button>
-              <button onClick={onConfirm} className={`flex-1 h-13 text-white rounded-xl font-bold text-[14px] transition-all active:scale-95 cursor-pointer ${isDelete ? 'bg-red-500' : (type === 'restore' ? 'bg-base-primary-500' : 'bg-[#FF8D28]')}`}>
+              <button type="button" onClick={onClose} className="flex-1 h-13 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-[14px] hover:bg-neutral-200 transition-colors cursor-pointer">Vazgeç</button>
+              <button type="button" onClick={onConfirm} className={`flex-1 h-13 text-white rounded-xl font-bold text-[14px] transition-all active:scale-95 cursor-pointer ${isDelete ? 'bg-red-500' : (type === 'restore' ? 'bg-base-primary-500' : 'bg-[#FF8D28]')}`}>
                 {isDelete ? "Sil" : (type === 'restore' ? "Geri Al" : "Arşive Taşı")}
               </button>
             </div>
@@ -97,8 +97,8 @@ export const StudentDeleteModal: React.FC<DeleteModalProps> = ({ isOpen, type = 
                 : "Bu öğrenci kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz."}
             </p>
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 h-13 bg-neutral-100 text-neutral-600 rounded-xl font-bold hover:bg-neutral-200 transition-all cursor-pointer">Vazgeç</button>
-              <button onClick={onConfirm} className={`flex-1 h-13 text-white font-bold rounded-xl transition-all hover:opacity-90 cursor-pointer ${isGraduate ? 'bg-emerald-500' : 'bg-red-500'}`}>
+              <button type="button" onClick={onClose} className="flex-1 h-13 bg-neutral-100 text-neutral-600 rounded-xl font-bold hover:bg-neutral-200 transition-all cursor-pointer">Vazgeç</button>
+              <button type="button" onClick={onConfirm} className={`flex-1 h-13 text-white font-bold rounded-xl transition-all hover:opacity-90 cursor-pointer ${isGraduate ? 'bg-emerald-500' : 'bg-red-500'}`}>
                 {isGraduate ? "Mezun Et" : "SİL"}
               </button>
             </div>

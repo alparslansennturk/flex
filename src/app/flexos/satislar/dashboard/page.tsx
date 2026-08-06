@@ -158,7 +158,7 @@ function initials(name: string) {
 function isThisMonth(dateStr: string): boolean {
   if (!dateStr) return false;
   const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d.getTime())) return false;
+  if (Number.isNaN(d.getTime())) return false;
   const now = new Date();
   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
@@ -166,20 +166,20 @@ function isThisMonth(dateStr: string): boolean {
 function isToday(iso: string): boolean {
   if (!iso) return false;
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return false;
+  if (Number.isNaN(d.getTime())) return false;
   const now = new Date();
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 
 function fmtTime(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "--:--";
+  if (Number.isNaN(d.getTime())) return "--:--";
   return d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function relTime(iso: string): string {
   const d = new Date(iso).getTime();
-  if (isNaN(d)) return "";
+  if (Number.isNaN(d)) return "";
   const diffMs = Date.now() - d;
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "az önce";
@@ -297,7 +297,7 @@ export default function SatisDashboardPage() {
     const dailyTl = new Array(daysSoFar).fill(0);
     for (const s of monthActive) {
       const d = new Date(s.date + "T00:00:00");
-      if (!isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+      if (!Number.isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
         const idx = d.getDate() - 1;
         if (idx >= 0 && idx < daysSoFar) dailyTl[idx] += s.soldPrice;
       }
@@ -490,7 +490,7 @@ export default function SatisDashboardPage() {
           <div ref={leftBlockRef} style={{ gridColumn: 1, gridRow: "2 / span 2", alignSelf: "start", display: "flex", flexDirection: "column", gap: 20 }}>
           {/* DIRECT ACTION CARDS */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16 }}>
-            <button
+            <button type="button"
               onClick={() => router.push("/flexos/satislar/satis-yap")}
               style={{ textAlign: "left" as const, textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 22, padding: isCompactRow ? 16 : 22, display: "flex", flexDirection: "column", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", cursor: "pointer", fontFamily: "inherit" }}
             >
@@ -516,7 +516,7 @@ export default function SatisDashboardPage() {
               </div>
             </button>
 
-            <button
+            <button type="button"
               onClick={() => router.push("/flexos/satislar/satis-liste")}
               style={{ textAlign: "left" as const, textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 22, padding: isCompactRow ? 16 : 22, display: "flex", flexDirection: "column", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", cursor: "pointer", fontFamily: "inherit" }}
             >
@@ -550,7 +550,7 @@ export default function SatisDashboardPage() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#007A30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
                 <span style={{ fontSize: 17, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>En Son Satışlar</span>
               </div>
-              <button onClick={() => router.push("/flexos/satislar/satis-liste")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#205297", fontFamily: "inherit" }}>Tümünü Gör →</button>
+              <button type="button" onClick={() => router.push("/flexos/satislar/satis-liste")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#205297", fontFamily: "inherit" }}>Tümünü Gör →</button>
             </div>
 
             {recentActive.length === 0 ? (
@@ -568,8 +568,7 @@ export default function SatisDashboardPage() {
                           {initials(s.studentName)}
                         </span>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: "#007A30", background: "#E6F5ED", whiteSpace: "nowrap" }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E", flex: "0 0 auto" }} />
-                          Aktif
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E", flex: "0 0 auto" }} />Aktif
                         </span>
                       </div>
                       <div>
@@ -634,8 +633,7 @@ export default function SatisDashboardPage() {
                 </div>
               </div>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "#E6F5ED", fontSize: 11, fontWeight: 700, color: "#007A30" }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E" }} />
-                Canlı
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E" }} />Canlı
               </span>
             </div>
 
@@ -658,7 +656,7 @@ export default function SatisDashboardPage() {
                       <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {a.personName}{a.note ? ` — ${a.note}` : ""}
                       </div>
-                      <button
+                      <button type="button"
                         onClick={() => router.push("/flexos/aktivite-merkezi")}
                         style={{ marginTop: 9, display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: "none", background: "#EEF0F3", color: "#205297", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
                       >

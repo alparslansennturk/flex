@@ -122,14 +122,14 @@ export function SwipeableChatRow({
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
       <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "stretch" }}>
-        <button
+        <button type="button"
           onClick={onArchiveToggle}
           style={{ width: 68, border: "none", background: "#D97706", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
         >
           <Icon k={c.archived ? "archiveRestore" : "archive"} size={18} sw={2} color="#fff" />
           <span style={{ fontSize: 10, fontWeight: 700 }}>{c.archived ? "Çıkar" : "Arşivle"}</span>
         </button>
-        <button
+        <button type="button"
           onClick={onClear}
           style={{ width: 68, border: "none", background: "#6B7280", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
         >
@@ -137,7 +137,7 @@ export function SwipeableChatRow({
           <span style={{ fontSize: 10, fontWeight: 700 }}>Temizle</span>
         </button>
         {canDelete && (
-          <button
+          <button type="button"
             onClick={onDelete}
             style={{ width: 68, border: "none", background: "#D93636", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
           >

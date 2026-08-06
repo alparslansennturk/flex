@@ -26,8 +26,8 @@ export function AssignGroupModal({
   selectedEnrollmentId, setSelectedEnrollmentId, assigning, onClose, onConfirm,
 }: AssignGroupModalProps) {
   return (
-    <div style={S.modalOverlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modalOverlay} onClick={onClose}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modal} onClick={(e) => e.stopPropagation()}>
         {/* head */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
@@ -40,7 +40,7 @@ export function AssignGroupModal({
               </p>
             </div>
           </div>
-          <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={onClose}>
+          <button type="button" className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={onClose}>
             <span dangerouslySetInnerHTML={{ __html: IC.x }} />
           </button>
         </div>
@@ -70,8 +70,8 @@ export function AssignGroupModal({
 
         {/* footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 24px 20px", borderTop: "1px solid #EEF0F3" }}>
-          <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={onClose} disabled={assigning}>Vazgeç</button>
-          <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || assigning ? 0.55 : 1, pointerEvents: !selectedGroupId || assigning ? "none" : "auto" }} onClick={onConfirm}>
+          <button type="button" className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={onClose} disabled={assigning}>Vazgeç</button>
+          <button type="button" className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || assigning ? 0.55 : 1, pointerEvents: !selectedGroupId || assigning ? "none" : "auto" }} onClick={onConfirm}>
             <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
             {assigning ? "Atanıyor…" : "Gruba Ata"}
           </button>

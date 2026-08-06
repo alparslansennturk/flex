@@ -170,7 +170,7 @@ export default function SeanslarPage() {
                 {DAYS_META.map((dm) => {
                   const on = selectedDays.includes(dm.index);
                   return (
-                    <button key={dm.index} className="sn-day" onClick={() => toggleDay(dm.index)}
+                    <button type="button" key={dm.index} className="sn-day" onClick={() => toggleDay(dm.index)}
                       style={{ ...S.dayChip, border: on ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: on ? "#EFF3FA" : "#fff", color: on ? "#205297" : "#414B59", fontWeight: on ? 700 : 500 }}>
                       {on && <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />}
                       {dm.full}
@@ -190,9 +190,8 @@ export default function SeanslarPage() {
                 <span style={S.lbl}>Bitiş</span>
                 <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={S.inp} />
               </label>
-              <button className="sn-add" onClick={handleAdd} style={S.addBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.plusWhite }} />
-                Seans ekle
+              <button type="button" className="sn-add" onClick={handleAdd} style={S.addBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.plusWhite }} />Seans ekle
               </button>
             </div>
           </div>
@@ -216,7 +215,7 @@ export default function SeanslarPage() {
                       </span>
                     </div>
                   </div>
-                  <button className="sn-del" onClick={() => setDeleteId(s.id)} style={S.delBtn} title="Sil">
+                  <button type="button" className="sn-del" onClick={() => setDeleteId(s.id)} style={S.delBtn} title="Sil">
                     <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                   </button>
                 </div>
@@ -235,8 +234,8 @@ export default function SeanslarPage() {
 
       {/* Silme onay modal */}
       {deleteId && (
-        <div style={S.overlay} onClick={() => setDeleteId(null)}>
-          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.overlay} onClick={() => setDeleteId(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modal} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
               <span style={{ width: 42, height: 42, borderRadius: 12, background: "#FEE2E2", color: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center" }} dangerouslySetInnerHTML={{ __html: IC.alertTriangle }} />
               <span style={{ fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Seansı sil</span>
@@ -245,8 +244,8 @@ export default function SeanslarPage() {
               Bu seansı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button className="sn-cancel" onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button className="sn-confirm" onClick={handleDelete} style={S.confirmBtn}>Sil</button>
+              <button type="button" className="sn-cancel" onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" className="sn-confirm" onClick={handleDelete} style={S.confirmBtn}>Sil</button>
             </div>
           </div>
         </div>

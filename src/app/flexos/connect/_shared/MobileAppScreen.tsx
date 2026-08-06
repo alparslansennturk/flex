@@ -87,11 +87,11 @@ export function MobileAppScreen({
               <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
               <h1 style={topTitleStyle}>Sohbetler</h1>
             </div>
-            {!studentPersonId && <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
+            {!studentPersonId && <button type="button" onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
           </div>
           {showPushReenableBanner && (
             <div style={{ margin: "0 16px 10px", flex: "0 0 auto" }}>
-              <button
+              <button type="button"
                 onClick={() => { setShowPushReenableBanner(false); toggleNotifPush(); }}
                 style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 14, border: "none", background: T.brand, color: "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
               >
@@ -122,7 +122,7 @@ export function MobileAppScreen({
                 // tarafında arşivden geri çıkarma ekranı henüz yok, veri "kaybolmasın".
                 if (studentPersonId) {
                   return (
-                    <button
+                    <button type="button"
                       key={c.id} onClick={() => openChat(c.id)}
                       style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                     >
@@ -172,7 +172,7 @@ export function MobileAppScreen({
               <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
               <h1 style={topTitleStyle}>Kanallar</h1>
             </div>
-            {!studentPersonId && <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
+            {!studentPersonId && <button type="button" onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
             {activeSections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz kanal yok.</p>}
@@ -184,7 +184,7 @@ export function MobileAppScreen({
                 </div>
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                   {sec.items.map((c, i) => (
-                    <button
+                    <button type="button"
                       key={c.id} onClick={() => openChat(c.id)}
                       style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < sec.items.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                     >
@@ -218,7 +218,7 @@ export function MobileAppScreen({
               <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
               <h1 style={topTitleStyle}>Gruplar</h1>
             </div>
-            <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
+            <button type="button" onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
             {groupOnlySections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz grup yok.</p>}
@@ -230,7 +230,7 @@ export function MobileAppScreen({
                 </div>
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                   {sec.items.map((c, i) => (
-                    <button
+                    <button type="button"
                       key={c.id} onClick={() => openChat(c.id)}
                       style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < sec.items.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                     >
@@ -263,7 +263,7 @@ export function MobileAppScreen({
               <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
               <h1 style={topTitleStyle}>Topluluklar</h1>
             </div>
-            <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
+            <button type="button" onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
             {communityRows.length === 0 && !loadingList ? (
@@ -271,7 +271,7 @@ export function MobileAppScreen({
             ) : (
               <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                 {communityRows.map((c, i) => (
-                  <button
+                  <button type="button"
                     key={c.id} onClick={() => openChat(c.id)}
                     style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < communityRows.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                   >
@@ -312,7 +312,7 @@ export function MobileAppScreen({
                 {([{ k: "staff" as const, l: "Personel" }, { k: "students" as const, l: "Öğrenciler" }]).map((o) => {
                   const sel = staffTabView === o.k;
                   return (
-                    <button
+                    <button type="button"
                       key={o.k} onClick={() => setStaffTabView(o.k)}
                       style={{ padding: "7px 14px", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: sel ? T.card : "transparent", color: sel ? T.brand : T.text2 }}
                     >
@@ -339,7 +339,7 @@ export function MobileAppScreen({
                     <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>{title}</div>
                     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                       {rows.map((p, i, arr) => (
-                        <button
+                        <button type="button"
                           key={p.uid} onClick={() => openDirectMessage(p.uid, "staff")}
                           style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                         >
@@ -358,7 +358,7 @@ export function MobileAppScreen({
               <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                 {(studentPersonId ? trainerRows : staffRows).length === 0 && <p style={{ textAlign: "center", padding: 16, fontSize: 13, color: T.muted }}>Kimse bulunamadı.</p>}
                 {(studentPersonId ? trainerRows : staffRows).map((p, i, arr) => (
-                  <button
+                  <button type="button"
                     key={p.uid} onClick={() => openDirectMessage(p.uid, studentPersonId ? "trainer_student" : (staffTabView === "staff" ? "staff" : "trainer_student"))}
                     style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                   >
@@ -395,7 +395,7 @@ export function MobileAppScreen({
                 <div style={{ fontSize: 12.5, fontWeight: 500, color: T.text2, marginTop: 2 }}>{profileTitle}</div>
               </div>
               {studentPersonId === null && (
-                <button
+                <button type="button"
                   onClick={() => setPresenceSheetOpen(true)}
                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 11px", borderRadius: 999, border: `1px solid ${T.border}`, background: T.card2, cursor: "pointer", fontFamily: "inherit", flex: "0 0 auto" }}
                 >
@@ -415,7 +415,7 @@ export function MobileAppScreen({
                 {([{ k: "system" as ThemePref, l: "Sistem", icon: "device" }, { k: "light" as ThemePref, l: "Light", icon: "sun" }, { k: "dark" as ThemePref, l: "Dark", icon: "moon" }]).map((o) => {
                   const sel = themePref === o.k;
                   return (
-                    <button
+                    <button type="button"
                       key={o.k} onClick={() => setThemePref(o.k)}
                       style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 8px", borderRadius: 14, border: `1.5px solid ${sel ? T.brand : T.border}`, background: sel ? T.brandBg : T.card2, cursor: "pointer", fontFamily: "inherit" }}
                     >
@@ -436,7 +436,7 @@ export function MobileAppScreen({
                 { title: "Gizlilik & Güvenlik", sub: "Şifre değiştir", icon: "shield", onClick: () => setScreen("password") },
                 { title: "Yasal Bilgilendirmeler", sub: "KVKK, gizlilik politikası, kullanım koşulları", icon: "file", onClick: () => setScreen("legal") },
               ].map((r, i, arr) => (
-                <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={18} sw={2} /></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
@@ -453,7 +453,7 @@ export function MobileAppScreen({
                 { title: "Sorun Bildir", sub: "Karşılaştığın teknik bir sorunu ilet", icon: "alert", onClick: () => openHelp("sorun") },
                 { title: "Öneri Gönder", sub: "Aklındaki bir fikri paylaş", icon: "bulb", onClick: () => openHelp("oneri") },
               ].map((r, i, arr) => (
-                <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={18} sw={2} /></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
@@ -468,7 +468,7 @@ export function MobileAppScreen({
               </div>
             </div>
 
-            <button onClick={handleLogout} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9, width: "100%", height: 50, border: `1px solid ${dark ? "#4A2A2E" : "#F3D9D9"}`, borderRadius: 14, background: dark ? "#2A1A1D" : "#FEF2F2", color: "#D93636", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
+            <button type="button" onClick={handleLogout} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9, width: "100%", height: 50, border: `1px solid ${dark ? "#4A2A2E" : "#F3D9D9"}`, borderRadius: 14, background: dark ? "#2A1A1D" : "#FEF2F2", color: "#D93636", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
               <Icon k="logout" size={17} sw={2} />Oturumu Kapat
             </button>
           </div>
@@ -500,7 +500,7 @@ export function MobileAppScreen({
           const active = tab === b.k;
           const compact = arr.length >= 5;
           return (
-            <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: compact ? 3 : 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
+            <button type="button" key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: compact ? 3 : 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
               <Icon k={b.icon} size={compact ? 24 : 28} sw={active ? 2.1 : 1.8} />
               <span style={{ fontSize: compact ? 10 : 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
             </button>

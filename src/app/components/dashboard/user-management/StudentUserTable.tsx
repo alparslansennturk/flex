@@ -76,12 +76,12 @@ function ResendConfirmModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[400px] mx-4 p-6 animate-in fade-in zoom-in-95 duration-200">
         {state !== "done" && (
-          <button
+          <button type="button"
             onClick={onClose}
             className="absolute top-4 right-4 p-1.5 text-neutral-300 hover:text-neutral-500 transition-colors cursor-pointer"
           >
@@ -117,13 +117,13 @@ function ResendConfirmModal({
             </p>
 
             <div className="flex gap-3">
-              <button
+              <button type="button"
                 onClick={onClose}
                 className="flex-1 h-10 rounded-xl border border-neutral-200 text-[13px] font-semibold text-neutral-500 hover:bg-neutral-50 transition-colors cursor-pointer"
               >
                 İptal
               </button>
-              <button
+              <button type="button"
                 onClick={handle}
                 disabled={state === "loading"}
                 className="flex-1 h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[13px] font-bold transition-colors cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
@@ -253,7 +253,7 @@ export const StudentUserTable = ({ students, onEdit, onDelete, onToggle, onResen
                     <div className="flex justify-end gap-2">
                       {/* Kodu Yenile — sadece Beklemede, ilk sırada */}
                       {accountStatus === "pending" && (
-                        <button
+                        <button type="button"
                           onClick={() => setResendTarget(student)}
                           title="Aktivasyon kodunu tekrar gönder"
                           className="p-1.5 xl:p-2 text-neutral-400 hover:text-amber-500 transition-colors cursor-pointer"
@@ -261,10 +261,10 @@ export const StudentUserTable = ({ students, onEdit, onDelete, onToggle, onResen
                           <RefreshCw size={16} />
                         </button>
                       )}
-                      <button onClick={() => onEdit(student)} className="p-1.5 xl:p-2 text-neutral-400 hover:text-orange-500 transition-colors cursor-pointer">
+                      <button type="button" onClick={() => onEdit(student)} className="p-1.5 xl:p-2 text-neutral-400 hover:text-orange-500 transition-colors cursor-pointer">
                         <PenLine size={16} />
                       </button>
-                      <button onClick={() => onDelete(student.id)} className="p-1.5 xl:p-2 text-neutral-400 hover:text-red-500 transition-colors cursor-pointer">
+                      <button type="button" onClick={() => onDelete(student.id)} className="p-1.5 xl:p-2 text-neutral-400 hover:text-red-500 transition-colors cursor-pointer">
                         <Trash2 size={16} />
                       </button>
                     </div>

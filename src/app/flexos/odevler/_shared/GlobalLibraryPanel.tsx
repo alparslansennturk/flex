@@ -121,7 +121,7 @@ export default function GlobalLibraryPanel() {
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-600">
                 <Sparkles size={11} /> Oyunlaştırılmış
               </span>
-              <button
+              <button type="button"
                 onClick={() => handleAdd(t)}
                 disabled={isAdding}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12.5px] font-bold text-white cursor-pointer disabled:opacity-50 transition-all"

@@ -21,7 +21,7 @@ export default function Footer({ mini = false, containerClassName }: { mini?: bo
     <footer className="w-full bg-[#10294C] border-t border-white/5 mt-auto font-inter shrink-0">
       <div className={`${widthClass} flex items-center justify-between ${mini ? "h-14" : "py-6 min-h-[80px]"}`}>
 
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           className="flex items-center gap-1 select-none cursor-pointer"
           onClick={() => router.push('/dashboard')}
         >

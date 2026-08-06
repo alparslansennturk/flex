@@ -515,14 +515,14 @@ export default function OgrenciHavuzuPage() {
   const BRANS_LIST = useMemo(() => {
     const set = new Set<string>();
     students.forEach((st) => st.branches.forEach((b) => set.add(b)));
-    return ["Tümü", ...Array.from(set).sort()];
+    return ["Tümü", ...Array.from(set).sort((a, b) => a.localeCompare(b, "tr"))];
   }, [students]);
 
   // Eğitim listesini öğrenci gruplarından türet
   const EGITIM_LIST = useMemo(() => {
     const set = new Set<string>();
     students.forEach((st) => st.groups.forEach((g) => { if (g.educationName) set.add(g.educationName); }));
-    return ["Tümü", ...Array.from(set).sort()];
+    return ["Tümü", ...Array.from(set).sort((a, b) => a.localeCompare(b, "tr"))];
   }, [students]);
 
   const anyFilter = query.trim().length > 0 || pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü" || pEgitim !== "Tümü";
@@ -542,7 +542,7 @@ export default function OgrenciHavuzuPage() {
           subtitle="Tüm öğrenci kayıtlarını filtreleyin ve gruplara atayın."
           left={showStudentPanel ? (
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <button
+              <button type="button"
                 onClick={() => setShowStudentPanel(false)}
                 style={{ width: 44, height: 44, borderRadius: 13, border: "none", background: "linear-gradient(135deg,#3A7BD5,#205297)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
               >
@@ -615,7 +615,7 @@ export default function OgrenciHavuzuPage() {
           {/* Sayfalı "gözat" modunda (filtre/arama YOK) ve daha fazla kayıt varsa. */}
           {!hasLoadedFull && nextCursor && (
             <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-              <button
+              <button type="button"
                 className="oh-filter"
                 style={{ ...S.filterBtn, opacity: loadingMore ? 0.6 : 1, cursor: loadingMore ? "default" : "pointer" }}
                 onClick={loadMore}
@@ -638,7 +638,7 @@ export default function OgrenciHavuzuPage() {
       </main>
 
       {/* click-away overlay */}
-      {openDropdown && <div onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+      {openDropdown && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
 
       {assignTarget && (
         <AssignGroupModal

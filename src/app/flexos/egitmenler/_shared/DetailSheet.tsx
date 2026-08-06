@@ -49,10 +49,10 @@ export function DetailSheet({ trainer, onClose, onEdit, ucretRevealed, onToggleU
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
-                <button onClick={() => onEdit(trainer)} className="eg-edit-link" style={S.editLinkBtn}>
+                <button type="button" onClick={() => onEdit(trainer)} className="eg-edit-link" style={S.editLinkBtn}>
                   <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} /> Düzenle
                 </button>
-                <button onClick={onClose} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+                <button type="button" onClick={onClose} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
                   <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
                 </button>
               </div>
@@ -87,7 +87,7 @@ export function DetailSheet({ trainer, onClose, onEdit, ucretRevealed, onToggleU
                       <span style={{ fontSize: 10.5, fontWeight: 700, color: "#8A5A00", background: "#FFF3DC", padding: "2px 8px", borderRadius: 999 }}>Gizli</span>
                     </div>
                     {trainer.ucret != null ? (
-                      <div onClick={onToggleUcret} style={{ cursor: "pointer", userSelect: "none" }}>
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={onToggleUcret} style={{ cursor: "pointer", userSelect: "none" }}>
                         <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.5px", filter: ucretRevealed ? "none" : "blur(8px)", transition: "filter .25s" }}>
                           {trainer.ucret.toLocaleString("tr-TR")} TL<span style={{ fontSize: 15, fontWeight: 600, color: "#8E95A3" }}> / saat</span>
                         </div>
@@ -219,7 +219,7 @@ export function DetailSheet({ trainer, onClose, onEdit, ucretRevealed, onToggleU
                     <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 16 }}>
                       <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Yeni not ekle… (yalnızca yönetim görür)" style={S.noteTextarea} />
                       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                        <button onClick={onAddNote} disabled={!noteDraft.trim() || noteSaving} className="sg-add-note-btn" style={{ ...S.addNoteBtn, background: (noteDraft.trim() && !noteSaving) ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", cursor: (noteDraft.trim() && !noteSaving) ? "pointer" : "not-allowed" }}>
+                        <button type="button" onClick={onAddNote} disabled={!noteDraft.trim() || noteSaving} className="sg-add-note-btn" style={{ ...S.addNoteBtn, background: (noteDraft.trim() && !noteSaving) ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", cursor: (noteDraft.trim() && !noteSaving) ? "pointer" : "not-allowed" }}>
                           <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} /> {noteSaving ? "Kaydediliyor…" : "Not Ekle"}
                         </button>
                       </div>
@@ -237,7 +237,7 @@ export function DetailSheet({ trainer, onClose, onEdit, ucretRevealed, onToggleU
                               <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{n.author}</span>
                               <span style={{ fontSize: 11.5, color: "#AEB4C0", fontWeight: 500 }}>{n.date}</span>
                               {n.pinned && <span style={{ fontSize: 10, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "1px 6px", borderRadius: 999 }}>Sabitlenmiş</span>}
-                              <button onClick={() => onTogglePin(i)} disabled={noteSaving} className="sg-pin-btn" title={n.pinned ? "Sabiti kaldır" : "Sabitle"} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: noteSaving ? "not-allowed" : "pointer", color: n.pinned ? "#205297" : "#AEB4C0", flex: "0 0 auto", padding: 0 }}>
+                              <button type="button" onClick={() => onTogglePin(i)} disabled={noteSaving} className="sg-pin-btn" title={n.pinned ? "Sabiti kaldır" : "Sabitle"} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: noteSaving ? "not-allowed" : "pointer", color: n.pinned ? "#205297" : "#AEB4C0", flex: "0 0 auto", padding: 0 }}>
                                 <span dangerouslySetInnerHTML={{ __html: IC.pinIcon }} />
                               </button>
                             </div>

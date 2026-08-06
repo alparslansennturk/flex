@@ -420,7 +420,7 @@ export default function StudentConnectPage() {
     <div className="flex font-inter" style={{ width: "100%", maxWidth: 2560, height: "100%", overflow: "hidden", background: "#FFFFFF" }}>
       {/* ═══ Kolon 1 · ikon rayı ═══ */}
       <nav className="flex flex-col items-center shrink-0" style={{ width: 72, height: "100%", background: "#12233B", padding: "16px 0 14px" }}>
-        <button
+        <button type="button"
           title="Geri" onClick={() => router.push(`/flexos/student/${personId}`)}
           className="rounded-xl flex items-center justify-center shrink-0 cursor-pointer"
           style={{ width: 42, height: 42, background: "transparent", border: "1px solid rgba(255,255,255,.15)", color: "#8FA3BE" }}
@@ -433,7 +433,7 @@ export default function StudentConnectPage() {
             const active = navTab === key;
             const count = conversations.filter((c) => c.type === key).reduce((sum, c) => sum + c.unreadCount, 0);
             return (
-              <button
+              <button type="button"
                 key={key} title={label} onClick={() => setNavTab(key)}
                 className="relative flex items-center justify-center cursor-pointer transition-all"
                 style={{ width: 46, height: 46, borderRadius: 13, border: "none", color: active ? "#fff" : "#8FA3BE", background: active ? "#2867bd" : "transparent" }}
@@ -475,7 +475,7 @@ export default function StudentConnectPage() {
                 const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
                 const sel = !!conv && conv.id === selectedId;
                 return (
-                  <div
+                  <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                     key={u.uid} onClick={() => openDirectMessage(u.uid)}
                     className="flex items-center gap-3 cursor-pointer transition-colors"
                     style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
@@ -508,7 +508,7 @@ export default function StudentConnectPage() {
             filtered.map((c) => {
               const sel = c.id === selectedId;
               return (
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   key={c.id} onClick={() => selectConversation(c.id)}
                   className="flex items-center gap-3 cursor-pointer transition-colors"
                   style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
@@ -625,7 +625,7 @@ export default function StudentConnectPage() {
                         {!m.isMine && grouped && <div style={{ width: 34, flexShrink: 0 }} />}
                         {m.isMine && !m.deletedForEveryone && (
                           <div className="relative self-center" data-connect-dropdown>
-                            <button
+                            <button type="button"
                               onClick={(e) => {
                                 setPopoverPos(computePopoverPosition(e.currentTarget, "left", 130));
                                 setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
@@ -685,7 +685,7 @@ export default function StudentConnectPage() {
 
                             {!m.deletedForEveryone && (
                               <div className="relative" data-connect-dropdown style={{ position: "absolute", top: 6, right: 6 }}>
-                                <button
+                                <button type="button"
                                   onClick={(e) => {
                                     setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
                                     setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
@@ -703,27 +703,27 @@ export default function StudentConnectPage() {
                                     style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 190, overflow: "hidden" }}
                                   >
                                     {m.isMine && (
-                                      <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <button type="button" onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                         <Pencil size={13} /> Düzenle
                                       </button>
                                     )}
-                                    <button onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                    <button type="button" onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                       <Reply size={13} /> Yanıtla
                                     </button>
-                                    <button onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                    <button type="button" onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                       {m.starred ? <StarOff size={13} /> : <Star size={13} />} {m.starred ? "Yıldızı Kaldır" : "Yıldızla"}
                                     </button>
                                     {m.text && (
-                                      <button onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <button type="button" onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                         <Copy size={13} /> Kopyala
                                       </button>
                                     )}
                                     {m.isMine && (
-                                      <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                      <button type="button" onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                                         <Trash2 size={13} /> Herkes İçin Sil
                                       </button>
                                     )}
-                                    <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                    <button type="button" onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                       <X size={13} /> Benim İçin Sil
                                     </button>
                                   </div>,
@@ -735,7 +735,7 @@ export default function StudentConnectPage() {
                           {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                             <div className="flex gap-1 flex-wrap" style={{ marginTop: 4, justifyContent: m.isMine ? "flex-end" : "flex-start" }}>
                               {Object.entries(m.reactionCounts).map(([emoji, count]) => (
-                                <button
+                                <button type="button"
                                   key={emoji}
                                   onClick={() => handleReact(m.id, emoji)}
                                   className="inline-flex items-center gap-1 cursor-pointer transition-all"
@@ -750,7 +750,7 @@ export default function StudentConnectPage() {
                         </div>
                         {!m.isMine && !m.deletedForEveryone && (
                           <div className="relative self-center" data-connect-dropdown>
-                            <button
+                            <button type="button"
                               onClick={(e) => {
                                 setPopoverPos(computePopoverPosition(e.currentTarget, "right", 130));
                                 setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
@@ -795,7 +795,7 @@ export default function StudentConnectPage() {
                   {editingMessageId && (
                     <div className="flex items-center justify-between" style={{ padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: "#EAF1FB" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#205297" }}>Mesajı düzenliyorsun</span>
-                      <button onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                      <button type="button" onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
                         <X size={14} />
                       </button>
                     </div>
@@ -806,7 +806,7 @@ export default function StudentConnectPage() {
                         <div style={{ fontSize: 11.5, fontWeight: 700, color: "#205297" }}>{replyingTo.authorName}</div>
                         <div style={{ fontSize: 12, color: "#4A6FA5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{replyingTo.textSnippet}</div>
                       </div>
-                      <button onClick={() => setReplyingTo(null)} className="flex items-center justify-center cursor-pointer shrink-0" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                      <button type="button" onClick={() => setReplyingTo(null)} className="flex items-center justify-center cursor-pointer shrink-0" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
                         <X size={14} />
                       </button>
                     </div>
@@ -830,7 +830,7 @@ export default function StudentConnectPage() {
                       style={{ border: "none", background: "transparent", fontSize: 14, lineHeight: 1.5, color: "#1B1F26", padding: "9px 2px", maxHeight: 120, minHeight: 24 }}
                     />
                     <EmojiButton onPick={(e) => setDraft((d) => d + e)} />
-                    <button
+                    <button type="button"
                       onClick={send} disabled={!draft.trim() || sending} title="Gönder"
                       className="flex items-center justify-center shrink-0 transition-colors"
                       style={{ width: 40, height: 40, borderRadius: 11, border: "none", color: "#fff", background: draft.trim() ? "#2867bd" : "#C3CAD4", cursor: draft.trim() ? "pointer" : "default" }}

@@ -17,7 +17,7 @@ import { fmtTime } from "./format";
 function ScreenHeader({ T, title, subtitle, onBack }: { T: Tokens; title: string; subtitle?: string; onBack: () => void }) {
   return (
     <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-      <button onClick={onBack} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+      <button type="button" onClick={onBack} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>{subtitle}</div>}
@@ -48,7 +48,7 @@ export function MobileNotifScreen({ T, dark, setScreen, setTab, notifPush, toggl
                 <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{r.title}</div>
                 <div style={{ fontSize: 11.5, fontWeight: 500, color: T.text2, marginTop: 2, lineHeight: 1.35 }}>{r.sub}</div>
               </div>
-              <button onClick={r.onToggle} role="switch" aria-checked={r.val} aria-busy={r.loading} aria-label={r.title} style={{ width: 46, height: 28, borderRadius: 999, border: "none", cursor: r.loading ? "wait" : "pointer", pointerEvents: r.loading ? "none" : undefined, opacity: r.loading ? 0.75 : 1, flex: "0 0 auto", background: r.val ? T.brand : (dark ? "#33405A" : "#D4D8DF"), position: "relative", transition: "background .18s", padding: 0 }}>
+              <button type="button" onClick={r.onToggle} role="switch" aria-checked={r.val} aria-busy={r.loading} aria-label={r.title} style={{ width: 46, height: 28, borderRadius: 999, border: "none", cursor: r.loading ? "wait" : "pointer", pointerEvents: r.loading ? "none" : undefined, opacity: r.loading ? 0.75 : 1, flex: "0 0 auto", background: r.val ? T.brand : (dark ? "#33405A" : "#D4D8DF"), position: "relative", transition: "background .18s", padding: 0 }}>
                 {r.loading ? (
                   <motion.span
                     style={{ position: "absolute", top: 3, left: 3, width: 22, height: 22, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,.35)", borderTopColor: "#fff", boxSizing: "border-box" }}
@@ -78,15 +78,15 @@ export function MobileHelpScreen({ T, setScreen, setTab, helpKind, helpMessage, 
     <motion.div key="help" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
       <ScreenHeader T={T} title={helpKind === "sorun" ? "Sorun Bildir" : "Öneri Gönder"} subtitle={helpKind === "sorun" ? "Karşılaştığın sorunu anlat, inceleyelim" : "Fikrini bizimle paylaş"} onBack={() => { setScreen("app"); setTab("settings"); }} />
       <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-        <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Açıklama</label>
-        <textarea
+        <label htmlFor="helpMessage" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Açıklama</label>
+        <textarea id="helpMessage"
           value={helpMessage}
           onChange={(e) => setHelpMessage(e.target.value)}
           placeholder={helpKind === "sorun" ? "Ne oldu, ne zaman oldu, hangi ekrandaydın?" : "Aklındaki fikri anlat…"}
           rows={8}
           style={{ width: "100%", padding: 14, borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text, fontFamily: "inherit", resize: "none", boxSizing: "border-box" }}
         />
-        <button
+        <button type="button"
           onClick={submitHelp}
           disabled={!helpMessage.trim() || helpSending}
           style={{ width: "100%", height: 50, border: "none", borderRadius: 14, background: helpMessage.trim() ? "#2867bd" : "#C3CAD4", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: helpMessage.trim() ? "pointer" : "default", marginTop: 14 }}
@@ -111,22 +111,22 @@ export function MobilePasswordScreen({ T, setScreen, setTab, currentPassword, se
     <motion.div key="password" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
       <ScreenHeader T={T} title="Şifre Değiştir" subtitle="Gizlilik & Güvenlik" onBack={() => { setScreen("app"); setTab("settings"); }} />
       <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-        <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Mevcut Şifre</label>
+        <label htmlFor="currentPassword" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Mevcut Şifre</label>
         <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
           <Icon k="lock" size={18} color={T.muted} />
-          <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+          <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
         </div>
-        <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre</label>
+        <label htmlFor="newPassword" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre</label>
         <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
           <Icon k="lock" size={18} color={T.muted} />
-          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="En az 6 karakter" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+          <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="En az 6 karakter" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
         </div>
-        <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre (Tekrar)</label>
+        <label htmlFor="confirmPassword" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre (Tekrar)</label>
         <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
           <Icon k="lock" size={18} color={T.muted} />
-          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+          <input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
         </div>
-        <button
+        <button type="button"
           onClick={changePassword}
           disabled={changingPassword}
           style={{ width: "100%", height: 50, border: "none", borderRadius: 14, background: "#2867bd", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
@@ -155,7 +155,7 @@ export function MobileStarredScreen({ T, setScreen, setTab, loadingStarred, star
           <p style={{ textAlign: "center", fontSize: 13, color: T.muted, padding: "24px 12px" }}>Henüz yıldızladığın bir mesaj yok.</p>
         ) : (
           starredMessages.map((m) => (
-            <button
+            <button type="button"
               key={`${m.conversationId}-${m.messageId}`} onClick={() => goToStarredConversation(m.conversationId)}
               style={{ display: "flex", flexDirection: "column", width: "100%", padding: "12px 14px", borderRadius: 14, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
             >
@@ -227,7 +227,7 @@ export function MobileLegalScreen({ T, dark, setScreen }: { T: Tokens; dark: boo
             { title: "Kullanım Koşulları", onClick: () => toast("Yakında eklenecek.") },
             { title: "Sürüm Bilgisi", onClick: () => toast("Yakında eklenecek.") },
           ].map((r, i, arr) => (
-            <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k="file" size={18} sw={2} /></div>
               <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
               <Icon k="chev" size={18} color={T.chev} />

@@ -412,7 +412,7 @@ export default function OdevTeslimDetayPage() {
         <FlexHeader
           left={
             <div className="flex items-center gap-3">
-              <button
+              <button type="button"
                 // Geri dönünce hangi ödeve bakıyorduysa o ödevin akordiyonu Ödevler
                 // sekmesinde otomatik açık gelsin diye assignmentId hint'i taşınıyor
                 // (2026-07-11 kullanıcı bulgusu — canlıdaki davranış).
@@ -435,7 +435,7 @@ export default function OdevTeslimDetayPage() {
             {/* Toplu işlem — canlıdaki dropdown'ın birebir karşılığı (2026-07-08 eklendi). */}
             <div className="shrink-0 px-4 py-3 border-b border-surface-100 flex justify-end">
               <div className="relative" ref={bulkMenuRef}>
-                <button
+                <button type="button"
                   onClick={() => setBulkMenuOpen((v) => !v)}
                   disabled={checkedIds.size === 0 || actionLoading}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold border transition-colors cursor-pointer ${checkedIds.size > 0 ? "border-base-primary-300 text-base-primary-700 bg-base-primary-50 hover:bg-base-primary-100" : "border-surface-200 text-surface-400 bg-surface-50 cursor-not-allowed"}`}
@@ -451,7 +451,7 @@ export default function OdevTeslimDetayPage() {
                       { label: "Tamamlandı İşaretle", status: "completed" as SubmissionStatus },
                       { label: "Revize Gönder", status: "revision" as SubmissionStatus },
                     ]).map(({ label, status }) => (
-                      <button
+                      <button type="button"
                         key={status}
                         onClick={() => bulkSetStatus(status)}
                         className="w-full text-left px-4 py-2.5 text-[13px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
@@ -536,14 +536,14 @@ export default function OdevTeslimDetayPage() {
                           ÖNCE silinmiş, status'u hâlâ eski kalan bozuk kayıtlara karşı savunma). */}
                       {viewingRow.submission && viewingRow.submission.status !== "retracted" && files.length > 0 && (
                         <div className="space-y-2 pt-2 border-t border-surface-100">
-                          <button
+                          <button type="button"
                             onClick={() => updateStatus(viewingRow.submission!.id, "revision")}
                             disabled={actionLoading || viewingRow.submission.status === "completed" || viewingRow.submission.status === "revision"}
                             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-[12px] font-bold hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <RotateCcw size={13} /> Revize İste
                           </button>
-                          <button
+                          <button type="button"
                             onClick={() => updateStatus(viewingRow.submission!.id, "completed")}
                             disabled={actionLoading || viewingRow.submission.status === "completed"}
                             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-status-success-500 text-white text-[12px] font-bold hover:bg-status-success-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -577,7 +577,7 @@ export default function OdevTeslimDetayPage() {
                               <ExternalLink size={14} />
                             </a>
                             {viewingRow.submission && viewingRow.submission.status !== "completed" && (
-                              <button
+                              <button type="button"
                                 onClick={() => setDeleteFileTarget({ submissionId: viewingRow.submission!.id, fileId: f.id, fileName: f.fileName })}
                                 title="Dosyayı sil"
                                 className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-surface-400 hover:text-red-600 shrink-0 cursor-pointer"
@@ -594,7 +594,7 @@ export default function OdevTeslimDetayPage() {
                         başına değil, mevcut teslimin tamamı için tek buton). */}
                     {viewingRow.submission && files.length > 0 && (
                       <div className="flex justify-end mt-4">
-                        <button
+                        <button type="button"
                           onClick={() => router.push(`/flexos/odevler/teslim/${groupId}/${assignmentId}/${viewingRow.submission!.id}/preview`)}
                           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-status-success-500 text-white text-[13px] font-semibold hover:bg-status-success-700 transition-colors cursor-pointer"
                         >
@@ -641,13 +641,13 @@ export default function OdevTeslimDetayPage() {
                       diğer kartlar gibi doğal akışta, içerik kadar yer kaplıyor. */}
                   <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
                     <div className="flex border-b border-surface-100">
-                      <button
+                      <button type="button"
                         onClick={() => setCommentTab("general")}
                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition-colors cursor-pointer ${commentTab === "general" ? "border-base-primary-600 text-base-primary-600" : "border-transparent text-surface-400 hover:text-text-secondary"}`}
                       >
                         <Megaphone size={13} /> Duyuru
                       </button>
-                      <button
+                      <button type="button"
                         onClick={() => setCommentTab("private")}
                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition-colors cursor-pointer ${commentTab === "private" ? "border-base-primary-600 text-base-primary-600" : "border-transparent text-surface-400 hover:text-text-secondary"}`}
                       >
@@ -681,7 +681,7 @@ export default function OdevTeslimDetayPage() {
                           rows={2}
                           className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2 text-[12.5px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white"
                         />
-                        <button
+                        <button type="button"
                           onClick={sendComment}
                           disabled={!commentText.trim()}
                           className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
@@ -699,8 +699,8 @@ export default function OdevTeslimDetayPage() {
 
       {/* Dosya silme onayı — yonetim/page.tsx "Şablon silme onayı" ile AYNI desen. */}
       {deleteFileTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => !deletingFile && setDeleteFileTarget(null)}>
-          <div className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => !deletingFile && setDeleteFileTarget(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6.5 pt-6.5 pb-5">
               <div className="w-12 h-12 rounded-xl bg-[#FFECEC] text-[#D93636] flex items-center justify-center mb-4">
                 <Trash2 size={22} />
@@ -711,8 +711,8 @@ export default function OdevTeslimDetayPage() {
               </p>
             </div>
             <div className="flex gap-2.5 justify-end px-6.5 pb-5.5">
-              <button onClick={() => setDeleteFileTarget(null)} disabled={deletingFile} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">Vazgeç</button>
-              <button onClick={confirmDeleteFile} disabled={deletingFile} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all disabled:opacity-60" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
+              <button type="button" onClick={() => setDeleteFileTarget(null)} disabled={deletingFile} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">Vazgeç</button>
+              <button type="button" onClick={confirmDeleteFile} disabled={deletingFile} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all disabled:opacity-60" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
                 {deletingFile ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Evet, sil
               </button>
             </div>
@@ -749,7 +749,7 @@ function StudentGroup({ title, rows, viewingPersonId, checkedIds, onSelect, onTo
         <p className="text-[14px] lg:text-[15px] font-semibold text-surface-500 tracking-wide">{title} ({rows.length})</p>
       </div>
       {rows.map(({ roster, submission }, i) => (
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           key={roster.personId}
           onClick={() => onSelect(roster.personId)}
           className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer ${viewingPersonId === roster.personId ? "bg-base-primary-50" : "hover:bg-surface-50"}`}

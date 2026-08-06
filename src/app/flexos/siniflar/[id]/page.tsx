@@ -29,6 +29,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
@@ -360,7 +361,7 @@ export default function SinifDetayPage() {
         <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#EEF0F3" }}>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#414B59", marginBottom: 10 }}>Grup bulunamadı</div>
-            <button onClick={() => router.push("/flexos/siniflar")} style={S.addBtn}>Sınıflara Dön</button>
+            <button type="button" onClick={() => router.push("/flexos/siniflar")} style={S.addBtn}>Sınıflara Dön</button>
           </div>
         </main>
       </div>
@@ -406,7 +407,7 @@ export default function SinifDetayPage() {
         <FlexHeader
           left={showStudentPanel ? (
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <button
+              <button type="button"
                 onClick={() => setShowStudentPanel(false)}
                 style={{ width: 46, height: 46, borderRadius: 13, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", cursor: "pointer", flexShrink: 0 }}
               >
@@ -419,9 +420,9 @@ export default function SinifDetayPage() {
             </div>
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="sd-iconbtn" style={S.backBtn} title="Sınıflara dön" onClick={() => router.push("/flexos/siniflar")}>
+              <Link href="/flexos/siniflar" className="sd-iconbtn" style={S.backBtn} title="Sınıflara dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
                   <span>Sınıflar</span>
@@ -468,12 +469,12 @@ export default function SinifDetayPage() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       {canManage && (
-                        <button onClick={() => setShowEditSheet(true)} style={S.secondaryBtn}>
+                        <button type="button" onClick={() => setShowEditSheet(true)} style={S.secondaryBtn}>
                           <span dangerouslySetInnerHTML={{ __html: IC.pencil }} /> Sınıfı Düzenle
                         </button>
                       )}
                       {canManage && (
-                        <button
+                        <button type="button"
                           onClick={openAdd}
                           disabled={group?.status === "completed" || group?.status === "archived"}
                           title={group?.status === "completed" || group?.status === "archived" ? "Bu grup tamamlandı/iptal — yeni öğrenci eklenemez." : undefined}
@@ -567,6 +568,8 @@ export default function SinifDetayPage() {
                           return (
                             <tr
                               key={r.enrollmentId}
+                              tabIndex={0}
+                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                               style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}
                               onClick={() => (canManage ? openStudentPanel(r.personId) : setDetailPersonId(r.personId))}
                             >
@@ -591,25 +594,25 @@ export default function SinifDetayPage() {
                                 </div>
                               </td>
                               <td style={S.td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: rst.color, background: rst.background, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: rst.dot }} />{rst.label}</span></td>
-                              <td style={S.tdRight} onClick={(e) => e.stopPropagation()}>
+                              <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.tdRight} onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                                   {canManage && !isCompleted && (
-                                    <button onClick={() => { setTransferTarget({ enrollmentId: r.enrollmentId, name: r.name }); setSelectedGroupId(""); setCloseAs(null); }} title="Grup Değiştir" style={S.iconBtn}>
+                                    <button type="button" onClick={() => { setTransferTarget({ enrollmentId: r.enrollmentId, name: r.name }); setSelectedGroupId(""); setCloseAs(null); }} title="Grup Değiştir" style={S.iconBtn}>
                                       <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
                                     </button>
                                   )}
                                   {canManage && !isCompleted && (
-                                    <button onClick={() => setGraduateTarget({ enrollmentId: r.enrollmentId, name: r.name })} title="Mezun Et" style={S.iconBtn}>
+                                    <button type="button" onClick={() => setGraduateTarget({ enrollmentId: r.enrollmentId, name: r.name })} title="Mezun Et" style={S.iconBtn}>
                                       <span dangerouslySetInnerHTML={{ __html: IC.graduation }} />
                                     </button>
                                   )}
                                   {canManage && (
-                                    <button onClick={() => openEdit(r)} title="Öğrenciyi Düzenle" style={S.iconBtn}>
+                                    <button type="button" onClick={() => openEdit(r)} title="Öğrenciyi Düzenle" style={S.iconBtn}>
                                       <span dangerouslySetInnerHTML={{ __html: IC.pencil }} />
                                     </button>
                                   )}
                                   {canManage && (
-                                    <button onClick={() => setRemoveTarget({ enrollmentId: r.enrollmentId, name: r.name })} title="Sınıftan çıkar" style={S.iconBtnDanger}>
+                                    <button type="button" onClick={() => setRemoveTarget({ enrollmentId: r.enrollmentId, name: r.name })} title="Sınıftan çıkar" style={S.iconBtnDanger}>
                                       <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
                                     </button>
                                   )}
@@ -639,14 +642,14 @@ export default function SinifDetayPage() {
 
       {/* ====== ÖĞRENCİ EKLE MODAL (grupsuz + bu eğitime ait — arama+seç) ====== */}
       {addOpen && (
-        <div onClick={closeAdd} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={closeAdd} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "22px 26px", borderBottom: "1px solid #EEF0F3" }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B" }}>Öğrenci Ekle</h3>
                 <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>Grupsuz, {group?.educationName || "bu eğitime"} kayıtlı öğrenciler</p>
               </div>
-              <button onClick={closeAdd} style={S.closeBtn}><span dangerouslySetInnerHTML={{ __html: IC.xMark }} /></button>
+              <button type="button" onClick={closeAdd} style={S.closeBtn}><span dangerouslySetInnerHTML={{ __html: IC.xMark }} /></button>
             </div>
             <div style={{ padding: "16px 26px 8px" }}>
               <span style={{ position: "relative", display: "flex" }}>
@@ -668,7 +671,7 @@ export default function SinifDetayPage() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {filteredAddCandidates.map((c, i) => (
-                    <div key={c.enrollmentId} onClick={() => addAssigningId === null && assignCandidate(c)}
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={c.enrollmentId} onClick={() => addAssigningId === null && assignCandidate(c)}
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: "1px solid #EEF0F3", cursor: addAssigningId === null ? "pointer" : "default", opacity: addAssigningId && addAssigningId !== c.enrollmentId ? 0.5 : 1, transition: "all .13s" }}>
                       <div style={{ width: 34, height: 34, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12.5, fontWeight: 700, ...avatarStyle(i) }}>{initials(c.name)}</div>
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -689,11 +692,11 @@ export default function SinifDetayPage() {
 
       {/* ====== ÖĞRENCİYİ DÜZENLE MODAL (sayfadan ayrılmadan, sadece temel alanlar) ====== */}
       {editTarget && (
-        <div onClick={closeEdit} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 440 }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={closeEdit} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 440 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "22px 26px", borderBottom: "1px solid #EEF0F3" }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi Düzenle</h3>
-              <button onClick={closeEdit} style={S.closeBtn}><span dangerouslySetInnerHTML={{ __html: IC.xMark }} /></button>
+              <button type="button" onClick={closeEdit} style={S.closeBtn}><span dangerouslySetInnerHTML={{ __html: IC.xMark }} /></button>
             </div>
             {editLoading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "36px 10px" }}>
@@ -708,8 +711,8 @@ export default function SinifDetayPage() {
               </div>
             )}
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end", borderTop: "1px solid #EEF0F3" }}>
-              <button onClick={closeEdit} style={S.cancelBtn} disabled={editSaving}>Vazgeç</button>
-              <button onClick={confirmEdit} disabled={editSaving || editLoading} style={{ ...S.primaryBtn, opacity: editSaving ? 0.7 : 1 }}>{editSaving ? "Kaydediliyor…" : "Kaydet"}</button>
+              <button type="button" onClick={closeEdit} style={S.cancelBtn} disabled={editSaving}>Vazgeç</button>
+              <button type="button" onClick={confirmEdit} disabled={editSaving || editLoading} style={{ ...S.primaryBtn, opacity: editSaving ? 0.7 : 1 }}>{editSaving ? "Kaydediliyor…" : "Kaydet"}</button>
             </div>
           </div>
         </div>
@@ -717,14 +720,14 @@ export default function SinifDetayPage() {
 
       {/* ====== MEZUN ET ONAY (transfersiz — grup devam eder) ====== */}
       {graduateTarget && (
-        <div onClick={() => !graduating && setGraduateTarget(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 400 }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => !graduating && setGraduateTarget(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 400 }}>
             <div style={{ padding: 24 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Mezun Et</h3>
               <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}><strong>{graduateTarget.name}</strong> adlı öğrenciyi mezun etmek istediğinize emin misiniz? Sınıf/grup devam eder, sadece bu öğrencinin kaydı kapanır — yoklama ve ödev dağıtımından düşer.</p>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-                <button style={S.cancelBtn} onClick={() => setGraduateTarget(null)} disabled={graduating}>Vazgeç</button>
-                <button style={{ ...S.primaryBtn, opacity: graduating ? 0.7 : 1 }} onClick={confirmGraduate} disabled={graduating}>{graduating ? "Kaydediliyor…" : "Evet, mezun et"}</button>
+                <button type="button" style={S.cancelBtn} onClick={() => setGraduateTarget(null)} disabled={graduating}>Vazgeç</button>
+                <button type="button" style={{ ...S.primaryBtn, opacity: graduating ? 0.7 : 1 }} onClick={confirmGraduate} disabled={graduating}>{graduating ? "Kaydediliyor…" : "Evet, mezun et"}</button>
               </div>
             </div>
           </div>
@@ -733,14 +736,14 @@ export default function SinifDetayPage() {
 
       {/* ====== SINIFTAN ÇIKAR ONAY ====== */}
       {removeTarget && (
-        <div onClick={() => !removing && setRemoveTarget(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 400 }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => !removing && setRemoveTarget(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 400 }}>
             <div style={{ padding: 24 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi çıkar</h3>
               <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}><strong>{removeTarget.name}</strong> adlı öğrenciyi bu sınıftan çıkarmak istediğinize emin misiniz?</p>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-                <button style={S.cancelBtn} onClick={() => setRemoveTarget(null)} disabled={removing}>Vazgeç</button>
-                <button style={{ ...S.dangerBtn, opacity: removing ? 0.7 : 1 }} onClick={confirmRemove} disabled={removing}>{removing ? "Çıkarılıyor…" : "Evet, çıkar"}</button>
+                <button type="button" style={S.cancelBtn} onClick={() => setRemoveTarget(null)} disabled={removing}>Vazgeç</button>
+                <button type="button" style={{ ...S.dangerBtn, opacity: removing ? 0.7 : 1 }} onClick={confirmRemove} disabled={removing}>{removing ? "Çıkarılıyor…" : "Evet, çıkar"}</button>
               </div>
             </div>
           </div>
@@ -749,8 +752,8 @@ export default function SinifDetayPage() {
 
       {/* ====== GRUP DEĞİŞTİR MODAL (gerçek transferEnrollment) ====== */}
       {transferTarget && (
-        <div onClick={closeTransfer} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={closeTransfer} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "22px 26px", borderBottom: "1px solid #EEF0F3" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: "#FFF6EA", color: "#B7791F", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }} dangerouslySetInnerHTML={{ __html: IC.transferBig }} />
@@ -759,7 +762,7 @@ export default function SinifDetayPage() {
                   <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}><strong style={{ color: "#414B59" }}>{transferTarget.name}</strong> için yeni grup seçin</p>
                 </div>
               </div>
-              <button onClick={closeTransfer} style={S.closeBtn}><span dangerouslySetInnerHTML={{ __html: IC.xMark }} /></button>
+              <button type="button" onClick={closeTransfer} style={S.closeBtn}><span dangerouslySetInnerHTML={{ __html: IC.xMark }} /></button>
             </div>
             <div style={{ padding: "18px 26px 8px", maxHeight: 360, overflowY: "auto" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 11, background: "#F7F8FA", border: "1px solid #EEF0F3", marginBottom: 16 }}>
@@ -775,7 +778,7 @@ export default function SinifDetayPage() {
                     {targetGroupOptions.map((tg) => {
                       const picked = selectedGroupId === tg.id;
                       return (
-                        <div key={tg.id} onClick={() => !tg.conflict && setSelectedGroupId(tg.id)}
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={tg.id} onClick={() => !tg.conflict && setSelectedGroupId(tg.id)}
                           title={tg.conflict ? "Bu grupla saat/gün çakışıyor" : undefined}
                           style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: picked ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: picked ? "#EFF3FA" : "#fff", cursor: tg.conflict ? "not-allowed" : "pointer", opacity: tg.conflict ? 0.45 : 1, transition: "all .13s" }}>
                           <span style={{ width: 10, height: 10, borderRadius: "50%", background: tg.branchColor, flex: "0 0 auto" }} />
@@ -802,7 +805,7 @@ export default function SinifDetayPage() {
                       ]).map((opt) => {
                         const sel = closeAs === opt.key;
                         return (
-                          <div key={opt.key} onClick={() => setCloseAs(opt.key)} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
+                          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={opt.key} onClick={() => setCloseAs(opt.key)} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
                             <span style={{ width: 18, height: 18, marginTop: 1, borderRadius: "50%", flex: "0 0 auto", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA" }} />
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{opt.title}</div>
@@ -817,8 +820,8 @@ export default function SinifDetayPage() {
               )}
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end", borderTop: "1px solid #EEF0F3", marginTop: 8 }}>
-              <button onClick={closeTransfer} style={S.cancelBtn} disabled={transferring}>Vazgeç</button>
-              <button onClick={confirmTransfer} disabled={!selectedGroupId || !closeAs || transferring || !!targetGroupOptions.find((g) => g.id === selectedGroupId)?.conflict}
+              <button type="button" onClick={closeTransfer} style={S.cancelBtn} disabled={transferring}>Vazgeç</button>
+              <button type="button" onClick={confirmTransfer} disabled={!selectedGroupId || !closeAs || transferring || !!targetGroupOptions.find((g) => g.id === selectedGroupId)?.conflict}
                 style={{ ...S.primaryBtn, background: selectedGroupId && closeAs ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", cursor: selectedGroupId && closeAs ? "pointer" : "not-allowed" }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.checkTiny }} />
                 {transferring ? "Taşınıyor…" : "Grubu Değiştir"}

@@ -196,7 +196,7 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
         taşan bir görsel/renk yok (hover arka planı en fazla birkaç piksel taşabilir,
         gözle fark edilmez). */}
     <div className={`bg-white border rounded-2xl transition-colors duration-150 ${isDragOver ? "border-[#6366f1]" : "border-surface-200"}`}>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
@@ -211,25 +211,25 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
           {/* 3-nokta menü → Ödevi Düzenle (başlık/açıklama/tarih/durum). Dosya yükleme
               BURADA DEĞİL — aşağıdaki açık gövdede, canlıdaki AttachmentManager gibi. */}
           <div className="relative" ref={menuRef}>
-            <button
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
               className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-100 text-surface-400 hover:text-text-primary transition-all cursor-pointer"
             >
               <MoreHorizontal size={15} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 z-50 bg-white border border-surface-200 rounded-2xl shadow-xl overflow-hidden min-w-[150px]" onClick={(e) => e.stopPropagation()}>
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="absolute right-0 top-8 z-50 bg-white border border-surface-200 rounded-2xl shadow-xl overflow-hidden min-w-[150px]" onClick={(e) => e.stopPropagation()}>
                 {/* "Ödevi Düzenle" SADECE Aktif bölümünde (2026-07-29 kullanıcı isteği) —
                     Tamamlanan bir ödevi düzenlemenin anlamı yok. */}
                 {isActiveSection && (
-                  <button
+                  <button type="button"
                     onClick={() => { setMenuOpen(false); onEdit(assignment); }}
                     className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
                   >
                     Ödevi Düzenle
                   </button>
                 )}
-                <button
+                <button type="button"
                   onClick={handleArchive}
                   disabled={archiving}
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-surface-500 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -271,7 +271,7 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
               <div className="flex items-center flex-wrap gap-2">
                 <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { const files = e.target.files; if (files) void handleFiles(files); e.target.value = ""; }} />
 
-                <button
+                <button type="button"
                   onClick={toggleExpand}
                   disabled={uploading}
                   style={hasFiles ? {
@@ -322,10 +322,10 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
                             style={{ height: 44 }}
                             className="flex-1 min-w-0 px-3 rounded-xl border border-surface-200 text-[12px] outline-none focus:border-base-primary-400 transition-colors bg-white"
                           />
-                          <button onClick={() => void handleDriveSave()} disabled={!driveLink.trim()} style={{ height: 44, flexShrink: 0 }} className="px-3 bg-base-primary-700 text-white text-[12px] font-bold rounded-xl disabled:opacity-40 cursor-pointer hover:bg-base-primary-800 transition-colors whitespace-nowrap">
+                          <button type="button" onClick={() => void handleDriveSave()} disabled={!driveLink.trim()} style={{ height: 44, flexShrink: 0 }} className="px-3 bg-base-primary-700 text-white text-[12px] font-bold rounded-xl disabled:opacity-40 cursor-pointer hover:bg-base-primary-800 transition-colors whitespace-nowrap">
                             Ekle
                           </button>
-                          <button onClick={() => { setDriveMode(false); setDriveLink(""); setDriveName(""); }} style={{ height: 44, width: 44, flexShrink: 0 }} className="flex items-center justify-center bg-surface-100 text-surface-500 rounded-xl cursor-pointer hover:bg-surface-200 transition-colors">
+                          <button type="button" onClick={() => { setDriveMode(false); setDriveLink(""); setDriveName(""); }} style={{ height: 44, width: 44, flexShrink: 0 }} className="flex items-center justify-center bg-surface-100 text-surface-500 rounded-xl cursor-pointer hover:bg-surface-200 transition-colors">
                             <X size={14} />
                           </button>
                         </div>
@@ -337,15 +337,14 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
                           style={{ height: 44 }}
                           className={`w-full flex items-center gap-1 px-2 border border-dashed rounded-xl transition-colors whitespace-nowrap ${dragOver ? "border-base-primary-400 bg-base-primary-50" : "border-surface-300 bg-white"}`}
                         >
-                          <button onClick={() => fileInputRef.current?.click()} className="h-full flex items-center gap-2 px-3 rounded-lg text-[12px] font-semibold text-text-secondary hover:bg-surface-100 transition-colors cursor-pointer">
+                          <button type="button" onClick={() => fileInputRef.current?.click()} className="h-full flex items-center gap-2 px-3 rounded-lg text-[12px] font-semibold text-text-secondary hover:bg-surface-100 transition-colors cursor-pointer">
                             <Upload size={13} className="text-surface-400 shrink-0" />
                             {dragOver ? "Bırakın..." : "Bilgisayardan Yükle"}
                           </button>
                           <div className="w-px h-5 bg-surface-200 shrink-0" />
-                          <button onClick={() => setDriveMode(true)} className="h-full flex items-center gap-2 px-3 rounded-lg text-[12px] font-semibold text-text-secondary hover:bg-surface-100 transition-colors cursor-pointer">
+                          <button type="button" onClick={() => setDriveMode(true)} className="h-full flex items-center gap-2 px-3 rounded-lg text-[12px] font-semibold text-text-secondary hover:bg-surface-100 transition-colors cursor-pointer">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />
-                            Google Drive
+                            <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />Google Drive
                           </button>
                         </div>
                       )}
@@ -363,7 +362,7 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
                     <a href={a.webViewLink} target="_blank" rel="noopener noreferrer" className="p-0.5 text-surface-300 hover:text-base-primary-600 transition-colors shrink-0 ml-auto">
                       <ExternalLink size={12} />
                     </a>
-                    <button onClick={() => void handleRemoveAttachment(a.id)} className="p-0.5 text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer shrink-0">
+                    <button type="button" onClick={() => void handleRemoveAttachment(a.id)} className="p-0.5 text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer shrink-0">
                       <X size={12} />
                     </button>
                   </div>
@@ -372,7 +371,7 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
                 {attachError && <span className="text-[11px] font-semibold text-status-danger-500">{attachError}</span>}
               </div>
 
-              <button
+              <button type="button"
                 onClick={() => router.push(`/flexos/odevler/teslim/${groupId}/${assignment.id}`)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white cursor-pointer transition-colors shrink-0"
                 style={{ backgroundColor: "#5E63C2" }}

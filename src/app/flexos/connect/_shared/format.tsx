@@ -43,7 +43,7 @@ export function isAfterHoursNowIstanbul(): boolean {
     timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(new Date());
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
-  const mins = parseInt(get("hour"), 10) * 60 + parseInt(get("minute"), 10);
+  const mins = Number.parseInt(get("hour"), 10) * 60 + Number.parseInt(get("minute"), 10);
   return mins >= 22 * 60 || mins < 9 * 60;
 }
 

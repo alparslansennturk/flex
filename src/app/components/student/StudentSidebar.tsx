@@ -99,7 +99,7 @@ export default function StudentSidebar({ studentId: studentIdProp }: Props) {
           <span className="text-[15px] font-medium leading-tight">Ayarlar</span>
         </Link>
         <div className="mx-2 border-t border-white/10" />
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={handleLogout}
           className="flex items-center gap-4 px-6 py-4 text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl"
         >

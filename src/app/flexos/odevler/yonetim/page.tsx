@@ -95,7 +95,7 @@ interface GroupOption { id: string; code: string; branch: string }
 function fmtDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
 }
 
@@ -356,7 +356,7 @@ export default function OdevYonetimiPage() {
                 { key: "pool", label: "Havuz Yönetimi" },
                 { key: "globalLibrary", label: "Global Kütüphane" },
               ] as const).map((t) => (
-                <button
+                <button type="button"
                   key={t.key}
                   onClick={() => { setTab(t.key); setSelectedIds(new Set()); }}
                   className={`px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none ${
@@ -372,7 +372,7 @@ export default function OdevYonetimiPage() {
 
             <div className="flex items-center gap-2">
               {tab === "archive" && selectedIds.size > 0 && (
-                <button
+                <button type="button"
                   onClick={handleBulkDelete}
                   className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-status-danger-500 text-white text-[12px] font-bold hover:bg-status-danger-600 transition-colors cursor-pointer"
                 >
@@ -385,7 +385,7 @@ export default function OdevYonetimiPage() {
                     {visibleTemplateCount} şablon kütüphanede
                   </span>
                   <div className="relative">
-                    <button
+                    <button type="button"
                       onClick={() => setBransFilterOpen((v) => !v)}
                       className="flex items-center gap-2.5 h-11 pl-3.5 pr-3 rounded-xl border border-[#E2E5EA] bg-white text-[13.5px] font-semibold text-[#1E222B] cursor-pointer hover:border-[#CDD2DA] hover:bg-[#F7F8FA] transition-all"
                     >
@@ -395,10 +395,10 @@ export default function OdevYonetimiPage() {
                     </button>
                     {bransFilterOpen && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setBransFilterOpen(false)} />
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-40" onClick={() => setBransFilterOpen(false)} />
                         <div className="absolute right-0 top-[calc(100%+8px)] w-[200px] bg-white border border-[#E2E5EA] rounded-2xl shadow-xl p-2 z-50">
                           {bransList.map((b) => (
-                            <button
+                            <button type="button"
                               key={b}
                               onClick={() => { setBransFilter(b); setBransFilterOpen(false); }}
                               className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13.5px] font-semibold cursor-pointer transition-colors ${
@@ -416,7 +416,7 @@ export default function OdevYonetimiPage() {
                       </>
                     )}
                   </div>
-                  <button
+                  <button type="button"
                     onClick={openTplCreate}
                     className="flex items-center gap-2 h-11 px-4.5 rounded-xl border-none text-white text-[13.5px] font-bold cursor-pointer transition-all"
                     style={{ background: "linear-gradient(135deg,#FF8D28,#D66500)", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}
@@ -471,7 +471,7 @@ export default function OdevYonetimiPage() {
                           </span>
                         </div>
                         <div className="w-32 shrink-0 flex items-center justify-end gap-1.5">
-                          <button
+                          <button type="button"
                             onClick={() => toggleTplVisible(t)}
                             title={t.visible ? "Kütüphaneden kaldır" : "Kütüphanede göster"}
                             className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all cursor-pointer ${
@@ -480,14 +480,14 @@ export default function OdevYonetimiPage() {
                           >
                             {t.visible ? <Check size={15} /> : <X size={15} />}
                           </button>
-                          <button
+                          <button type="button"
                             onClick={() => openTplEdit(t)}
                             title="Düzenle"
                             className="w-8 h-8 flex items-center justify-center rounded-xl border border-[#E2E5EA] bg-white text-[#6F7B87] hover:border-[#92b6e8] hover:text-[#2867bd] hover:bg-[#EFF3FA] transition-all cursor-pointer"
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
+                          <button type="button"
                             onClick={() => setTplDeleteTarget(t)}
                             title="Sil"
                             className="w-8 h-8 flex items-center justify-center rounded-xl border border-[#E2E5EA] bg-white text-[#6F7B87] hover:border-[#F3B0B0] hover:text-[#D93636] hover:bg-[#FFECEC] transition-all cursor-pointer"
@@ -562,18 +562,18 @@ export default function OdevYonetimiPage() {
                       {a.dueDate ? (<><CalendarDays size={11} /><span>{fmtDate(a.dueDate)}</span></>) : <span className="italic text-surface-300">—</span>}
                     </div>
                     <div className="w-28 shrink-0 flex items-center gap-1">
-                      <button onClick={() => openEdit(a)} title="Düzenle" className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-base-primary-50 hover:text-base-primary-500 transition-all cursor-pointer">
+                      <button type="button" onClick={() => openEdit(a)} title="Düzenle" className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-base-primary-50 hover:text-base-primary-500 transition-all cursor-pointer">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => setDeleteTarget(a)} title="Sil" className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer">
+                      <button type="button" onClick={() => setDeleteTarget(a)} title="Sil" className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer">
                         <Trash2 size={14} />
                       </button>
                       {tab === "active" ? (
-                        <button onClick={() => setStatus(a, "archived")} title="Arşive Taşı" className="px-2.5 h-8 rounded-xl text-[11px] font-bold text-surface-500 hover:bg-surface-100 transition-all cursor-pointer whitespace-nowrap">
+                        <button type="button" onClick={() => setStatus(a, "archived")} title="Arşive Taşı" className="px-2.5 h-8 rounded-xl text-[11px] font-bold text-surface-500 hover:bg-surface-100 transition-all cursor-pointer whitespace-nowrap">
                           Arşivle
                         </button>
                       ) : (
-                        <button onClick={() => setStatus(a, "published")} title="Aktife Al" className="px-2.5 h-8 rounded-xl text-[11px] font-bold text-status-success-600 hover:bg-status-success-50 transition-all cursor-pointer whitespace-nowrap">
+                        <button type="button" onClick={() => setStatus(a, "published")} title="Aktife Al" className="px-2.5 h-8 rounded-xl text-[11px] font-bold text-status-success-600 hover:bg-status-success-50 transition-all cursor-pointer whitespace-nowrap">
                           Aktife Al
                         </button>
                       )}
@@ -592,7 +592,7 @@ export default function OdevYonetimiPage() {
                   { key: "kitap", label: "Kitap Dünyası" },
                   { key: "sosyal", label: "Reklam Tasarımı" },
                 ] as const).map((t) => (
-                  <button
+                  <button type="button"
                     key={t.key}
                     onClick={() => setPoolSubTab(t.key)}
                     className={`px-4 py-2 rounded-[10px] text-[12.5px] font-bold transition-all cursor-pointer outline-none ${
@@ -627,13 +627,13 @@ export default function OdevYonetimiPage() {
 
       {/* Silme onayı */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => setDeleteTarget(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => setDeleteTarget(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-[16px] font-bold text-base-primary-900">Ödevi sil</h2>
             <p className="text-[14px] text-surface-600"><span className="font-semibold">{deleteTarget.title}</span> ödevini silmek istediğine emin misin? Bu işlem geri alınamaz.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-[13px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer">İptal</button>
-              <button onClick={handleDelete} className="px-4 py-2 rounded-xl text-[13px] font-semibold text-white bg-status-danger-500 hover:bg-status-danger-600 transition-colors cursor-pointer">Sil</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-[13px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer">İptal</button>
+              <button type="button" onClick={handleDelete} className="px-4 py-2 rounded-xl text-[13px] font-semibold text-white bg-status-danger-500 hover:bg-status-danger-600 transition-colors cursor-pointer">Sil</button>
             </div>
           </div>
         </div>
@@ -672,7 +672,7 @@ export default function OdevYonetimiPage() {
                       <p className="text-[12.5px] text-[#8E95A3] font-medium mt-0.5">{tplEditingId ? "Şablon bilgilerini güncelleyin." : "Ödev şablonu bilgilerini girin."}</p>
                     </div>
                   </div>
-                  <button onClick={closeTplForm} className="w-9 h-9 rounded-xl border border-[#E2E5EA] bg-white flex items-center justify-center text-[#6F7B87] hover:bg-[#F7F8FA] hover:text-[#1E222B] transition-colors cursor-pointer shrink-0">
+                  <button type="button" onClick={closeTplForm} className="w-9 h-9 rounded-xl border border-[#E2E5EA] bg-white flex items-center justify-center text-[#6F7B87] hover:bg-[#F7F8FA] hover:text-[#1E222B] transition-colors cursor-pointer shrink-0">
                     <X size={18} />
                   </button>
                 </div>
@@ -683,8 +683,8 @@ export default function OdevYonetimiPage() {
                   <div className="flex gap-3 items-stretch">
                     <div className="flex-1 flex flex-col gap-2.5 min-w-0">
                       <div>
-                        <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon Adı</label>
-                        <input
+                        <label htmlFor="tplTitle" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon Adı</label>
+                        <input id="tplTitle"
                           value={tplTitle}
                           onChange={(e) => setTplTitle(e.target.value)}
                           placeholder="Örn. Poster Tasarım Ödevi"
@@ -692,8 +692,8 @@ export default function OdevYonetimiPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Alt Başlık</label>
-                        <input
+                        <label htmlFor="tplSubtitle" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Alt Başlık</label>
+                        <input id="tplSubtitle"
                           value={tplSubtitle}
                           onChange={(e) => setTplSubtitle(e.target.value)}
                           placeholder="Kısa bir alt başlık (opsiyonel)"
@@ -770,7 +770,7 @@ export default function OdevYonetimiPage() {
                       </div>
                     </div>
                     <div className="relative flex-1 min-w-[180px]">
-                      <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Branş</label>
+                      <label id="lbl1" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Branş</label>
                       <button
                         type="button"
                         onClick={() => setTplFormBransOpen((v) => !v)}
@@ -784,7 +784,7 @@ export default function OdevYonetimiPage() {
                       </button>
                       {tplFormBransOpen && (
                         <>
-                          <div className="fixed inset-0 z-40" onClick={() => setTplFormBransOpen(false)} />
+                          <div aria-labelledby="lbl1" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-40" onClick={() => setTplFormBransOpen(false)} />
                           <div className="absolute left-0 right-0 top-[calc(100%+6px)] bg-white border border-[#E2E5EA] rounded-xl shadow-xl p-2 z-50">
                             {branches.length === 0 ? (
                               <div className="px-3 py-2 text-[13px] text-surface-400 font-medium">Branş bulunamadı</div>
@@ -813,7 +813,7 @@ export default function OdevYonetimiPage() {
                   {/* Ödev Puanı — "Ödev Ekle" ile aynı alan. 2026-07-17 kararı: proje türü
                       Ödev Notu'na hiç girmiyor, puan bu türde anlamsız — devre dışı. */}
                   <div>
-                    <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
+                    <label htmlFor="tplPuan" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
                     {tplKind === "proje" ? (
                       <p className="text-[11.5px] font-medium text-[#8E95A3] italic">
                         Proje ödevlerinde puan kullanılmaz — not Sertifika Notu&apos;ndan elle girilir.
@@ -821,9 +821,9 @@ export default function OdevYonetimiPage() {
                     ) : (
                       <div className="flex items-center gap-2.5 flex-wrap">
                         <div className="relative shrink-0">
-                          <input
+                          <input id="tplPuan"
                             className="w-[120px] py-3 pl-4 pr-[42px] rounded-xl border border-[#E2E5EA] bg-[#FBFCFD] text-[14px] font-extrabold text-[#1E222B] outline-none"
-                            type="number" min={0} value={tplPuan} onChange={(e) => setTplPuan(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="100"
+                            type="number" min={0} value={tplPuan} onChange={(e) => setTplPuan(Math.max(0, Number.parseInt(e.target.value, 10) || 0))} placeholder="100"
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#8E95A3] pointer-events-none">puan</span>
                         </div>
@@ -874,8 +874,8 @@ export default function OdevYonetimiPage() {
                   )}
 
                   <div>
-                    <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Açıklama</label>
-                    <textarea
+                    <label htmlFor="tplDescription" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Açıklama</label>
+                    <textarea id="tplDescription"
                       value={tplDescription}
                       onChange={(e) => setTplDescription(e.target.value)}
                       rows={4}
@@ -886,10 +886,10 @@ export default function OdevYonetimiPage() {
                 </div>
 
                 <div className="flex gap-3 justify-end px-7 py-4.5 border-t border-[#EEF0F3] shrink-0">
-                  <button onClick={closeTplForm} disabled={tplSaving} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">
+                  <button type="button" onClick={closeTplForm} disabled={tplSaving} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">
                     Vazgeç
                   </button>
-                  <button
+                  <button type="button"
                     onClick={saveTplForm}
                     disabled={tplSaving || !tplTitle.trim()}
                     className="flex items-center gap-2 px-6 py-2.5 rounded-xl border-none text-white text-[14px] font-bold cursor-pointer disabled:cursor-not-allowed transition-all"
@@ -908,8 +908,8 @@ export default function OdevYonetimiPage() {
 
       {/* Şablon silme onayı */}
       {tplDeleteTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => setTplDeleteTarget(null)}>
-          <div className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => setTplDeleteTarget(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6.5 pt-6.5 pb-5">
               <div className="w-12 h-12 rounded-xl bg-[#FFECEC] text-[#D93636] flex items-center justify-center mb-4">
                 <Trash2 size={22} />
@@ -920,8 +920,8 @@ export default function OdevYonetimiPage() {
               </p>
             </div>
             <div className="flex gap-2.5 justify-end px-6.5 pb-5.5">
-              <button onClick={() => setTplDeleteTarget(null)} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer">Vazgeç</button>
-              <button onClick={confirmTplDelete} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
+              <button type="button" onClick={() => setTplDeleteTarget(null)} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer">Vazgeç</button>
+              <button type="button" onClick={confirmTplDelete} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
                 <Trash2 size={16} /> Evet, sil
               </button>
             </div>

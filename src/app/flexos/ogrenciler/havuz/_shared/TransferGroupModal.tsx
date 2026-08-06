@@ -26,8 +26,8 @@ export function TransferGroupModal({
   transferCloseAs, setTransferCloseAs, transferring, onClose, onConfirm,
 }: TransferGroupModalProps) {
   return (
-    <div style={S.modalOverlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modalOverlay} onClick={onClose}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modal} onClick={(e) => e.stopPropagation()}>
         {/* head */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
@@ -40,7 +40,7 @@ export function TransferGroupModal({
               </p>
             </div>
           </div>
-          <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={onClose}>
+          <button type="button" className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={onClose}>
             <span dangerouslySetInnerHTML={{ __html: IC.x }} />
           </button>
         </div>
@@ -75,7 +75,7 @@ export function TransferGroupModal({
                 ]).map((opt) => {
                   const sel = transferCloseAs === opt.key;
                   return (
-                    <div key={opt.key} className="oh-grow" onClick={() => setTransferCloseAs(opt.key)}
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={opt.key} className="oh-grow" onClick={() => setTransferCloseAs(opt.key)}
                       style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
                       <span style={{ width: 18, height: 18, marginTop: 1, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
                       <div style={{ minWidth: 0 }}>
@@ -92,8 +92,8 @@ export function TransferGroupModal({
 
         {/* footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 24px 20px", borderTop: "1px solid #EEF0F3" }}>
-          <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={onClose} disabled={transferring}>Vazgeç</button>
-          <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || !transferCloseAs || transferring ? 0.55 : 1, pointerEvents: !selectedGroupId || !transferCloseAs || transferring ? "none" : "auto" }} onClick={onConfirm}>
+          <button type="button" className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={onClose} disabled={transferring}>Vazgeç</button>
+          <button type="button" className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || !transferCloseAs || transferring ? 0.55 : 1, pointerEvents: !selectedGroupId || !transferCloseAs || transferring ? "none" : "auto" }} onClick={onConfirm}>
             <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
             {transferring ? "Taşınıyor…" : "Gruba Taşı"}
           </button>

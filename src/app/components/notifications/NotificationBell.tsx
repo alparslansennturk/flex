@@ -97,7 +97,7 @@ export default function NotificationBell() {
     <div className="relative" ref={ref}>
 
       {/* ── Bell button ── */}
-      <button
+      <button type="button"
         onClick={() => setOpen(v => !v)}
         className="relative text-neutral-900 cursor-pointer hover:text-base-primary-500 transition-colors"
         aria-label="Bildirimler"
@@ -113,7 +113,7 @@ export default function NotificationBell() {
       {/* ── Dropdown ── */}
       {open && (
         <>
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
             className="fixed inset-0 bg-black/25 z-40 animate-in fade-in duration-200"
             onClick={() => setOpen(false)}
           />
@@ -128,7 +128,7 @@ export default function NotificationBell() {
                 Bildirimler
               </span>
               {notifications.length > 0 && (
-                <button
+                <button type="button"
                   onClick={clearAll}
                   className="text-[12px] 2xl:text-[13px] font-semibold text-base-primary-600 hover:text-base-primary-700 transition-colors cursor-pointer"
                 >
@@ -155,7 +155,7 @@ export default function NotificationBell() {
                   return (
                     <div key={n.id}>
                       {i > 0 && <div className="h-px bg-surface-200 my-3" />}
-                      <div
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                         onClick={() => handleNotifClick(n)}
                         className={`group flex items-start gap-3 cursor-pointer rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-surface-50 ${n.isRead ? "opacity-50" : ""}`}
                       >

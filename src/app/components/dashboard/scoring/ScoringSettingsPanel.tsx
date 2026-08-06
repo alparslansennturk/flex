@@ -99,10 +99,10 @@ export default function ScoringSettingsPanel() {
             {/* Min. Bölücü slider */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-[12px] font-bold text-surface-500">Minimum Görev Bölücüsü</label>
+                <label htmlFor="minTaskDivisor" className="text-[12px] font-bold text-surface-500">Minimum Görev Bölücüsü</label>
                 <span className="text-[20px] font-bold text-base-primary-900 leading-none">{local.leaderboard.minTaskDivisor}</span>
               </div>
-              <input
+              <input id="minTaskDivisor"
                 type="range" min={1} max={10} step={1}
                 value={local.leaderboard.minTaskDivisor}
                 onChange={e => setLocal(p => ({ ...p, leaderboard: { ...p.leaderboard, minTaskDivisor: Number(e.target.value) } }))}
@@ -123,13 +123,13 @@ export default function ScoringSettingsPanel() {
             {/* Bonus Tabanı + Bonus Gücü */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[12px] font-bold text-surface-500 block mb-1.5">Bonus Tabanı (logBase)</label>
-                <input
+                <label htmlFor="logBase" className="text-[12px] font-bold text-surface-500 block mb-1.5">Bonus Tabanı (logBase)</label>
+                <input id="logBase"
                   type="number" min={2} max={10} step={0.5}
                   value={local.leaderboard.logBase}
                   onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v >= 2)
+                    const v = Number.parseFloat(e.target.value);
+                    if (!Number.isNaN(v) && v >= 2)
                       setLocal(p => ({ ...p, leaderboard: { ...p.leaderboard, logBase: v } }));
                   }}
                   className="w-full h-10 px-3 rounded-xl border border-surface-200 bg-surface-50 text-[14px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 focus:bg-white transition-all"
@@ -139,13 +139,13 @@ export default function ScoringSettingsPanel() {
                 </p>
               </div>
               <div>
-                <label className="text-[12px] font-bold text-surface-500 block mb-1.5">Bonus Gücü (multiplier)</label>
-                <input
+                <label htmlFor="bonusMultiplier" className="text-[12px] font-bold text-surface-500 block mb-1.5">Bonus Gücü (multiplier)</label>
+                <input id="bonusMultiplier"
                   type="number" min={0.1} max={5} step={0.1}
                   value={local.leaderboard.bonusMultiplier}
                   onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v >= 0.1)
+                    const v = Number.parseFloat(e.target.value);
+                    if (!Number.isNaN(v) && v >= 0.1)
                       setLocal(p => ({ ...p, leaderboard: { ...p.leaderboard, bonusMultiplier: v } }));
                   }}
                   className="w-full h-10 px-3 rounded-xl border border-surface-200 bg-surface-50 text-[14px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 focus:bg-white transition-all"
@@ -202,15 +202,15 @@ export default function ScoringSettingsPanel() {
             ] as const).map(({ key, label, trackColor }) => (
               <div key={key} className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[12px] font-bold text-surface-500">{label}</label>
+                  <label htmlFor="latePenaltykey" className="text-[12px] font-bold text-surface-500">{label}</label>
                   <span className="text-[15px] font-bold" style={{ color: trackColor }}>
                     {Math.round(local.latePenalty[key] * 100)}%
                   </span>
                 </div>
-                <input
+                <input id="latePenaltykey"
                   type="range" min={0} max={1} step={0.05}
                   value={local.latePenalty[key]}
-                  onChange={e => setLocal(p => ({ ...p, latePenalty: { ...p.latePenalty, [key]: parseFloat(e.target.value) } }))}
+                  onChange={e => setLocal(p => ({ ...p, latePenalty: { ...p.latePenalty, [key]: Number.parseFloat(e.target.value) } }))}
                   className="w-full h-1.5 rounded-full appearance-none cursor-pointer
                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md
@@ -283,7 +283,7 @@ export default function ScoringSettingsPanel() {
             <label className="text-[12px] font-bold text-surface-500">Zorluk Seviyesi</label>
             <div className="grid grid-cols-3 gap-2">
               {["Seviye 1","Seviye 2","Seviye 3"].map(l => (
-                <button
+                <button type="button"
                   key={l}
                   onClick={() => setPreviewLevel(l)}
                   className={`h-10 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
@@ -308,7 +308,7 @@ export default function ScoringSettingsPanel() {
                 { v: 2, label: "2 Hf. Geç" },
                 { v: 3, label: "3+ Hf. Geç" },
               ].map(({ v, label }) => (
-                <button
+                <button type="button"
                   key={v}
                   onClick={() => setPreviewWeeksLate(v)}
                   className={`h-10 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
@@ -362,7 +362,7 @@ export default function ScoringSettingsPanel() {
           )}
         </div>
 
-        <button
+        <button type="button"
           onClick={handleSave}
           disabled={saving || !isDirty}
           className="flex items-center gap-2.5 h-11 px-8 rounded-xl bg-designstudio-primary-500 text-white text-[13px] font-bold

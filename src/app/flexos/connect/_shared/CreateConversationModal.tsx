@@ -224,7 +224,7 @@ export function CreateConversationModal({
               <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#1B1F26" }}>{createTitle}</h3>
               <p style={{ margin: "3px 0 0", fontSize: 13, color: "#8A909B", fontWeight: 500 }}>{createSubtitle}</p>
             </div>
-            <button onClick={onClose} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}><X size={18} /></button>
+            <button type="button" onClick={onClose} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}><X size={18} /></button>
           </div>
 
           <div style={{ padding: "20px 26px 8px" }}>
@@ -237,7 +237,7 @@ export function CreateConversationModal({
               ].map((t) => {
                 const sel = type === t.key;
                 return (
-                  <button key={t.key} onClick={() => setType(t.key)} className="flex items-center gap-3 cursor-pointer transition-all text-left" style={{ padding: "14px 15px", borderRadius: 13, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}>
+                  <button type="button" key={t.key} onClick={() => setType(t.key)} className="flex items-center gap-3 cursor-pointer transition-all text-left" style={{ padding: "14px 15px", borderRadius: 13, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}>
                     <div className="flex items-center justify-center shrink-0" style={{ width: 40, height: 40, borderRadius: 11, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}><t.Icon size={19} /></div>
                     <div className="flex-1 min-w-0">
                       <div style={{ fontSize: 14, fontWeight: 700, color: "#1B1F26" }}>{t.label}</div>
@@ -253,10 +253,10 @@ export function CreateConversationModal({
 
             <div className="grid grid-cols-2 gap-6 items-start">
               <div>
-                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>{nameLabel}</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={namePlaceholder} className="w-full outline-none" style={{ height: 44, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 14, fontWeight: 600, marginBottom: 18 }} />
-                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>Açıklama <span style={{ fontWeight: 600, color: "#C3CAD4", textTransform: "none", letterSpacing: 0 }}>· opsiyonel</span></label>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={`Bu ${type === "group" ? "grubun" : type === "community" ? "topluluğun" : "kanalın"} amacını kısaca yazın…`} className="w-full outline-none resize-none" style={{ padding: "11px 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5 }} />
+                <label htmlFor="name" className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>{nameLabel}</label>
+                <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={namePlaceholder} className="w-full outline-none" style={{ height: 44, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 14, fontWeight: 600, marginBottom: 18 }} />
+                <label htmlFor="description" className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>Açıklama <span style={{ fontWeight: 600, color: "#C3CAD4", textTransform: "none", letterSpacing: 0 }}>· opsiyonel</span></label>
+                <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={`Bu ${type === "group" ? "grubun" : type === "community" ? "topluluğun" : "kanalın"} amacını kısaca yazın…`} className="w-full outline-none resize-none" style={{ padding: "11px 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5 }} />
               </div>
 
               <div>
@@ -264,7 +264,7 @@ export function CreateConversationModal({
                   <>
                     <div className="flex gap-1.5 mb-2">
                       {([{ key: "staff", label: "Personel Kanalı" }, { key: "students", label: "Öğrenci Kanalı" }] as { key: "staff" | "students"; label: string }[]).map((m) => (
-                        <button
+                        <button type="button"
                           key={m.key} onClick={() => setChannelAudience(m.key)}
                           className="cursor-pointer transition-all font-bold"
                           style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: channelAudience === m.key ? "#EAF1FB" : "transparent", color: channelAudience === m.key ? "#205297" : "#8A909B" }}
@@ -290,7 +290,7 @@ export function CreateConversationModal({
                           {staffDirectory.map((u) => {
                             const sel = selectedStaffUids.includes(u.uid);
                             return (
-                              <button
+                              <button type="button"
                                 key={u.uid}
                                 onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
                                 className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
@@ -320,7 +320,7 @@ export function CreateConversationModal({
                   <>
                     <div className="flex gap-1.5 mb-3">
                       {([{ key: "class", label: "Sınıf" }, { key: "staff", label: "Personel" }] as { key: "class" | "staff"; label: string }[]).map((m) => (
-                        <button
+                        <button type="button"
                           key={m.key} onClick={() => setGroupMode(m.key)}
                           className="cursor-pointer transition-all font-bold"
                           style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: groupMode === m.key ? "#EAF1FB" : "transparent", color: groupMode === m.key ? "#205297" : "#8A909B" }}
@@ -338,7 +338,7 @@ export function CreateConversationModal({
                           {myGroups.map((g) => {
                             const sel = selectedGroupId === g.id;
                             return (
-                              <button
+                              <button type="button"
                                 key={g.id}
                                 onClick={() => { setSelectedGroupId(g.id); if (!name.trim()) setName(g.code); }}
                                 className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
@@ -389,7 +389,7 @@ export function CreateConversationModal({
                               {staffDirectory.map((u) => {
                                 const sel = selectedStaffUids.includes(u.uid);
                                 return (
-                                  <button
+                                  <button type="button"
                                     key={u.uid}
                                     onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
                                     className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
@@ -428,7 +428,7 @@ export function CreateConversationModal({
                       {myGroups.map((g) => {
                         const sel = selectedCommunityGroupIds.includes(g.id);
                         return (
-                          <button
+                          <button type="button"
                             key={g.id}
                             onClick={() => setSelectedCommunityGroupIds((prev) => (sel ? prev.filter((x) => x !== g.id) : [...prev, g.id]))}
                             className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
@@ -463,8 +463,8 @@ export function CreateConversationModal({
               {visibilityNote}
             </div>
             <div className="flex gap-2.5">
-              <button onClick={onClose} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
-              <button
+              <button type="button" onClick={onClose} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
+              <button type="button"
                 onClick={submit} disabled={!canSubmit || saving}
                 className="inline-flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                 style={{ padding: "11px 20px", borderRadius: 11, border: "none", background: canSubmit ? "#2867bd" : "#C3CAD4", color: "#fff", fontSize: 14, fontWeight: 700 }}

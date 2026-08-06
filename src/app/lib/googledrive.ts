@@ -21,7 +21,7 @@ function sleep(ms: number): Promise<void> {
 
 function getFolderId(): string {
   const raw = process.env.GOOGLE_DRIVE_FOLDER_ID ?? "";
-  const id  = raw.replace(/^["']|["']$/g, "").trim();
+  const id  = raw.replaceAll(/^["']|["']$/g, "").trim();
   if (!id) throw driveError("UPLOAD_FAILED", "GOOGLE_DRIVE_FOLDER_ID env var eksik.");
   return id;
 }
@@ -154,7 +154,7 @@ export async function uploadToDrive(
   const token = await getAccessToken();
 
   const rawFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID ?? "";
-  const folderId = rawFolderId.replace(/^["']|["']$/g, "").trim();
+  const folderId = rawFolderId.replaceAll(/^["']|["']$/g, "").trim();
 
   if (!folderId) {
     throw driveError("UPLOAD_FAILED", "GOOGLE_DRIVE_FOLDER_ID env var eksik.");
@@ -240,7 +240,7 @@ async function findOrCreateFolder(
   parentId: string,
   token:    string,
 ): Promise<string> {
-  const safeName = name.replace(/'/g, "\\'");
+  const safeName = name.replaceAll(/'/g, "\\'");
   const q = encodeURIComponent(
     `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
   );
@@ -288,7 +288,7 @@ export async function ensureFolderPath(
 
   for (const raw of pathSegments) {
     // Geçersiz Drive karakter temizliği
-    const segment = raw.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "Genel";
+    const segment = raw.replaceAll(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "Genel";
     currentId = await findOrCreateFolder(segment, currentId, token);
   }
 
@@ -425,7 +425,7 @@ async function searchByName(
   parentFolderId?: string,
 ): Promise<{ id: string; createdTime: string }[]> {
   const parts = [
-    `name = '${actualFileName.replace(/'/g, "\\'")}'`,
+    `name = '${actualFileName.replaceAll(/'/g, "\\'")}'`,
     ...(parentFolderId ? [`'${parentFolderId}' in parents`] : []),
     `trashed = false`,
   ];

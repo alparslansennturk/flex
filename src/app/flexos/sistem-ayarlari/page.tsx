@@ -380,14 +380,14 @@ export default function SistemAyarlariPage() {
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>{"Ders Saati Ücreti (TL)"}</label>
-                    <input
+                    <label htmlFor="myRateInput" style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>{"Ders Saati Ücreti (TL)"}</label>
+                    <input id="myRateInput"
                       type="text" inputMode="decimal" value={myRateInput}
-                      onChange={(e) => setMyRateInput(e.target.value.replace(/[^0-9.,]/g, ""))}
+                      onChange={(e) => setMyRateInput(e.target.value.replaceAll(/[^0-9.,]/g, ""))}
                       style={{ ...S.pinInput, width: 130, letterSpacing: "normal", textAlign: "left" as const }}
                     />
                   </div>
-                  <button
+                  <button type="button"
                     onClick={applyMyRate}
                     disabled={myRateBusy || myRate === null || myRateInput === String(myRate)}
                     style={{ ...S.addBtn, background: "#B45309", boxShadow: "none", opacity: myRateBusy || myRate === null || myRateInput === String(myRate) ? 0.55 : 1 }}
@@ -412,14 +412,14 @@ export default function SistemAyarlariPage() {
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>{"Günlük Yemek Ücreti (TL)"}</label>
-                    <input
+                    <label htmlFor="mealAllowanceInput" style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>{"Günlük Yemek Ücreti (TL)"}</label>
+                    <input id="mealAllowanceInput"
                       type="text" inputMode="decimal" value={mealAllowanceInput}
-                      onChange={(e) => setMealAllowanceInput(e.target.value.replace(/[^0-9.,]/g, ""))}
+                      onChange={(e) => setMealAllowanceInput(e.target.value.replaceAll(/[^0-9.,]/g, ""))}
                       style={{ ...S.pinInput, width: 130, letterSpacing: "normal", textAlign: "left" as const }}
                     />
                   </div>
-                  <button
+                  <button type="button"
                     onClick={applyMealAllowance}
                     disabled={mealAllowanceBusy || mealAllowance === null || mealAllowanceInput === String(mealAllowance)}
                     style={{ ...S.addBtn, background: "#B45309", boxShadow: "none", opacity: mealAllowanceBusy || mealAllowance === null || mealAllowanceInput === String(mealAllowance) ? 0.55 : 1 }}
@@ -501,14 +501,14 @@ export default function SistemAyarlariPage() {
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN</label>
-                    <input type="password" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))} style={S.pinInput} />
+                    <label htmlFor="newPin" style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN</label>
+                    <input id="newPin" type="password" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replaceAll(/\D/g, "").slice(0, 4))} style={S.pinInput} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN (Tekrar)</label>
-                    <input type="password" inputMode="numeric" maxLength={4} value={newPin2} onChange={(e) => setNewPin2(e.target.value.replace(/\D/g, "").slice(0, 4))} style={S.pinInput} />
+                    <label htmlFor="newPin2" style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN (Tekrar)</label>
+                    <input id="newPin2" type="password" inputMode="numeric" maxLength={4} value={newPin2} onChange={(e) => setNewPin2(e.target.value.replaceAll(/\D/g, "").slice(0, 4))} style={S.pinInput} />
                   </div>
-                  <button onClick={savePin} disabled={pinBusy} style={{ ...S.addBtn, background: "#7C3AED", boxShadow: "none" }}>
+                  <button type="button" onClick={savePin} disabled={pinBusy} style={{ ...S.addBtn, background: "#7C3AED", boxShadow: "none" }}>
                     {pinBusy ? "Kaydediliyor…" : hasPin ? "PIN'i Değiştir" : "PIN Oluştur"}
                   </button>
                 </div>
@@ -541,7 +541,7 @@ export default function SistemAyarlariPage() {
 
 function TopTabBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       style={{
         padding: "10px 18px",
@@ -568,7 +568,7 @@ function SystemModeSegment({ value, busy, onChange }: { value: boolean | null; b
       {items.map((it) => {
         const selected = value === it.key;
         return (
-          <button
+          <button type="button"
             key={String(it.key)}
             onClick={() => onChange(it.key)}
             disabled={value === null}

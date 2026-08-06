@@ -58,9 +58,8 @@ export function BolumTrackYoneticisi({
           <div style={{ width: 140 }}>
             <input className="ee-input" type="number" min={0} value={s.dBolumSaat} onChange={onChange("dBolumSaat")} placeholder="Toplam saat" style={S.inputSm} />
           </div>
-          <button onClick={addBolum} disabled={!canAddBolum} style={addBtn(canAddBolum, "#4f46e5")}>
-            <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />
-            Bölüm Ekle
+          <button type="button" onClick={addBolum} disabled={!canAddBolum} style={addBtn(canAddBolum, "#4f46e5")}>
+            <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />Bölüm Ekle
           </button>
         </div>
       </div>
@@ -71,8 +70,7 @@ export function BolumTrackYoneticisi({
           <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>Track Ekle</div>
           {trackLocked && (
             <span style={S.lockChip}>
-              <span dangerouslySetInnerHTML={{ __html: IC.lock }} />
-              Önce en az bir bölüm ekleyin
+              <span dangerouslySetInnerHTML={{ __html: IC.lock }} />Önce en az bir bölüm ekleyin
             </span>
           )}
         </div>
@@ -90,9 +88,8 @@ export function BolumTrackYoneticisi({
           <div style={{ flex: 1, minWidth: 170 }}>
             <input className="ee-input" type="text" value={s.dTrackAd} onChange={onChange("dTrackAd")} disabled={trackLocked} placeholder="Track adı — örn: Adobe Photoshop" style={S.inputSm} />
           </div>
-          <button onClick={addTrack} disabled={!canAddTrack} style={addBtn(canAddTrack, "#4f46e5")}>
-            <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />
-            Track Ekle
+          <button type="button" onClick={addTrack} disabled={!canAddTrack} style={addBtn(canAddTrack, "#4f46e5")}>
+            <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />Track Ekle
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 13, flexWrap: "wrap" }}>
@@ -101,7 +98,7 @@ export function BolumTrackYoneticisi({
             <input className="ee-input" type="number" min={1} max={remainingHours > 0 ? remainingHours : undefined} value={s.dTrackSaat} onChange={onChange("dTrackSaat")} disabled={trackLocked} placeholder="zorunlu" style={S.inputTrackHours} />
             {targetBolum && <span style={{ fontSize: 12, fontWeight: 600, color: remainingHours > 0 ? "#16a34a" : "#dc2626" }}>Kalan: {remainingHours} saat</span>}
           </div>
-          <div onClick={() => !trackLocked && toggleTrackSell()} style={{ display: "inline-flex", alignItems: "center", gap: 9, cursor: trackLocked ? "not-allowed" : "pointer", userSelect: "none" }}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => !trackLocked && toggleTrackSell()} style={{ display: "inline-flex", alignItems: "center", gap: 9, cursor: trackLocked ? "not-allowed" : "pointer", userSelect: "none" }}>
             <span style={{ ...S.checkbox, border: s.dTrackSell ? "1.5px solid #4f46e5" : "1.5px solid #cbd5e1", background: s.dTrackSell ? "#4f46e5" : "#fff" }}>
               {s.dTrackSell && <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />}
             </span>
@@ -149,7 +146,7 @@ export function BolumTrackYoneticisi({
                 <span style={{ ...S.bolumIcon, cursor: "grab" }} dangerouslySetInnerHTML={{ __html: IC.folder }} />
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#0f1f3d", flex: 1 }}>{b.name}</span>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", background: "#eef2f8", padding: "4px 11px", borderRadius: 999 }}>{(Number(b.hours) || 0)} Saat</span>
-                <button className="ee-del" title="Bölümü sil" style={S.smDelBtn} onClick={() => removeBolum(b.id)}>
+                <button type="button" className="ee-del" title="Bölümü sil" style={S.smDelBtn} onClick={() => removeBolum(b.id)}>
                   <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
                 </button>
               </div>
@@ -164,14 +161,14 @@ export function BolumTrackYoneticisi({
                       <input className="ee-input" type="text" value={editingTrack.name} onChange={(e) => setEditingTrack({ ...editingTrack, name: e.target.value })} style={{ ...S.inputSm, flex: 1, fontSize: 13.5 }} autoFocus />
                       <input className="ee-input" type="number" min={1} value={editingTrack.hours} onChange={(e) => setEditingTrack({ ...editingTrack, hours: e.target.value })} style={{ ...S.inputTrackHours, width: 70 }} />
                       <span style={{ fontSize: 12, color: "#64748b" }}>saat</span>
-                      <div onClick={() => setEditingTrack({ ...editingTrack, sellable: !editingTrack.sellable })} style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none" }}>
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setEditingTrack({ ...editingTrack, sellable: !editingTrack.sellable })} style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none" }}>
                         <span style={{ ...S.checkbox, width: 16, height: 16, border: editingTrack.sellable ? "1.5px solid #4f46e5" : "1.5px solid #cbd5e1", background: editingTrack.sellable ? "#4f46e5" : "#fff" }}>
                           {editingTrack.sellable && <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />}
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Satılabilir</span>
                       </div>
-                      <button onClick={saveEditTrack} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Kaydet</button>
-                      <button onClick={cancelEditTrack} style={{ background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>İptal</button>
+                      <button type="button" onClick={saveEditTrack} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Kaydet</button>
+                      <button type="button" onClick={cancelEditTrack} style={{ background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>İptal</button>
                     </div>
                   ) : (
                     <div
@@ -188,14 +185,13 @@ export function BolumTrackYoneticisi({
                       <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>{(Number(t.hours) || 0)} Saat</span>
                       {t.sellable && (
                         <span style={S.sellChip}>
-                          <span dangerouslySetInnerHTML={{ __html: IC.sellSm }} />
-                          Satışa Açık
+                          <span dangerouslySetInnerHTML={{ __html: IC.sellSm }} />Satışa Açık
                         </span>
                       )}
-                      <button title="Track düzenle" style={{ ...S.xsDelBtn, color: "#4f46e5" }} onClick={() => startEditTrack(b.id, t)}>
+                      <button type="button" title="Track düzenle" style={{ ...S.xsDelBtn, color: "#4f46e5" }} onClick={() => startEditTrack(b.id, t)}>
                         <span dangerouslySetInnerHTML={{ __html: IC.editSm }} />
                       </button>
-                      <button className="ee-del" title="Track sil" style={S.xsDelBtn} onClick={() => removeTrack(b.id, t.id)}>
+                      <button type="button" className="ee-del" title="Track sil" style={S.xsDelBtn} onClick={() => removeTrack(b.id, t.id)}>
                         <span dangerouslySetInnerHTML={{ __html: IC.xSm }} />
                       </button>
                     </div>

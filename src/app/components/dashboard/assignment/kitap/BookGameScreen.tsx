@@ -399,7 +399,7 @@ function BookResultModal({
         </div>
         <div class="right">
           <div class="micro">Arka Kapak Yazısı</div>
-          <div class="back-text">${(book.backCover ?? "").replace(/\n/g, "<br>")}</div>
+          <div class="back-text">${(book.backCover ?? "").replaceAll(/\n/g, "<br>")}</div>
         </div>
       </div>
     </body></html>`;
@@ -600,7 +600,7 @@ function BookResultModal({
           flexShrink: 0,
         }}>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={handlePrint} style={{
+            <button type="button" onClick={handlePrint} style={{
               display: "flex", alignItems: "center", gap: 6,
               padding: "0 16px", height: 38, borderRadius: 10,
               background: "#e74c3c", color: "white",
@@ -618,7 +618,7 @@ function BookResultModal({
                   <Check size={12} strokeWidth={3} /> Mail Gönderildi
                 </div>
               ) : (
-                <button onClick={handleMail} style={{
+                <button type="button" onClick={handleMail} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 16px", height: 38, borderRadius: 10,
                   background: "#2980b9", color: "white",
@@ -632,7 +632,7 @@ function BookResultModal({
 
           <div style={{ display: "flex", gap: 8 }}>
             {!isPastView && (
-              <button
+              <button type="button"
                 onClick={noMoreStudents ? undefined : onAdvance}
                 disabled={noMoreStudents}
                 style={{
@@ -649,7 +649,7 @@ function BookResultModal({
                 YENİ SEÇİM <ChevronRight size={15} strokeWidth={2.5} />
               </button>
             )}
-            <button onClick={onClose} style={{
+            <button type="button" onClick={onClose} style={{
               padding: "0 22px", height: 42, borderRadius: 50,
               background: "transparent", border: "2px solid #dde2e8",
               color: "#94a3b8", fontSize: 14, fontWeight: 700, cursor: "pointer",
@@ -873,7 +873,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   if (!pool || pool.items.length === 0) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#f5f7fb" }}>
       <p style={{ color: "#94a3b8", fontSize: 14 }}>Kitap havuzu boş veya yüklenmemiş.</p>
-      <button onClick={() => router.push("/dashboard")}
+      <button type="button" onClick={() => router.push("/dashboard")}
         style={{ color: "#2563eb", fontSize: 13, fontWeight: 700, cursor: "pointer", background: "none", border: "none" }}>
         Ana sayfaya dön
       </button>
@@ -911,7 +911,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           background: "transparent",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <button
+          <button type="button"
             onClick={() => router.push("/dashboard")}
             style={{
               display: "flex", alignItems: "center", gap: 7,
@@ -1073,7 +1073,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               </p>
 
               {/* Arşive Kaydet */}
-              <button
+              <button type="button"
                 onClick={handleArchive}
                 disabled={archiving || archived}
                 style={{
@@ -1092,7 +1092,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               {!allGroupDone && <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", margin: 0 }}>veya</p>
                 {!confirmFinish ? (
-                  <button
+                  <button type="button"
                     onClick={() => setConfirmFinish(true)}
                     style={{ color: "#e53e3e", background: "none", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
                   >
@@ -1109,13 +1109,13 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                     </p>
                     <p style={{ fontSize: 11, color: "#e53e3e", margin: 0 }}>Eksik öğrenciler olsa bile ödev artık aktif olmayacak.</p>
                     <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                      <button
+                      <button type="button"
                         onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                         style={{ padding: "8px 20px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}
                       >
                         Evet, Tamamla
                       </button>
-                      <button
+                      <button type="button"
                         onClick={() => setConfirmFinish(false)}
                         style={{ padding: "8px 20px", borderRadius: 10, background: "#f1f5f9", color: "#64748b", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
                       >
@@ -1139,7 +1139,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         }}>
           {phase === "idle" && !allDone && !allGroupDone && (
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <button onClick={beginPicking} style={{
+              <button type="button" onClick={beginPicking} style={{
                 padding: "16px 60px", borderRadius: 50,
                 background: "#2563eb", color: "white",
                 fontWeight: 900, fontSize: 16, border: "none", cursor: "pointer",
@@ -1149,7 +1149,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               </button>
 
               {!confirmFinish ? (
-                <button
+                <button type="button"
                   onClick={() => setConfirmFinish(true)}
                   disabled={bookDraws.length === 0}
                   style={{
@@ -1166,13 +1166,13 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Eksik öğrencilerle ödev kapatılsın mı?</span>
-                  <button
+                  <button type="button"
                     onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                     style={{ padding: "8px 16px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}
                   >
                     Evet, Tamamla
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => setConfirmFinish(false)}
                     style={{ padding: "8px 16px", borderRadius: 10, background: "#f1f5f9", color: "#64748b", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
                   >
@@ -1184,7 +1184,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           )}
 
           {phase === "ready" && !showCarousel && nameVisible && (
-            <button onClick={handleSpin} style={{
+            <button type="button" onClick={handleSpin} style={{
               padding: "16px 60px", borderRadius: 50,
               background: "#2563eb", color: "white",
               fontWeight: 900, fontSize: 18, border: "none", cursor: "pointer",

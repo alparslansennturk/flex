@@ -67,10 +67,10 @@ function ItemForm({
         onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") onCancel(); }}
         className="flex-1 h-9 px-3 text-[14px] font-medium border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors"
       />
-      <button onClick={handleSave} disabled={!name.trim() || loading} className="h-9 w-9 flex items-center justify-center rounded-xl bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0">
+      <button type="button" onClick={handleSave} disabled={!name.trim() || loading} className="h-9 w-9 flex items-center justify-center rounded-xl bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0">
         <Check size={14} />
       </button>
-      <button onClick={onCancel} className="h-9 w-9 flex items-center justify-center rounded-xl hover:bg-surface-100 text-surface-400 cursor-pointer transition-colors shrink-0">
+      <button type="button" onClick={onCancel} className="h-9 w-9 flex items-center justify-center rounded-xl hover:bg-surface-100 text-surface-400 cursor-pointer transition-colors shrink-0">
         <X size={14} />
       </button>
     </div>
@@ -167,7 +167,7 @@ export default function CollagePoolPanel() {
           const count = pool.items.filter((i) => i.category === cat).length;
           const active = cat === activeTab;
           return (
-            <button
+            <button type="button"
               key={cat}
               onClick={() => { setActiveTab(cat); setAdding(false); setEditingItem(null); }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all cursor-pointer ${
@@ -192,7 +192,7 @@ export default function CollagePoolPanel() {
             </div>
             <p className="text-[17px] font-extrabold text-text-primary">{activeTab}</p>
           </div>
-          <button
+          <button type="button"
             onClick={() => { setAdding(true); setEditingItem(null); }}
             disabled={adding || saving}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer disabled:opacity-50 shadow-sm text-white hover:opacity-90 active:scale-95 ${meta.activeBg}`}
@@ -219,10 +219,10 @@ export default function CollagePoolPanel() {
                 <div className="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: item.color || "#e5e7eb" }} />
                 <span className="flex-1 text-[14px] font-semibold text-text-primary truncate">{item.name}</span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => setEditingItem(item)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 transition-colors cursor-pointer" title="Düzenle">
+                  <button type="button" onClick={() => setEditingItem(item)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 transition-colors cursor-pointer" title="Düzenle">
                     <Edit2 size={13} />
                   </button>
-                  <button onClick={() => handleDelete(item)} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 transition-colors cursor-pointer" title="Sil">
+                  <button type="button" onClick={() => handleDelete(item)} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 transition-colors cursor-pointer" title="Sil">
                     <Trash2 size={13} />
                   </button>
                 </div>

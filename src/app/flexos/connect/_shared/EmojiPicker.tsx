@@ -19,7 +19,7 @@ export function EmojiButton({ onPick, size = 40 }: { onPick: (emoji: string) => 
       </button>
       {open && (
         <>
-          <div className="fixed inset-0" style={{ zIndex: 39 }} onClick={() => setOpen(false)} />
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0" style={{ zIndex: 39 }} onClick={() => setOpen(false)} />
           <div
             className="absolute grid"
             style={{

@@ -141,7 +141,7 @@ export default function TasksContent() {
               <CheckCircle2 size={20} />
             </div>
             <p className="text-[14px] font-bold text-text-primary">{toast.message}</p>
-            <button onClick={() => setToast({ show: false, message: "" })} className="ml-auto text-surface-300 hover:text-surface-500 cursor-pointer"><X size={16} /></button>
+            <button type="button" onClick={() => setToast({ show: false, message: "" })} className="ml-auto text-surface-300 hover:text-surface-500 cursor-pointer"><X size={16} /></button>
           </div>
         </div>
       )}
@@ -153,7 +153,7 @@ export default function TasksContent() {
             <h1 className="text-[26px] xl:text-[28px] font-bold text-base-primary-900 leading-none mb-2">Ödev Yönetimi</h1>
             <p className="text-[13px] xl:text-[14px] text-surface-500 font-medium">Ödev kartlarını oluştur, düzenle ve eğitmenlere sun.</p>
           </div>
-          <button onClick={openCreate}
+          <button type="button" onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2.5 xl:px-5 xl:py-3 bg-base-primary-900 text-white rounded-2xl text-[13px] xl:text-[14px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer shadow-sm">
             <Plus size={16} /> Yeni kart oluştur
           </button>
@@ -174,7 +174,7 @@ export default function TasksContent() {
       <div className="px-6 xl:px-8 2xl:px-12 mb-4 flex items-center gap-2">
         <Filter size={14} className="text-surface-400" />
         {filterTabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveFilter(tab.id)}
+          <button type="button" key={tab.id} onClick={() => setActiveFilter(tab.id)}
             className={`px-3.5 py-1.5 rounded-xl text-[12px] xl:text-[13px] font-bold transition-all cursor-pointer ${
               activeFilter === tab.id
                 ? "bg-base-primary-900 text-white"

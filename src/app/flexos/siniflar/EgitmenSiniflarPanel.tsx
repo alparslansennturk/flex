@@ -525,7 +525,7 @@ export default function EgitmenSiniflarPanel() {
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Sınıflarım</h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{groups.length} sınıf</span>
             </div>
-            <button style={S.addBtn} onClick={() => (showForm ? cancelEdit() : setShowForm(true))}>
+            <button type="button" style={S.addBtn} onClick={() => (showForm ? cancelEdit() : setShowForm(true))}>
               {showForm ? "Vazgeç" : "+ Grup Ekle"}
             </button>
           </div>
@@ -599,7 +599,7 @@ export default function EgitmenSiniflarPanel() {
                             const active = fSeansIdx === i;
                             const daysStr = se.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
                             return (
-                              <div key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
+                              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
                                 style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: active ? "#EFF3FA" : "transparent" }}>
                                 <span style={{ fontSize: 11.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 9px", borderRadius: 7, whiteSpace: "nowrap", flex: "0 0 auto" }}>{daysStr}</span>
                                 <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{se.startTime} - {se.endTime}</span>
@@ -622,8 +622,8 @@ export default function EgitmenSiniflarPanel() {
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-                    <button onClick={isEditing ? cancelEdit : resetForm} style={S.cancelBtn}>{isEditing ? "Vazgeç" : "Temizle"}</button>
-                    <button disabled={saving} onClick={onSaveGroup} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1 }}>
+                    <button type="button" onClick={isEditing ? cancelEdit : resetForm} style={S.cancelBtn}>{isEditing ? "Vazgeç" : "Temizle"}</button>
+                    <button type="button" disabled={saving} onClick={onSaveGroup} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1 }}>
                       {saving ? "Kaydediliyor…" : isEditing ? "Değişiklikleri Kaydet" : "Sınıfı Oluştur"}
                     </button>
                   </div>
@@ -660,25 +660,25 @@ export default function EgitmenSiniflarPanel() {
                   {/* Seçili grup bitmiş/iptalse "Aktif" sekmesi disable — o grupta hiç aktif
                       kayıt olmaması gerekir (grup Bitir'de otomatik mezun ediliyor artık,
                       bkz. group-service.ts), sekme kafa karıştırmasın (2026-07-11). */}
-                  <button
+                  <button type="button"
                     onClick={() => !selectedGroupClosed && setStudentTab("aktif")}
                     disabled={selectedGroupClosed}
                     style={{ ...tabBtnStyle(studentTab === "aktif"), opacity: selectedGroupClosed ? 0.4 : 1, cursor: selectedGroupClosed ? "not-allowed" : "pointer" }}
                   >
                     Aktif Öğrenciler
                   </button>
-                  <button onClick={() => setStudentTab("mezun")} style={tabBtnStyle(studentTab === "mezun")}>Mezun Öğrenciler</button>
+                  <button type="button" onClick={() => setStudentTab("mezun")} style={tabBtnStyle(studentTab === "mezun")}>Mezun Öğrenciler</button>
                 </div>
                 <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-                  <button onClick={() => selectedGroupId && setStudentScope("grup")} disabled={!selectedGroupId} style={{ ...tabBtnStyle(studentScope === "grup"), opacity: selectedGroupId ? 1 : 0.4, cursor: selectedGroupId ? "pointer" : "not-allowed" }}>
+                  <button type="button" onClick={() => selectedGroupId && setStudentScope("grup")} disabled={!selectedGroupId} style={{ ...tabBtnStyle(studentScope === "grup"), opacity: selectedGroupId ? 1 : 0.4, cursor: selectedGroupId ? "pointer" : "not-allowed" }}>
                     Mevcut Grup{selectedGroupId ? `: ${groups.find((g) => g.id === selectedGroupId)?.kod ?? ""}` : ""}
                   </button>
-                  <button onClick={() => setStudentScope("tumu")} style={tabBtnStyle(studentScope === "tumu")}>Tüm Öğrenciler</button>
+                  <button type="button" onClick={() => setStudentScope("tumu")} style={tabBtnStyle(studentScope === "tumu")}>Tüm Öğrenciler</button>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <input value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} placeholder="Öğrenci ara…" style={{ ...S.inp, width: 220 }} />
-                <button
+                <button type="button"
                   style={{ ...S.addBtn, opacity: selectedGroupClosed && !showStudentForm ? 0.45 : 1, cursor: selectedGroupClosed && !showStudentForm ? "not-allowed" : "pointer" }}
                   disabled={selectedGroupClosed && !showStudentForm}
                   title={selectedGroupClosed && !showStudentForm ? "Bu grup tamamlandı/iptal — yeni öğrenci eklenemez." : undefined}
@@ -705,7 +705,7 @@ export default function EgitmenSiniflarPanel() {
                         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>{editingStudentId ? "Öğrenciyi Düzenle" : "Öğrenci Ekle"}</h2>
                         <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{editingStudentId ? "Öğrencinin bilgilerini güncelleyin." : "Dersin ilk günü öğrenciye sorarak ekleyin."}</p>
                       </div>
-                      <button onClick={() => { if (!sSaving) cancelStudentForm(); }} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>×</button>
+                      <button type="button" onClick={() => { if (!sSaving) cancelStudentForm(); }} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>×</button>
                     </div>
 
                     <div style={{ flex: 1, overflowY: "auto", padding: "0 28px 32px" }}>
@@ -747,8 +747,8 @@ export default function EgitmenSiniflarPanel() {
                         </label>
                       </div>
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 20, borderTop: "1px solid #EEF0F3" }}>
-                        <button onClick={cancelStudentForm} style={S.cancelBtn}>Vazgeç</button>
-                        <button disabled={sSaving} onClick={onSaveStudent} style={{ ...S.saveBtn, opacity: sSaving ? 0.7 : 1 }}>
+                        <button type="button" onClick={cancelStudentForm} style={S.cancelBtn}>Vazgeç</button>
+                        <button type="button" disabled={sSaving} onClick={onSaveStudent} style={{ ...S.saveBtn, opacity: sSaving ? 0.7 : 1 }}>
                           {sSaving ? "Kaydediliyor…" : editingStudentId ? "Değişiklikleri Kaydet" : "Öğrenci Ekle"}
                         </button>
                       </div>
@@ -817,19 +817,19 @@ export default function EgitmenSiniflarPanel() {
                             <td style={S.cell}><span style={{ fontSize: 13, color: "#414B59" }}>{s.email || "—"}</span></td>
                             <td style={{ ...S.cell, textAlign: "right" }}>
                               <div style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                                <button onClick={() => editStudent(s)} title="Düzenle" style={{ ...S.actionIcon, color: "#8B5CF6" }}>
+                                <button type="button" onClick={() => editStudent(s)} title="Düzenle" style={{ ...S.actionIcon, color: "#8B5CF6" }}>
                                   <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
                                 </button>
                                 {isMezun ? (
-                                  <button onClick={() => effEnrollmentId && setAktifId(effEnrollmentId)} disabled={!effEnrollmentId} title="Aktife Al" style={{ ...S.actionIcon, color: "#2867bd" }}>
+                                  <button type="button" onClick={() => effEnrollmentId && setAktifId(effEnrollmentId)} disabled={!effEnrollmentId} title="Aktife Al" style={{ ...S.actionIcon, color: "#2867bd" }}>
                                     <span dangerouslySetInnerHTML={{ __html: IC.undoSm }} />
                                   </button>
                                 ) : (
-                                  <button onClick={() => effEnrollmentId && setMezunId(effEnrollmentId)} disabled={!effEnrollmentId} title="Mezun Et" style={{ ...S.actionIcon, color: "#15803D" }}>
+                                  <button type="button" onClick={() => effEnrollmentId && setMezunId(effEnrollmentId)} disabled={!effEnrollmentId} title="Mezun Et" style={{ ...S.actionIcon, color: "#15803D" }}>
                                     <span dangerouslySetInnerHTML={{ __html: IC.graduationSm }} />
                                   </button>
                                 )}
-                                <button onClick={() => { if (effEnrollmentId) { setSilId(effEnrollmentId); setSilPersonId(s.id); } }} disabled={!effEnrollmentId} title="Sil" style={{ ...S.actionIcon, color: "#D93636" }}>
+                                <button type="button" onClick={() => { if (effEnrollmentId) { setSilId(effEnrollmentId); setSilPersonId(s.id); } }} disabled={!effEnrollmentId} title="Sil" style={{ ...S.actionIcon, color: "#D93636" }}>
                                   <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
                                 </button>
                               </div>
@@ -849,12 +849,12 @@ export default function EgitmenSiniflarPanel() {
                   <strong style={{ color: "#1E222B", fontWeight: 700 }}>{filteredStudents.length}</strong> öğrenciden <strong style={{ color: "#1E222B", fontWeight: 700 }}>{studentStartIdx + 1}&ndash;{studentStartIdx + pageStudents.length}</strong> arası
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <button onClick={() => setStudentPage((p) => Math.max(1, p - 1))} disabled={studentSafePage <= 1}
+                  <button type="button" onClick={() => setStudentPage((p) => Math.max(1, p - 1))} disabled={studentSafePage <= 1}
                     style={{ ...S.pageNav, opacity: studentSafePage > 1 ? 1 : 0.4, cursor: studentSafePage > 1 ? "pointer" : "not-allowed" }}>‹</button>
                   {Array.from({ length: studentTotalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setStudentPage(p)} style={studentPageBtnStyle(p === studentSafePage)}>{p}</button>
+                    <button type="button" key={p} onClick={() => setStudentPage(p)} style={studentPageBtnStyle(p === studentSafePage)}>{p}</button>
                   ))}
-                  <button onClick={() => setStudentPage((p) => Math.min(studentTotalPages, p + 1))} disabled={studentSafePage >= studentTotalPages}
+                  <button type="button" onClick={() => setStudentPage((p) => Math.min(studentTotalPages, p + 1))} disabled={studentSafePage >= studentTotalPages}
                     style={{ ...S.pageNav, opacity: studentSafePage < studentTotalPages ? 1 : 0.4, cursor: studentSafePage < studentTotalPages ? "pointer" : "not-allowed" }}>›</button>
                 </div>
               </div>
@@ -866,39 +866,39 @@ export default function EgitmenSiniflarPanel() {
 
 
       {mezunId !== null && (
-        <div onClick={() => !studentActionBusy && setMezunId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => !studentActionBusy && setMezunId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi mezun et</h3>
             <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>Bu öğrenciyi mezun olarak işaretlemek istediğinize emin misiniz?</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-              <button style={S.cancelBtn} onClick={() => setMezunId(null)}>Vazgeç</button>
-              <button style={S.confirmSuccessBtn} disabled={studentActionBusy} onClick={confirmMezun}>Evet, mezun et</button>
+              <button type="button" style={S.cancelBtn} onClick={() => setMezunId(null)}>Vazgeç</button>
+              <button type="button" style={S.confirmSuccessBtn} disabled={studentActionBusy} onClick={confirmMezun}>Evet, mezun et</button>
             </div>
           </div>
         </div>
       )}
 
       {aktifId !== null && (
-        <div onClick={() => !studentActionBusy && setAktifId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => !studentActionBusy && setAktifId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi aktife al</h3>
             <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>Bu öğrenciyi tekrar aktif duruma almak istediğinize emin misiniz?</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-              <button style={S.cancelBtn} onClick={() => setAktifId(null)}>Vazgeç</button>
-              <button style={S.confirmInfoBtn} disabled={studentActionBusy} onClick={confirmAktif}>Evet, aktife al</button>
+              <button type="button" style={S.cancelBtn} onClick={() => setAktifId(null)}>Vazgeç</button>
+              <button type="button" style={S.confirmInfoBtn} disabled={studentActionBusy} onClick={confirmAktif}>Evet, aktife al</button>
             </div>
           </div>
         </div>
       )}
 
       {silId !== null && (
-        <div onClick={() => !studentActionBusy && (setSilId(null), setSilPersonId(null))} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => !studentActionBusy && (setSilId(null), setSilPersonId(null))} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi sil</h3>
             <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>Bu öğrenciyi silmek istediğinize emin misiniz? Satış/ödeme geçmişi yoksa kayıt tamamen silinir; varsa gruptan çıkarılıp iptal edilir.</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-              <button style={S.cancelBtn} onClick={() => { setSilId(null); setSilPersonId(null); }}>Vazgeç</button>
-              <button style={S.confirmDangerBtn} disabled={studentActionBusy} onClick={confirmSil}>Evet, sil</button>
+              <button type="button" style={S.cancelBtn} onClick={() => { setSilId(null); setSilPersonId(null); }}>Vazgeç</button>
+              <button type="button" style={S.confirmDangerBtn} disabled={studentActionBusy} onClick={confirmSil}>Evet, sil</button>
             </div>
           </div>
         </div>

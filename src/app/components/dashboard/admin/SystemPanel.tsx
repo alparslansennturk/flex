@@ -192,14 +192,14 @@ function RestoreModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess
                       <p className="text-[13px] font-bold text-base-primary-900">{fmt(b.createdAt)}</p>
                       <p className="text-[11px] text-surface-400">{b.studentCount} öğrenci{b.seasonId ? ` · ${b.seasonId}` : ""}</p>
                     </div>
-                    <button onClick={() => handleRestore(b.id)} disabled={!!applying}
+                    <button type="button" onClick={() => handleRestore(b.id)} disabled={!!applying}
                       className="h-8 px-4 rounded-lg bg-base-primary-500 text-white text-[12px] font-bold hover:bg-base-primary-600 transition-all cursor-pointer disabled:opacity-40 flex items-center gap-1.5">
                       {applying === b.id ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><RotateCcw size={11} /> Uygula</>}
                     </button>
                   </div>
                 ))}
               </div>}
-          <button onClick={handleCancel} className="h-10 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Kapat</button>
+          <button type="button" onClick={handleCancel} className="h-10 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Kapat</button>
         </>
       )}
     </Modal>
@@ -337,7 +337,7 @@ function RestoreSystemModal({ onCancel, onSuccess }: { onCancel: () => void; onS
                           </p>
                         )}
                       </div>
-                      <button
+                      <button type="button"
                         onClick={() => handleRestore(b.id)}
                         disabled={!!applying}
                         className="h-8 px-4 rounded-lg bg-base-primary-500 text-white text-[12px] font-bold hover:bg-base-primary-600 transition-all cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
@@ -350,7 +350,7 @@ function RestoreSystemModal({ onCancel, onSuccess }: { onCancel: () => void; onS
                   ))}
                 </div>
               )}
-          <button onClick={handleCancel} disabled={!!applying}
+          <button type="button" onClick={handleCancel} disabled={!!applying}
             className="h-10 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer disabled:opacity-40">
             Kapat
           </button>
@@ -427,7 +427,7 @@ function Modal({ children, visible, onClose, overlayColor = "bg-base-primary-900
 }) {
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 ${overlayColor} backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 ${overlayColor} backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
       <div className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-xl p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         {children}
       </div>
@@ -453,8 +453,8 @@ function ModalActions({ onCancel, onConfirm, confirmLabel, danger, confirmBg, di
   const bg = confirmBg ?? (danger ? "bg-status-danger-500 hover:bg-status-danger-600" : "bg-base-primary-500 hover:bg-base-primary-600");
   return (
     <div className="flex gap-3">
-      <button onClick={onCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
-      <button onClick={onConfirm} disabled={disabled || loading}
+      <button type="button" onClick={onCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+      <button type="button" onClick={onConfirm} disabled={disabled || loading}
         className={`flex-1 h-11 rounded-xl ${bg} text-white text-[13px] font-bold active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2`}>
         {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : confirmLabel}
       </button>
@@ -634,7 +634,7 @@ export default function SystemPanel() {
           >
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
-                <button onClick={handleSystemBackup} disabled={backingUp}
+                <button type="button" onClick={handleSystemBackup} disabled={backingUp}
                   className="flex items-center gap-2 h-10 px-5 rounded-xl bg-base-primary-500 text-white text-[13px] font-bold hover:bg-base-primary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                   {backingUp
                     ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Yedekleniyor...</>
@@ -642,7 +642,7 @@ export default function SystemPanel() {
                       ? <><Check size={14} />Yedeklendi</>
                       : <><Plus size={14} />Yedek Al</>}
                 </button>
-                <button onClick={() => setShowSystemRestore(true)}
+                <button type="button" onClick={() => setShowSystemRestore(true)}
                   className="flex items-center gap-2 h-10 px-5 rounded-xl border border-base-primary-200 text-base-primary-600 text-[13px] font-bold hover:bg-base-primary-50 active:scale-95 transition-all cursor-pointer">
                   <RotateCcw size={14} /> Geri Yükle
                 </button>
@@ -664,7 +664,7 @@ export default function SystemPanel() {
                               </p>
                             )}
                           </div>
-                          <button onClick={() => handleDeleteBackup(b.id)} disabled={deletingBackup === b.id}
+                          <button type="button" onClick={() => handleDeleteBackup(b.id)} disabled={deletingBackup === b.id}
                             className="w-8 h-8 rounded-lg flex items-center justify-center text-surface-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40">
                             {deletingBackup === b.id
                               ? <span className="w-3.5 h-3.5 border-2 border-surface-300 border-t-surface-500 rounded-full animate-spin" />
@@ -691,7 +691,7 @@ export default function SystemPanel() {
                   Tüm gruplar, öğrenciler, puanlar, görevler ve arşiv kalıcı olarak silinir
                 </p>
               </div>
-              <button onClick={() => setShowSystemReset(true)}
+              <button type="button" onClick={() => setShowSystemReset(true)}
                 className="shrink-0 flex items-center gap-2 h-10 px-5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 active:scale-95 transition-all cursor-pointer shadow-sm">
                 <ShieldAlert size={14} /> Sıfırla
               </button>
@@ -717,7 +717,7 @@ export default function SystemPanel() {
             icon={<Database />} iconBg="bg-emerald-50" iconColor="text-emerald-600"
           >
             <div className="flex items-center gap-3">
-              <button onClick={handleScoreBackup} disabled={scoreBacking}
+              <button type="button" onClick={handleScoreBackup} disabled={scoreBacking}
                 className="flex items-center gap-2 h-10 px-5 rounded-xl bg-emerald-600 text-white text-[13px] font-bold hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                 {scoreBacking
                   ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Yedekleniyor…</>
@@ -725,7 +725,7 @@ export default function SystemPanel() {
                     ? <><Check size={14} />Yedeklendi</>
                     : <><Plus size={14} />Yedek Al</>}
               </button>
-              <button onClick={() => setShowRestore(true)}
+              <button type="button" onClick={() => setShowRestore(true)}
                 className="flex items-center gap-2 h-10 px-5 rounded-xl border border-emerald-200 text-emerald-700 text-[13px] font-bold hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer">
                 <RotateCcw size={14} /> Geri Yükle
               </button>
@@ -747,11 +747,11 @@ export default function SystemPanel() {
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => setShowHardReset(true)}
+                <button type="button" onClick={() => setShowHardReset(true)}
                   className="flex items-center gap-2 h-10 px-5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 active:scale-95 transition-all cursor-pointer shadow-sm">
                   <Flame size={14} /> Sıfırla
                 </button>
-                <button onClick={() => setShowUnhide(true)}
+                <button type="button" onClick={() => setShowUnhide(true)}
                   className="flex items-center gap-2 h-10 px-5 rounded-xl border border-[#FFE8A0] text-[#C98A00] text-[13px] font-bold hover:bg-[#FFF9EB] active:scale-95 transition-all cursor-pointer">
                   <Eye size={14} /> Gizlileri Aç
                 </button>

@@ -497,24 +497,24 @@ export default function EgitmenTakvimiPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <button onClick={goPrev} style={navBtnStyle}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
-                <button onClick={goToday} style={{ padding: "0 15px", height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Bugün</button>
-                <button onClick={goNext} style={navBtnStyle}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg></button>
+                <button type="button" onClick={goPrev} style={navBtnStyle}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
+                <button type="button" onClick={goToday} style={{ padding: "0 15px", height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Bugün</button>
+                <button type="button" onClick={goNext} style={navBtnStyle}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg></button>
               </div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px", minWidth: 210 }}>{rangeLabel}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#E4E7EC", gap: 3 }}>
                 {viewTabs.map((v) => (
-                  <button key={v.key} onClick={() => setView(v.key)} style={{ padding: "8px 17px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .14s", background: view === v.key ? "#fff" : "transparent", color: view === v.key ? "#1E222B" : "#6F7B87", boxShadow: view === v.key ? "0 1px 3px rgba(15,31,61,.12)" : "none" }}>{v.label}</button>
+                  <button type="button" key={v.key} onClick={() => setView(v.key)} style={{ padding: "8px 17px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .14s", background: view === v.key ? "#fff" : "transparent", color: view === v.key ? "#1E222B" : "#6F7B87", boxShadow: view === v.key ? "0 1px 3px rgba(15,31,61,.12)" : "none" }}>{v.label}</button>
                 ))}
               </div>
-              <button onClick={() => setFiltersOpen((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", height: 38, borderRadius: 11, border: "1px solid " + (filtersOpen || activeFilterCount > 0 ? "#92b6e8" : "#E2E5EA"), background: filtersOpen ? "#EFF3FA" : "#fff", color: filtersOpen || activeFilterCount > 0 ? "#205297" : "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+              <button type="button" onClick={() => setFiltersOpen((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", height: 38, borderRadius: 11, border: "1px solid " + (filtersOpen || activeFilterCount > 0 ? "#92b6e8" : "#E2E5EA"), background: filtersOpen ? "#EFF3FA" : "#fff", color: filtersOpen || activeFilterCount > 0 ? "#205297" : "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
                 Filtreler
                 {activeFilterCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: "#2867bd", color: "#fff", fontSize: 10.5, fontWeight: 800 }}>{activeFilterCount}</span>}
               </button>
-              <button onClick={openPlan} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 17px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
+              <button type="button" onClick={openPlan} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 17px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
                 Eğitim Planla
               </button>
@@ -533,15 +533,15 @@ export default function EgitmenTakvimiPage() {
                   { label: "Durum", value: fDurum, set: setFDurum, options: ["Tümü", "Eğitimde", "Müsait", "Rezerve", "İzin", "Raporlu", "Resmi Tatil"] },
                 ].map((f) => (
                   <div key={f.label}>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>{f.label}</label>
-                    <select value={f.value} onChange={(e) => f.set(e.target.value)} style={{ ...selectStyle, background: "#FBFCFD" }}>
+                    <label htmlFor="value" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>{f.label}</label>
+                    <select id="value" value={f.value} onChange={(e) => f.set(e.target.value)} style={{ ...selectStyle, background: "#FBFCFD" }}>
                       {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                 ))}
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 16, paddingTop: 15, borderTop: "1px solid #F2F4F7" }}>
-                <button onClick={clearFilters} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 15px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+                <button type="button" onClick={clearFilters} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 15px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                   Filtreleri Temizle
                 </button>
@@ -582,7 +582,7 @@ export default function EgitmenTakvimiPage() {
                   <div>
                     {filteredInstructors.map((inst) => (
                       <div key={inst.id} style={{ display: "grid", gridTemplateColumns: "210px repeat(7,1fr)", borderBottom: "1px solid #F2F4F7" }}>
-                        <div onClick={() => openInstr(inst.id, isoDate(weekDates.find((d) => isoDate(d) === todayISO) || weekDates[0]))} style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer", minWidth: 0, overflow: "hidden" }}>
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => openInstr(inst.id, isoDate(weekDates.find((d) => isoDate(d) === todayISO) || weekDates[0]))} style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer", minWidth: 0, overflow: "hidden" }}>
                           <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13.5, fontWeight: 800, background: `linear-gradient(135deg,${inst.av[0]},${inst.av[1]})` }}>{initials(inst.name)}</div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inst.name}</div>
@@ -606,7 +606,7 @@ export default function EgitmenTakvimiPage() {
                           if (dayType === "izin" || dayType === "rapor" || dayType === "tatil") {
                             const m = BLK[dayType];
                             return (
-                              <div key={i} onClick={() => openInstr(inst.id, dISO)} style={cellStyle}>
+                              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={i} onClick={() => openInstr(inst.id, dISO)} style={cellStyle}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, height: "100%", minHeight: 72, justifyContent: "center", borderRadius: 9, background: m.bg, border: "1px solid " + m.border, color: m.color, fontSize: 12, fontWeight: 700 }}>
                                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: m.dot }} />{m.label}
                                 </div>
@@ -616,7 +616,7 @@ export default function EgitmenTakvimiPage() {
                           const vis = blocks.filter(blockVisible);
                           const chips = vis.slice(0, 3);
                           return (
-                            <div key={i} onClick={() => openInstr(inst.id, dISO)} style={cellStyle}>
+                            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={i} onClick={() => openInstr(inst.id, dISO)} style={cellStyle}>
                               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 {chips.map((b, ci) => {
                                   const m = BLK[b.type];
@@ -664,14 +664,14 @@ export default function EgitmenTakvimiPage() {
                       const span = AX_END - AX_START;
                       return (
                         <div key={inst.id} style={{ display: "grid", gridTemplateColumns: "210px 1fr", borderBottom: "1px solid #F2F4F7", minHeight: 78 }}>
-                          <div onClick={() => openInstr(inst.id, dayISO)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer" }}>
+                          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => openInstr(inst.id, dayISO)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer" }}>
                             <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13.5, fontWeight: 800, background: `linear-gradient(135deg,${inst.av[0]},${inst.av[1]})` }}>{initials(inst.name)}</div>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inst.name}</div>
                               <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap" }}>{metaLine}</div>
                             </div>
                           </div>
-                          <div onClick={() => openInstr(inst.id, dayISO)} style={{ position: "relative", height: 78, cursor: "pointer", background: dayType === "tatil" ? "#FBFAFE" : "transparent" }}>
+                          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => openInstr(inst.id, dayISO)} style={{ position: "relative", height: 78, cursor: "pointer", background: dayType === "tatil" ? "#FBFAFE" : "transparent" }}>
                             {axisHours.map((h) => <div key={h.label} style={{ position: "absolute", top: 0, bottom: 0, left: axisLeft(h.leftPct), width: 1, background: "#F2F4F7" }} />)}
                             {vis.map((b, bi) => {
                               const m = BLK[b.type];
@@ -691,7 +691,7 @@ export default function EgitmenTakvimiPage() {
                               }
                               const stripe = b.type === "rezerve" ? `repeating-linear-gradient(135deg,${m.bg} 0,${m.bg} 8px,#FBEED6 8px,#FBEED6 14px)` : isFree ? `repeating-linear-gradient(135deg,${m.bg} 0,${m.bg} 9px,#DDF1E6 9px,#DDF1E6 16px)` : m.bg;
                               return (
-                                <div key={bi} onClick={(e) => { e.stopPropagation(); openInstr(inst.id, dayISO); }} style={{ position: "absolute", top: 8, bottom: 8, left: `calc(${left} + 2px)`, width: `calc(${width} - 4px)`, background: stripe, border: "1px solid " + m.border, borderLeft: "3px solid " + m.dot, borderRadius: 8, padding: "6px 8px", overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", gap: 1, boxShadow: "0 1px 2px rgba(15,31,61,.05)" }}>
+                                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={bi} onClick={(e) => { e.stopPropagation(); openInstr(inst.id, dayISO); }} style={{ position: "absolute", top: 8, bottom: 8, left: `calc(${left} + 2px)`, width: `calc(${width} - 4px)`, background: stripe, border: "1px solid " + m.border, borderLeft: "3px solid " + m.dot, borderRadius: 8, padding: "6px 8px", overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", gap: 1, boxShadow: "0 1px 2px rgba(15,31,61,.05)" }}>
                                   <div style={{ fontSize: 10.5, fontWeight: 800, color: m.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
                                   {showSub && <div style={{ fontSize: 9.5, fontWeight: 600, color: "#6F7B87", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
                                 </div>
@@ -712,7 +712,7 @@ export default function EgitmenTakvimiPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gridAutoRows: "minmax(118px,1fr)" }}>
                   {monthCells.map((c, i) => (
-                    <div key={i} onClick={() => { setView("day"); setDayISO(c.iso); }} style={{ borderRight: i % 7 === 6 ? "none" : "1px solid #F2F4F7", borderBottom: "1px solid #F2F4F7", padding: "8px 9px", display: "flex", flexDirection: "column", cursor: "pointer", background: c.inMonth ? "#fff" : "#FBFCFD", opacity: c.inMonth ? 1 : 0.55 }}>
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={i} onClick={() => { setView("day"); setDayISO(c.iso); }} style={{ borderRight: i % 7 === 6 ? "none" : "1px solid #F2F4F7", borderBottom: "1px solid #F2F4F7", padding: "8px 9px", display: "flex", flexDirection: "column", cursor: "pointer", background: c.inMonth ? "#fff" : "#FBFCFD", opacity: c.inMonth ? 1 : 0.55 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         {c.isToday ? <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "#2867bd", color: "#fff", fontSize: 12.5, fontWeight: 800 }}>{c.num}</span> : <span style={{ fontSize: 13, fontWeight: 700, color: c.inMonth ? "#1E222B" : "#AEB4C0" }}>{c.num}</span>}
                       </div>
@@ -741,8 +741,8 @@ export default function EgitmenTakvimiPage() {
       </main>
 
       {/* ====== EĞİTMEN GÜNÜ MODALI ====== */}
-      <div onClick={() => setInstrModal(null)} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,31,61,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: instrModal ? 1 : 0, visibility: instrModal ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 860, background: "#fff", borderRadius: 22, boxShadow: "0 30px 80px -20px rgba(15,31,61,.5)", overflow: "hidden", transform: instrModal ? "translateY(0) scale(1)" : "translateY(16px) scale(.98)", opacity: instrModal ? 1 : 0, transition: "transform .3s cubic-bezier(.2,.8,.3,1), opacity .26s ease" }}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setInstrModal(null)} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,31,61,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: instrModal ? 1 : 0, visibility: instrModal ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 860, background: "#fff", borderRadius: 22, boxShadow: "0 30px 80px -20px rgba(15,31,61,.5)", overflow: "hidden", transform: instrModal ? "translateY(0) scale(1)" : "translateY(16px) scale(.98)", opacity: instrModal ? 1 : 0, transition: "transform .3s cubic-bezier(.2,.8,.3,1), opacity .26s ease" }}>
           {instrModalData && (
             <div style={{ display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}>
               <div style={{ padding: "22px 28px", borderBottom: "1px solid #EEF0F3", background: "linear-gradient(120deg,#EAF1FB,#FBFCFD)", flex: "0 0 auto" }}>
@@ -759,7 +759,7 @@ export default function EgitmenTakvimiPage() {
                       <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6F7B87", fontWeight: 600 }}>{instrModalData.inst.brans} · {instrModalData.inst.sube} · {instrModalData.d.getDate()} {MONTHS[instrModalData.d.getMonth()]} {instrModalData.d.getFullYear()}</p>
                     </div>
                   </div>
-                  <button onClick={() => setInstrModal(null)} style={{ width: 38, height: 38, borderRadius: 11, border: "1px solid #DCE3EC", background: "rgba(255,255,255,.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+                  <button type="button" onClick={() => setInstrModal(null)} style={{ width: 38, height: 38, borderRadius: 11, border: "1px solid #DCE3EC", background: "rgba(255,255,255,.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 10, marginTop: 18 }}>
                   {[
@@ -809,7 +809,7 @@ export default function EgitmenTakvimiPage() {
                           {isFree && (
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 5 }}>
                               <span style={{ fontSize: 12.5, color: "#0A6B3F", fontWeight: 600 }}>Bu aralık boş — {Math.round((b.dur / 60) * 10) / 10} saat müsait</span>
-                              <button onClick={() => planFromBlock(instrModalData.iso, b.startMin, instrModalData.inst.brans, instrModalData.inst.id)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 8, border: "1px solid #BFE6D0", background: "#EAF7F0", color: "#0A6B3F", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>Bu saate planla</button>
+                              <button type="button" onClick={() => planFromBlock(instrModalData.iso, b.startMin, instrModalData.inst.brans, instrModalData.inst.id)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 8, border: "1px solid #BFE6D0", background: "#EAF7F0", color: "#0A6B3F", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>Bu saate planla</button>
                             </div>
                           )}
                         </div>
@@ -819,7 +819,7 @@ export default function EgitmenTakvimiPage() {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "15px 28px", borderTop: "1px solid #EEF0F3", background: "#FBFCFD", flexWrap: "wrap", flex: "0 0 auto" }}>
-                <button onClick={planForInstr} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 18px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M12 14v4" /><path d="M10 16h4" /></svg>Eğitim Planla</button>
+                <button type="button" onClick={planForInstr} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 18px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M12 14v4" /><path d="M10 16h4" /></svg>Eğitim Planla</button>
               </div>
             </div>
           )}
@@ -827,8 +827,8 @@ export default function EgitmenTakvimiPage() {
       </div>
 
       {/* ====== EĞİTİM PLANLA MODALI (müsait eğitmen önerisi) ====== */}
-      <div onClick={() => setPlanOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(15,31,61,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: planOpen ? 1 : 0, visibility: planOpen ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 640, background: "#fff", borderRadius: 22, boxShadow: "0 30px 80px -20px rgba(15,31,61,.5)", overflow: "hidden", transform: planOpen ? "translateY(0) scale(1)" : "translateY(16px) scale(.98)", opacity: planOpen ? 1 : 0, transition: "transform .3s cubic-bezier(.2,.8,.3,1), opacity .26s ease" }}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setPlanOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(15,31,61,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: planOpen ? 1 : 0, visibility: planOpen ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 640, background: "#fff", borderRadius: 22, boxShadow: "0 30px 80px -20px rgba(15,31,61,.5)", overflow: "hidden", transform: planOpen ? "translateY(0) scale(1)" : "translateY(16px) scale(.98)", opacity: planOpen ? 1 : 0, transition: "transform .3s cubic-bezier(.2,.8,.3,1), opacity .26s ease" }}>
           {planOpen && (
             <div style={{ display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 26px", borderBottom: "1px solid #EEF0F3", flex: "0 0 auto" }}>
@@ -839,30 +839,30 @@ export default function EgitmenTakvimiPage() {
                     <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>Tarih ve saat seçin — sistem yalnızca müsait eğitmenleri önerir.</p>
                   </div>
                 </div>
-                <button onClick={() => setPlanOpen(false)} style={{ width: 38, height: 38, borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+                <button type="button" onClick={() => setPlanOpen(false)} style={{ width: 38, height: 38, borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
               </div>
 
               <div style={{ padding: "18px 26px", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD", flex: "0 0 auto" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1.2fr", gap: 12 }}>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Tarih</label>
-                    <input type="date" value={planDate} onChange={(e) => { setPlanDate(e.target.value); setPlanPick(null); }} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none" }} />
+                    <label htmlFor="planDate" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Tarih</label>
+                    <input id="planDate" type="date" value={planDate} onChange={(e) => { setPlanDate(e.target.value); setPlanPick(null); }} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none" }} />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Başlangıç</label>
-                    <select value={planStart} onChange={(e) => { setPlanStart(parseInt(e.target.value)); setPlanPick(null); }} style={selectStyle}>
+                    <label htmlFor="planStart" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Başlangıç</label>
+                    <select id="planStart" value={planStart} onChange={(e) => { setPlanStart(Number.parseInt(e.target.value)); setPlanPick(null); }} style={selectStyle}>
                       {startOptions.map((o) => <option key={o} value={o}>{fmtTime(o)}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Süre</label>
-                    <select value={planDur} onChange={(e) => { setPlanDur(parseInt(e.target.value)); setPlanPick(null); }} style={selectStyle}>
+                    <label htmlFor="planDur" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Süre</label>
+                    <select id="planDur" value={planDur} onChange={(e) => { setPlanDur(Number.parseInt(e.target.value)); setPlanPick(null); }} style={selectStyle}>
                       {durOptions.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Branş</label>
-                    <select value={planBrans} onChange={(e) => { setPlanBrans(e.target.value); setPlanPick(null); }} style={selectStyle}>
+                    <label htmlFor="planBrans" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Branş</label>
+                    <select id="planBrans" value={planBrans} onChange={(e) => { setPlanBrans(e.target.value); setPlanPick(null); }} style={selectStyle}>
                       {["Tümü", ...branslarOptions].map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
@@ -882,7 +882,7 @@ export default function EgitmenTakvimiPage() {
                   {planCandidates.map((p) => {
                     const picked = planPick === p.inst.id && p.available;
                     return (
-                      <div key={p.inst.id} onClick={() => { if (p.available) setPlanPick(p.inst.id); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 13, border: "1.5px solid " + (picked ? "#2867bd" : p.available ? "#E2E5EA" : "#EEF0F3"), background: picked ? "#EFF3FA" : p.available ? "#fff" : "#FBFCFD", opacity: p.available ? 1 : 0.72, cursor: p.available ? "pointer" : "not-allowed" }}>
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={p.inst.id} onClick={() => { if (p.available) setPlanPick(p.inst.id); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 13, border: "1.5px solid " + (picked ? "#2867bd" : p.available ? "#E2E5EA" : "#EEF0F3"), background: picked ? "#EFF3FA" : p.available ? "#fff" : "#FBFCFD", opacity: p.available ? 1 : 0.72, cursor: p.available ? "pointer" : "not-allowed" }}>
                         <div style={{ width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 800, background: `linear-gradient(135deg,${p.inst.av[0]},${p.inst.av[1]})` }}>{initials(p.inst.name)}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B" }}>{p.inst.name}</div>
@@ -904,8 +904,8 @@ export default function EgitmenTakvimiPage() {
               </div>
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 11, padding: "16px 26px", borderTop: "1px solid #EEF0F3", background: "#FBFCFD", flex: "0 0 auto" }}>
-                <button onClick={() => setPlanOpen(false)} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
-                <button
+                <button type="button" onClick={() => setPlanOpen(false)} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
+                <button type="button"
                   // 2026-07-27 kullanıcı kararı: "eğitim planlama ile grup ekleme aslında benzer
                   // şeyler" — bu buton artık ayrı/sahte bir kayıt oluşturmuyor, seçilen müsait
                   // eğitmeni + tarihi GERÇEK "Grup Ekle" formuna (`/flexos/siniflar`) taşıyor.

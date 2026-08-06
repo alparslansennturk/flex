@@ -122,7 +122,7 @@ export function AttachmentView({
                   >
                     <Download size={16} />
                   </a>
-                  <button onClick={() => setPreviewOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}>
+                  <button type="button" onClick={() => setPreviewOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}>
                     <X size={18} />
                   </button>
                 </div>

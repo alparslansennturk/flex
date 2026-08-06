@@ -320,7 +320,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
                     {fKod} düzenleniyor
                   </span>
                 )}
-                <button onClick={() => { if (!saving) onClose(); }} className="gfs-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+                <button type="button" onClick={() => { if (!saving) onClose(); }} className="gfs-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
                   <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
                 </button>
               </div>
@@ -339,7 +339,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
                   ]).map((t) => {
                     const active = eğitimTipi === t.key;
                     return (
-                      <button key={t.key} onClick={() => setEğitimTipi(t.key)} style={segStyle(active)}>
+                      <button type="button" key={t.key} onClick={() => setEğitimTipi(t.key)} style={segStyle(active)}>
                         <span style={segCheck(active)}>{active && <span dangerouslySetInnerHTML={{ __html: IC.checkTiny }} />}</span>
                         <span dangerouslySetInnerHTML={{ __html: t.icon }} />
                         <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t.label}</span>
@@ -471,10 +471,10 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 26, paddingTop: 20, borderTop: "1px solid #EEF0F3" }}>
-                    <button className="gfs-cancel" onClick={() => { if (isEditing) onClose(); else resetForm(); }} style={S.cancelBtn}>
+                    <button type="button" className="gfs-cancel" onClick={() => { if (isEditing) onClose(); else resetForm(); }} style={S.cancelBtn}>
                       {isEditing ? "Vazgeç" : "Temizle"}
                     </button>
-                    <button className="gfs-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }}>
+                    <button type="button" className="gfs-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }}>
                       <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.saveFloppy : IC.plusWhite }} />
                       {saving ? "Kaydediliyor..." : isEditing ? "Değişiklikleri Kaydet" : "Grubu Oluştur"}
                     </button>
@@ -508,7 +508,7 @@ function SeansPicker({ seanslar, fSeansIdx, setFSeansIdx, seansOpen, setSeansOpe
   return (
     <div ref={seansRef} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
       <span style={S.lbl}>Seans</span>
-      <button onClick={() => setSeansOpen((o) => !o)} className="gfs-seans-btn" style={S.seansBtn}>
+      <button type="button" onClick={() => setSeansOpen((o) => !o)} className="gfs-seans-btn" style={S.seansBtn}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
           <span dangerouslySetInnerHTML={{ __html: IC.clockGray }} />
           <span style={{ fontSize: 14, fontWeight: 500, color: fSeansIdx >= 0 ? "#1E222B" : "#AEB4C0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{seansDisplay}</span>
@@ -524,7 +524,7 @@ function SeansPicker({ seanslar, fSeansIdx, setFSeansIdx, seansOpen, setSeansOpe
             const active = fSeansIdx === i;
             const daysStr = se.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
             return (
-              <div key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
                 className="gfs-seans-row" style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: active ? "#EFF3FA" : "transparent" }}>
                 <span style={{ fontSize: 11.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 9px", borderRadius: 7, whiteSpace: "nowrap", flex: "0 0 auto" }}>{daysStr}</span>
                 <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{se.startTime} - {se.endTime}</span>

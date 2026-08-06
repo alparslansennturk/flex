@@ -43,7 +43,7 @@ export function FilterPanel({
           const o = ST[k];
           const checked = pStatus.includes(k);
           return (
-            <div key={k} className="oh-chip" onClick={() => togglePStatus(k)} title={o.hint}
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={k} className="oh-chip" onClick={() => togglePStatus(k)} title={o.hint}
               style={{ ...S.statusChip, border: checked ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: checked ? "#EFF3FA" : "#fff" }}>
               <span style={{ ...S.statusCheck, border: checked ? "1.5px solid #2867bd" : "1.5px solid #CDD2DA", background: checked ? "#2867bd" : "#fff" }}>
                 {checked && <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />}
@@ -60,7 +60,7 @@ export function FilterPanel({
         {/* ŞUBE */}
         <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
           <span style={S.sectionLabel}>Şube</span>
-          <button className="oh-select" style={{ ...S.selectBtn, minWidth: 190 }} onClick={() => toggleDropdown("sube")}>
+          <button type="button" className="oh-select" style={{ ...S.selectBtn, minWidth: 190 }} onClick={() => toggleDropdown("sube")}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
               <span dangerouslySetInnerHTML={{ __html: IC.pin }} />{pSube}
             </span>
@@ -69,7 +69,7 @@ export function FilterPanel({
           {openDropdown === "sube" && (
             <div style={{ ...S.dropdown, width: 200 }}>
               {subeList.map((v) => (
-                <div key={v} className="oh-ddrow" style={pSube === v ? S.ddActive : S.ddBase} onClick={() => { setPSube(v); setOpenDropdown(null); }}>
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={v} className="oh-ddrow" style={pSube === v ? S.ddActive : S.ddBase} onClick={() => { setPSube(v); setOpenDropdown(null); }}>
                   <span>{v}</span>
                   {pSube === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
                 </div>
@@ -81,7 +81,7 @@ export function FilterPanel({
         {/* BRANŞ */}
         <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
           <span style={S.sectionLabel}>Branş</span>
-          <button className="oh-select" style={{ ...S.selectBtn, minWidth: 180 }} onClick={() => toggleDropdown("brans")}>
+          <button type="button" className="oh-select" style={{ ...S.selectBtn, minWidth: 180 }} onClick={() => toggleDropdown("brans")}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
               <span dangerouslySetInnerHTML={{ __html: IC.checkSmall }} />{pBrans}
             </span>
@@ -90,7 +90,7 @@ export function FilterPanel({
           {openDropdown === "brans" && (
             <div style={{ ...S.dropdown, width: 200 }}>
               {bransList.map((v) => (
-                <div key={v} className="oh-ddrow" style={pBrans === v ? S.ddActive : S.ddBase} onClick={() => { setPBrans(v); setOpenDropdown(null); }}>
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={v} className="oh-ddrow" style={pBrans === v ? S.ddActive : S.ddBase} onClick={() => { setPBrans(v); setOpenDropdown(null); }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: v === "Tümü" ? "#CDD2DA" : (BRANS[v]?.dot ?? BRANS_FALLBACK.dot) }} />
                     {v}
@@ -105,7 +105,7 @@ export function FilterPanel({
         {/* EĞİTİM */}
         <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
           <span style={S.sectionLabel}>Eğitim</span>
-          <button className="oh-select" style={{ ...S.selectBtn, minWidth: 200 }} onClick={() => toggleDropdown("egitim")}>
+          <button type="button" className="oh-select" style={{ ...S.selectBtn, minWidth: 200 }} onClick={() => toggleDropdown("egitim")}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 9, overflow: "hidden", maxWidth: 160, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.checkSmall }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pEgitim}</span>
@@ -115,7 +115,7 @@ export function FilterPanel({
           {openDropdown === "egitim" && (
             <div style={{ ...S.dropdown, width: 240 }}>
               {egitimList.map((v) => (
-                <div key={v} className="oh-ddrow" style={pEgitim === v ? S.ddActive : S.ddBase} onClick={() => { setPEgitim(v); setOpenDropdown(null); }}>
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={v} className="oh-ddrow" style={pEgitim === v ? S.ddActive : S.ddBase} onClick={() => { setPEgitim(v); setOpenDropdown(null); }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{v}</span>
                   {pEgitim === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
                 </div>
@@ -150,15 +150,13 @@ export function FilterPanel({
         <div style={{ flex: 1, minWidth: 0 }} />
 
         {anyFilter && (
-          <button className="oh-clear" style={{ ...S.clearBtn, flexShrink: 0 }} onClick={clearFilters}>
-            <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-            Temizle
+          <button type="button" className="oh-clear" style={{ ...S.clearBtn, flexShrink: 0 }} onClick={clearFilters}>
+            <span dangerouslySetInnerHTML={{ __html: IC.x }} />Temizle
           </button>
         )}
 
-        <button className="oh-filter" style={{ ...S.filterBtn, flexShrink: 0 }} onClick={applyFilters}>
-          <span dangerouslySetInnerHTML={{ __html: IC.funnel }} />
-          Filtrele
+        <button type="button" className="oh-filter" style={{ ...S.filterBtn, flexShrink: 0 }} onClick={applyFilters}>
+          <span dangerouslySetInnerHTML={{ __html: IC.funnel }} />Filtrele
         </button>
       </div>
     </div>

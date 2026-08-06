@@ -44,7 +44,7 @@ export function FormSheet({ open, editing, onClose, form, setField, toggleSube, 
                   <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{!editing ? "Eğitmen profilini ve ücret bilgisini girin." : "Eğitmen bilgilerini güncelleyin."}</p>
                 </div>
               </div>
-              <button onClick={() => { if (!saving) onClose(); }} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+              <button type="button" onClick={() => { if (!saving) onClose(); }} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
               </button>
             </div>
@@ -148,8 +148,8 @@ export function FormSheet({ open, editing, onClose, form, setField, toggleSube, 
 
             {/* footer */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 11, padding: "16px 28px", borderTop: "1px solid #EEF0F3", background: "#fff" }}>
-              <button className="sg-cancel" onClick={onClose} disabled={saving} style={{ ...S.cancelBtn, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Vazgeç</button>
-              <button className="eg-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+              <button type="button" className="sg-cancel" onClick={onClose} disabled={saving} style={{ ...S.cancelBtn, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Vazgeç</button>
+              <button type="button" className="eg-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
                 <span dangerouslySetInnerHTML={{ __html: !editing ? IC.plus : IC.checkWhite }} /> {saving ? "Kaydediliyor…" : !editing ? "Eğitmen Ekle" : "Değişiklikleri Kaydet"}
               </button>
             </div>

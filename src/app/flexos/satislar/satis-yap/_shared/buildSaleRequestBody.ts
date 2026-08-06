@@ -40,16 +40,16 @@ export function buildSaleRequestBody(input: BuildSaleRequestBodyInput) {
     : undefined;
 
   const upfrontRows = odemeSatirlari
-    .filter((o) => o.tip !== "Senet" && (parseFloat(o.tutar) || 0) > 0)
-    .map((o) => ({ method: PAYMENT_METHOD_MAP[o.tip] || "cash", amount: parseFloat(o.tutar) }));
+    .filter((o) => o.tip !== "Senet" && (Number.parseFloat(o.tutar) || 0) > 0)
+    .map((o) => ({ method: PAYMENT_METHOD_MAP[o.tip] || "cash", amount: Number.parseFloat(o.tutar) }));
   const senetRow = odemeSatirlari.find((o) => o.tip === "Senet");
-  const senetCount = senetRow ? (parseInt(senetRow.taksit) || 0) : 0;
+  const senetCount = senetRow ? (Number.parseInt(senetRow.taksit) || 0) : 0;
 
   const payment = (upfrontRows.length > 0 || senetCount > 0) ? {
     upfront: upfrontRows.length > 0 ? upfrontRows : undefined,
     senet: senetCount > 0 ? {
       count: senetCount,
-      monthlyRatePct: parseFloat(senetVadeFarki) || 0,
+      monthlyRatePct: Number.parseFloat(senetVadeFarki) || 0,
     } : undefined,
   } : undefined;
 

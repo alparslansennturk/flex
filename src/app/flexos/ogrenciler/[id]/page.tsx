@@ -34,7 +34,7 @@ export default function OgrenciDetayPage() {
         <FlexHeader
           left={
             <div className="flex items-center gap-[15px]">
-              <button
+              <button type="button"
                 onClick={() => router.back()}
                 className="w-[46px] h-[46px] rounded-[13px] flex items-center justify-center cursor-pointer shrink-0"
                 style={{ background: "linear-gradient(135deg,#2867bd,#205297)", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}

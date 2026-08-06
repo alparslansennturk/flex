@@ -69,7 +69,7 @@ export default function GroupCard({
 
   return (
     <>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         onClick={onClick}
         className="group relative bg-white border border-surface-300 rounded-2xl p-6 cursor-pointer
           hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-200"
@@ -84,7 +84,7 @@ export default function GroupCard({
 
           <div className="flex items-center gap-1.5 shrink-0" ref={menuRef}>
             {/* Ok butonu */}
-            <button
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); onClick(); }}
               className="w-9 h-9 rounded-[11px] flex items-center justify-center text-white transition-colors duration-150 shadow-sm"
               style={{ backgroundColor: color.bg }}
@@ -96,7 +96,7 @@ export default function GroupCard({
 
             {/* Üç nokta menü */}
             <div className="relative">
-              <button
+              <button type="button"
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
                 className="w-8 h-8 rounded-[9px] flex items-center justify-center text-surface-400 cursor-pointer
                   hover:bg-surface-100 hover:text-surface-600 transition-colors duration-150"
@@ -105,12 +105,12 @@ export default function GroupCard({
               </button>
 
               {menuOpen && (
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-surface-200
                     rounded-xl shadow-lg shadow-black/8 z-50 py-1 overflow-hidden"
                 >
-                  <button
+                  <button type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setMenuOpen(false);
@@ -151,11 +151,11 @@ export default function GroupCard({
 
       {/* Arşiv onay modalı */}
       {confirmOpen && createPortal(
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
           onClick={() => setConfirmOpen(false)}
         >
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-2xl shadow-2xl w-[640px] min-h-[480px] flex flex-col overflow-hidden"
           >
@@ -192,14 +192,14 @@ export default function GroupCard({
 
             {/* Butonlar */}
             <div className="px-10 py-7 flex items-center justify-end gap-3">
-              <button
+              <button type="button"
                 onClick={() => setConfirmOpen(false)}
                 className="px-6 py-3 rounded-xl text-[14px] font-semibold text-surface-500 cursor-pointer
                   border border-surface-200 hover:bg-surface-50 hover:text-surface-700 transition-colors"
               >
                 Hayır, İptal Et
               </button>
-              <button
+              <button type="button"
                 onClick={() => { setConfirmOpen(false); onArchive(id, true); }}
                 className="px-7 py-3 rounded-xl text-[14px] font-bold text-white cursor-pointer
                   bg-[#FF8D28] hover:bg-[#FF7800] transition-colors shadow-sm shadow-orange-200"

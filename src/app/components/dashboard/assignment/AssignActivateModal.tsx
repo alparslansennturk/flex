@@ -237,7 +237,7 @@ export function AssignActivateModal({
 
   return (
     <div className={`fixed inset-0 z-800 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={handleCancel}
       />
@@ -285,7 +285,7 @@ export function AssignActivateModal({
                   const isSelected = selectedGroupIds.includes(g.id);
                   const isBusy    = busyGroupIds.includes(g.id);
                   return (
-                    <button
+                    <button type="button"
                       key={g.id}
                       onClick={() => toggleGroup(g.id)}
                       disabled={isBusy}
@@ -327,7 +327,7 @@ export function AssignActivateModal({
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {LEVELS.map(l => (
-                  <button
+                  <button type="button"
                     key={l}
                     onClick={() => !templateLevel && setLevel(l)}
                     disabled={!!templateLevel}
@@ -369,7 +369,7 @@ export function AssignActivateModal({
                     className="text-surface-400 hover:text-base-primary-600 transition-colors p-1 cursor-pointer">
                     <ExternalLink size={13} />
                   </a>
-                  <button onClick={() => setAttachment(null)}
+                  <button type="button" onClick={() => setAttachment(null)}
                     className="text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer p-1">
                     <X size={12} />
                   </button>
@@ -399,11 +399,11 @@ export function AssignActivateModal({
                     <input value={driveLink} onChange={e => setDriveLink(e.target.value)}
                       placeholder="Google Drive linki..."
                       className="flex-1 h-8 px-3 rounded-lg border border-surface-200 bg-white text-[12px] outline-none focus:border-base-primary-400 transition-colors" />
-                    <button onClick={handleDriveSave} disabled={!driveLink.trim()}
+                    <button type="button" onClick={handleDriveSave} disabled={!driveLink.trim()}
                       className="px-3 h-8 bg-base-primary-700 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 cursor-pointer hover:bg-base-primary-800 transition-colors shrink-0">
                       Ekle
                     </button>
-                    <button onClick={() => setAttachMode("idle")}
+                    <button type="button" onClick={() => setAttachMode("idle")}
                       className="px-2 h-8 bg-surface-100 text-surface-600 rounded-lg cursor-pointer hover:bg-surface-200 transition-colors">
                       <X size={14} />
                     </button>
@@ -413,7 +413,7 @@ export function AssignActivateModal({
 
               {!attachment && !uploading && attachMode === "idle" && (
                 <div className="flex flex-col gap-2">
-                  <div
+                  <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                     onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleDrop}
@@ -427,7 +427,7 @@ export function AssignActivateModal({
                     <Upload size={13} />
                     <span>{dragOver ? "Bırak, yüklensin" : "Bilgisayardan Yükle & Sürükle Bırak"}</span>
                   </div>
-                  <button onClick={() => setAttachMode("drive")}
+                  <button type="button" onClick={() => setAttachMode("drive")}
                     className="flex items-center gap-1.5 px-3 py-2.5 bg-surface-50 border border-dashed border-surface-300 rounded-xl text-[12px] font-semibold text-surface-500 hover:border-base-primary-300 hover:text-base-primary-600 transition-colors cursor-pointer w-full justify-center">
                     <Link2 size={13} /> Drive Linki Ekle
                   </button>
@@ -455,13 +455,13 @@ export function AssignActivateModal({
 
         {/* Butonlar */}
         <div className="flex gap-3">
-          <button
+          <button type="button"
             onClick={handleCancel}
             className="flex-1 h-12 rounded-xl border border-surface-200 text-[14px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer"
           >
             Vazgeç
           </button>
-          <button
+          <button type="button"
             onClick={handleConfirm}
             disabled={!canSubmit || loading}
             className="flex-1 h-12 rounded-xl bg-base-primary-900 text-white text-[14px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"

@@ -57,7 +57,7 @@ const SubNavigation: React.FC<SubNavigationProps> = ({ activeTab, onTabChange, a
               }
 
               return (
-                <button
+                <button type="button"
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
                   className="relative h-full flex items-center px-8 first:pl-0 cursor-pointer outline-none group transition-colors"

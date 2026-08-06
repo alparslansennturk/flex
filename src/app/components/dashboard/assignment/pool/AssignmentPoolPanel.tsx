@@ -18,7 +18,7 @@ function PoolNavItem({
 }) {
   const Icon = pool.icon;
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl text-left transition-all cursor-pointer ${
         active

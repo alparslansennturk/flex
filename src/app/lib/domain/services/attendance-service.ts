@@ -16,7 +16,7 @@ const TR_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temm
 
 function trDate(date: string): string {
   const [y, m, d] = date.split("-");
-  return `${parseInt(d, 10)} ${TR_MONTHS[parseInt(m, 10) - 1]} ${y}`;
+  return `${Number.parseInt(d, 10)} ${TR_MONTHS[Number.parseInt(m, 10) - 1]} ${y}`;
 }
 
 function activityId(): string {
@@ -70,7 +70,7 @@ function istanbulNow(): { dateKey: string; minutesOfDay: number } {
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
   return {
     dateKey: `${get("year")}-${get("month")}-${get("day")}`,
-    minutesOfDay: parseInt(get("hour"), 10) * 60 + parseInt(get("minute"), 10),
+    minutesOfDay: Number.parseInt(get("hour"), 10) * 60 + Number.parseInt(get("minute"), 10),
   };
 }
 

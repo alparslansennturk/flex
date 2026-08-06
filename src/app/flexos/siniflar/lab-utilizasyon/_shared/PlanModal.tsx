@@ -31,8 +31,8 @@ export function PlanModal({
   planSlotLabel, planFit, planCandidates,
 }: PlanModalProps) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(10,20,35,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: open ? 1 : 0, visibility: open ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 640, maxHeight: "calc(100vh - 48px)", overflowY: "auto", background: T.panel, borderRadius: 20, boxShadow: "0 30px 80px -20px rgba(10,20,35,.6)", border: "1px solid " + T.border, transform: open ? "translateY(0) scale(1)" : "translateY(14px) scale(.98)", opacity: open ? 1 : 0, transition: "transform .3s cubic-bezier(.2,.8,.3,1), opacity .26s ease" }}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(10,20,35,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: open ? 1 : 0, visibility: open ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 640, maxHeight: "calc(100vh - 48px)", overflowY: "auto", background: T.panel, borderRadius: 20, boxShadow: "0 30px 80px -20px rgba(10,20,35,.6)", border: "1px solid " + T.border, transform: open ? "translateY(0) scale(1)" : "translateY(14px) scale(.98)", opacity: open ? 1 : 0, transition: "transform .3s cubic-bezier(.2,.8,.3,1), opacity .26s ease" }}>
         {open && (
           <div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 26px", borderBottom: "1px solid " + T.border }}>
@@ -45,38 +45,38 @@ export function PlanModal({
                   <p style={{ margin: "2px 0 0", fontSize: 12.5, color: T.mutedC, fontWeight: 500 }}>Tarih, saat ve kapasite seçin — sistem uygun laboratuvarları önerir.</p>
                 </div>
               </div>
-              <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: 11, border: "1px solid " + T.border, background: T.panel, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}>
+              <button type="button" onClick={onClose} style={{ width: 38, height: 38, borderRadius: 11, border: "1px solid " + T.border, background: T.panel, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
               </button>
             </div>
             <div style={{ padding: "18px 26px", background: "#FBFCFD", borderBottom: "1px solid " + T.border }}>
               <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 12 }}>
                 <div>
-                  <label style={{ ...flabel, color: T.mutedC }}>Tarih</label>
-                  <input type="date" value={planDateVal} onChange={(e) => onPlanDateChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none" }} />
+                  <label htmlFor="planDateVal" style={{ ...flabel, color: T.mutedC }}>Tarih</label>
+                  <input id="planDateVal" type="date" value={planDateVal} onChange={(e) => onPlanDateChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none" }} />
                 </div>
                 <div>
-                  <label style={{ ...flabel, color: T.mutedC }}>Başlangıç</label>
+                  <label htmlFor="planStart" style={{ ...flabel, color: T.mutedC }}>Başlangıç</label>
                   <div style={{ position: "relative" }}>
-                    <select value={planStart} onChange={(e) => onPlanStartChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 30px 0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
+                    <select id="planStart" value={planStart} onChange={(e) => onPlanStartChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 30px 0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
                       {startOptions.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
                     </select>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8E95A3" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><path d="m6 9 6 6 6-6" /></svg>
                   </div>
                 </div>
                 <div>
-                  <label style={{ ...flabel, color: T.mutedC }}>Süre</label>
+                  <label htmlFor="planDur" style={{ ...flabel, color: T.mutedC }}>Süre</label>
                   <div style={{ position: "relative" }}>
-                    <select value={planDur} onChange={(e) => onPlanDurChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 30px 0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
+                    <select id="planDur" value={planDur} onChange={(e) => onPlanDurChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 30px 0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
                       {durOptions.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
                     </select>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8E95A3" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><path d="m6 9 6 6 6-6" /></svg>
                   </div>
                 </div>
                 <div>
-                  <label style={{ ...flabel, color: T.mutedC }}>Kapasite</label>
+                  <label htmlFor="planCap" style={{ ...flabel, color: T.mutedC }}>Kapasite</label>
                   <div style={{ position: "relative" }}>
-                    <select value={planCap} onChange={(e) => onPlanCapChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 30px 0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
+                    <select id="planCap" value={planCap} onChange={(e) => onPlanCapChange(e.target.value)} style={{ width: "100%", height: 42, padding: "0 30px 0 12px", borderRadius: 10, border: "1px solid " + T.border, background: T.panel, color: T.text, fontSize: 13, fontWeight: 600, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
                       {capOptions.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
                     </select>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8E95A3" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><path d="m6 9 6 6 6-6" /></svg>

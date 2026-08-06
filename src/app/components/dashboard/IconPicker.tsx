@@ -306,7 +306,7 @@ export default function IconPicker({ value, onChange, type }: IconPickerProps) {
                 className="w-full h-9 pl-9 pr-8 rounded-xl bg-surface-50 border border-surface-200 text-[13px] text-text-primary placeholder:text-text-placeholder outline-none focus:border-base-primary-500 focus:bg-white transition-all"
               />
               {search && (
-                <button
+                <button type="button"
                   onClick={() => setSearch("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-300 hover:text-surface-500 cursor-pointer"
                 >

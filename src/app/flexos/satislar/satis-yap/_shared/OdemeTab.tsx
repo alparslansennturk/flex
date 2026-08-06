@@ -121,8 +121,8 @@ export function OdemeTab({
           </div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
             <div style={{ display: "inline-flex", background: "#eef2f8", borderRadius: 9, padding: 3, gap: 3 }}>
-              <button onClick={() => setElIndirimMod("yuzde")} style={segSm(elIndirimMod === "yuzde")}>%</button>
-              <button onClick={() => setElIndirimMod("tutar")} style={segSm(elIndirimMod === "tutar")}>TL</button>
+              <button type="button" onClick={() => setElIndirimMod("yuzde")} style={segSm(elIndirimMod === "yuzde")}>%</button>
+              <button type="button" onClick={() => setElIndirimMod("tutar")} style={segSm(elIndirimMod === "tutar")}>TL</button>
             </div>
             <div style={{ position: "relative" }}>
               <input type="number" value={elIndirim} onChange={(e) => setElIndirim(e.target.value)} disabled={sifirKilit} placeholder="0"
@@ -173,9 +173,9 @@ export function OdemeTab({
             return (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr auto", gap: 12, alignItems: "end", border: "1px solid #e9edf4", borderRadius: 14, padding: "14px 16px", background: "#fff" }}>
                 <div>
-                  <label style={S.odemeLabel}>Ödeme Tipi</label>
+                  <label htmlFor="tip" style={S.odemeLabel}>Ödeme Tipi</label>
                   <SelectWrap small>
-                    <select value={o.tip} onChange={(e) => updateOdeme(i, "tip", e.target.value)} style={S.odemeSelect}>
+                    <select id="tip" value={o.tip} onChange={(e) => updateOdeme(i, "tip", e.target.value)} style={S.odemeSelect}>
                       <option value="Nakit">Nakit</option>
                       <option value="Kredi Kartı">Kredi Kartı</option>
                       <option value="Havale/EFT">Havale/EFT</option>
@@ -184,19 +184,19 @@ export function OdemeTab({
                   </SelectWrap>
                 </div>
                 <div>
-                  <label style={S.odemeLabel}>Alınan Tutar</label>
+                  <label htmlFor="tutar" style={S.odemeLabel}>Alınan Tutar</label>
                   <div style={{ position: "relative" }}>
-                    <input type="number" value={o.tutar} onChange={(e) => updateOdeme(i, "tutar", e.target.value)} placeholder="0"
+                    <input id="tutar" type="number" value={o.tutar} onChange={(e) => updateOdeme(i, "tutar", e.target.value)} placeholder="0"
                       style={{ width: "100%", padding: "11px 42px 11px 13px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
                     <span style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12.5, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>TL</span>
                   </div>
                 </div>
                 <div style={{ opacity: taksitli ? 1 : 0.5 }}>
-                  <label style={{ ...S.odemeLabel, display: "flex", alignItems: "center", gap: 6 }}>
+                  <label htmlFor="taksit" style={{ ...S.odemeLabel, display: "flex", alignItems: "center", gap: 6 }}>
                     Taksit Sayısı{!taksitli && <span dangerouslySetInnerHTML={{ __html: IC.lockTiny }} />}
                   </label>
                   <SelectWrap small>
-                    <select value={isCustomTaksit ? "custom" : o.taksit}
+                    <select id="taksit" value={isCustomTaksit ? "custom" : o.taksit}
                       onChange={(e) => updateOdeme(i, "taksit", e.target.value === "custom" ? "" : e.target.value)}
                       disabled={!taksitli}
                       style={{ ...S.odemeSelect, background: taksitli ? "#f8fafc" : "#f1f5f9", cursor: taksitli ? "pointer" : "not-allowed" }}>
@@ -217,7 +217,7 @@ export function OdemeTab({
                     </div>
                   )}
                 </div>
-                <button onClick={() => removeOdeme(i)} title="Satırı kaldır"
+                <button type="button" onClick={() => removeOdeme(i)} title="Satırı kaldır"
                   style={{ width: 42, height: 42, borderRadius: 11, border: "1px solid #e3e8f0", background: "#fff", color: odemeSatirlari.length > 1 ? "#94a3b8" : "#d8dee8", display: "flex", alignItems: "center", justifyContent: "center", cursor: odemeSatirlari.length > 1 ? "pointer" : "not-allowed", flex: "0 0 auto" }}
                   dangerouslySetInnerHTML={{ __html: IC.trash }} />
               </div>
@@ -225,18 +225,17 @@ export function OdemeTab({
           })}
         </div>
 
-        <button onClick={addOdeme} className="sy-addpay" style={S.addPayBtn}>
-          <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />
-          Başka Ödeme Yöntemi Ekle
+        <button type="button" onClick={addOdeme} className="sy-addpay" style={S.addPayBtn}>
+          <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />Başka Ödeme Yöntemi Ekle
         </button>
 
         {/* senet vade farkı — senet satırı varken görünür */}
         {hasSenet && kalan > 0 && (
           <div style={{ border: "1px solid #e9edf4", borderRadius: 12, padding: "14px 16px", marginBottom: 14, background: "#fefce8" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <label style={{ fontSize: 13.5, fontWeight: 700, color: "#713f12", whiteSpace: "nowrap" }}>Aylık Vade Farkı</label>
+              <label htmlFor="senetVadeFarki" style={{ fontSize: 13.5, fontWeight: 700, color: "#713f12", whiteSpace: "nowrap" }}>Aylık Vade Farkı</label>
               <div style={{ position: "relative", width: 100 }}>
-                <input type="number" min={0} max={20} step={0.5} value={senetVadeFarki}
+                <input id="senetVadeFarki" type="number" min={0} max={20} step={0.5} value={senetVadeFarki}
                   onChange={(e) => setSenetVadeFarki(e.target.value)} placeholder="0"
                   disabled={sifirKilit}
                   style={{ width: "100%", padding: "9px 32px 9px 12px", borderRadius: 10, border: "1px solid #d4c090", background: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />

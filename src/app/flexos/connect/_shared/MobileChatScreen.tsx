@@ -82,7 +82,7 @@ export function MobileChatScreen({
   return (
     <motion.div key="chat" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
       <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
-        <button onClick={backToApp} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+        <button type="button" onClick={backToApp} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
         <div style={selected.type === "dm" ? { position: "relative", width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: selected.colorKey ?? T.brand, color: "#fff", fontSize: 14, fontWeight: 700 } : { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.brandBg, color: T.brand }}>
           {selected.type === "dm" ? initials(selected.name) : <Icon k={iconFor(selected.type)} size={20} sw={2} />}
           {selected.type === "dm" && <PresenceDot signal={presenceMap.get(selected.peerUid ?? "")} ring={T.topBar} />}
@@ -94,19 +94,19 @@ export function MobileChatScreen({
           </div>
           {selected.writePolicy === "admins" && <div style={{ fontSize: 11.5, fontWeight: 600, color: T.text2, marginTop: 2 }}>Sadece yöneticiler yazabilir</div>}
         </div>
-        <button onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} aria-label="Mesajlarda ara" style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: searchOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: searchOpen ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k="search" size={19} sw={2} /></button>
-        <button onClick={() => toggleMute(selected.id, !selected.muted)} aria-label={selected.muted ? "Sessize almayı kaldır" : "Sessize al"} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: selected.muted ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k={selected.muted ? "bellOff" : "bell"} size={19} sw={2} /></button>
+        <button type="button" onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} aria-label="Mesajlarda ara" style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: searchOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: searchOpen ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k="search" size={19} sw={2} /></button>
+        <button type="button" onClick={() => toggleMute(selected.id, !selected.muted)} aria-label={selected.muted ? "Sessize almayı kaldır" : "Sessize al"} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: selected.muted ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k={selected.muted ? "bellOff" : "bell"} size={19} sw={2} /></button>
         {selected.type === "dm" && !studentPersonId && (
           <div style={{ position: "relative", flex: "0 0 auto" }}>
-            <button onClick={() => setChatMenuOpen((v) => !v)} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: chatMenuOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: chatMenuOpen ? T.brand : T.text2 }}><Icon k="dots" size={20} /></button>
+            <button type="button" onClick={() => setChatMenuOpen((v) => !v)} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: chatMenuOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: chatMenuOpen ? T.brand : T.text2 }}><Icon k="dots" size={20} /></button>
             {chatMenuOpen && (
               <>
-                <div onClick={() => setChatMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setChatMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
                 <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.35)", zIndex: 91, overflow: "hidden", minWidth: 170 }}>
-                  <button onClick={handleClearConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                  <button type="button" onClick={handleClearConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                     <Icon k="eraser" size={15} sw={2} /> Sohbeti Temizle
                   </button>
-                  <button onClick={handleHideConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                  <button type="button" onClick={handleHideConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                     <Icon k="trash" size={15} sw={2} /> Sohbeti Sil
                   </button>
                 </div>
@@ -268,7 +268,7 @@ export function MobileChatScreen({
                     {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                       <div style={{ display: "flex", gap: 6, marginTop: 5 }}>
                         {Object.entries(m.reactionCounts).map(([emoji, count]) => (
-                          <button
+                          <button type="button"
                             key={emoji}
                             onClick={() => handleReact(m.id, emoji)}
                             style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, border: `1px solid ${m.myReaction === emoji ? T.brand : T.border}`, background: m.myReaction === emoji ? T.brandBg : T.card, fontSize: 11.5, fontWeight: 700, color: T.text2, cursor: "pointer", fontFamily: "inherit" }}
@@ -289,7 +289,7 @@ export function MobileChatScreen({
           <>
             {/* Arka plan bulanıklaşır (2026-07-20, WhatsApp gibi) — arkadaki sohbet
                 hâlâ görünür ama net değil, sadece menü + emoji şeridi net. */}
-            <div
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
               onClick={() => setMenuMsg(null)}
               style={{ position: "fixed", inset: 0, zIndex: 95, background: "rgba(10,15,25,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             />
@@ -307,7 +307,7 @@ export function MobileChatScreen({
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "10px 8px", borderBottom: `1px solid ${T.border2}` }}>
                 {QUICK_REACTIONS.map((e) => (
-                  <button
+                  <button type="button"
                     key={e}
                     onClick={() => { handleReact(menuMsg.id, e); setMenuMsg(null); }}
                     style={{ width: 40, height: 40, border: "none", borderRadius: "50%", background: menuMsg.myReaction === e ? T.brandBg : "transparent", fontSize: 23, cursor: "pointer" }}
@@ -317,32 +317,32 @@ export function MobileChatScreen({
                 ))}
               </div>
               {menuMsg.isMine && (
-                <button onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                <button type="button" onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                   <Icon k="pencil" size={19} sw={2} /> Düzenle
                 </button>
               )}
-              <button onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              <button type="button" onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 <Icon k="reply" size={19} sw={2} /> Yanıtla
               </button>
-              <button onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              <button type="button" onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 <Icon k="star" size={19} sw={2} /> {menuMsg.starred ? "Yıldızı Kaldır" : "Yıldızla"}
               </button>
               {menuMsg.text && (
-                <button onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                <button type="button" onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                   <Icon k="copy" size={19} sw={2} /> Kopyala
                 </button>
               )}
               {selected?.type === "group" && !menuMsg.isMine && !studentPersonId && (
-                <button onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                <button type="button" onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                   <Icon k="reply" size={19} sw={2} /> Özelden Yanıtla
                 </button>
               )}
               {menuMsg.isMine && (
-                <button onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                <button type="button" onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                   <Icon k="trash" size={19} sw={2} /> Herkes İçin Sil
                 </button>
               )}
-              <button onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              <button type="button" onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 <Icon k="close" size={19} sw={2} /> Benim İçin Sil
               </button>
             </div>
@@ -366,7 +366,7 @@ export function MobileChatScreen({
         {editingMessageId && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: T.brandBg }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: T.brand }}>Mesajı düzenliyorsun</span>
-            <button onClick={() => { setEditingMessageId(null); setDraft(""); }} style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.brand }}>
+            <button type="button" onClick={() => { setEditingMessageId(null); setDraft(""); }} style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.brand }}>
               <Icon k="close" size={14} sw={2} />
             </button>
           </div>
@@ -377,22 +377,22 @@ export function MobileChatScreen({
               <div style={{ fontSize: 11.5, fontWeight: 700, color: T.brand }}>{replyingTo.authorName}</div>
               <div style={{ fontSize: 12, color: T.brand, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{replyingTo.textSnippet}</div>
             </div>
-            <button onClick={() => setReplyingTo(null)} style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.brand, flex: "0 0 auto" }}>
+            <button type="button" onClick={() => setReplyingTo(null)} style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.brand, flex: "0 0 auto" }}>
               <Icon k="close" size={14} sw={2} />
             </button>
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 16, padding: "5px 6px 5px 8px" }}>
           <div style={{ position: "relative" }}>
-            <button onClick={() => setComposerEmojiOpen((v) => !v)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: composerEmojiOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: composerEmojiOpen ? T.brand : T.text2, flex: "0 0 auto" }}>
+            <button type="button" onClick={() => setComposerEmojiOpen((v) => !v)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: composerEmojiOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: composerEmojiOpen ? T.brand : T.text2, flex: "0 0 auto" }}>
               <Icon k="smile" size={21} sw={1.9} />
             </button>
             {composerEmojiOpen && (
               <>
-                <div onClick={() => setComposerEmojiOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setComposerEmojiOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
                 <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: "0 20px 50px -15px rgba(18,35,59,.4)", padding: 8, display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, zIndex: 40, width: 234 }}>
                   {QUICK_EMOJIS.map((e) => (
-                    <button key={e} onClick={() => setDraft((d) => d + e)} style={{ fontSize: 19, width: 34, height: 34, border: "none", background: "transparent", borderRadius: 9, cursor: "pointer" }}>
+                    <button type="button" key={e} onClick={() => setDraft((d) => d + e)} style={{ fontSize: 19, width: 34, height: 34, border: "none", background: "transparent", borderRadius: 9, cursor: "pointer" }}>
                       {e}
                     </button>
                   ))}
@@ -401,7 +401,7 @@ export function MobileChatScreen({
             )}
           </div>
           <input ref={attachInputRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAttachFile(f); e.target.value = ""; }} />
-          <button
+          <button type="button"
             onClick={() => attachInputRef.current?.click()} disabled={uploadProgress != null}
             style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: uploadProgress != null ? "default" : "pointer", color: uploadProgress != null ? T.brand : T.text2, flex: "0 0 auto" }}
           >
@@ -414,7 +414,7 @@ export function MobileChatScreen({
             placeholder="Bir mesaj yazın…"
             style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 17, fontWeight: 450, color: T.text, padding: "8px 2px", minWidth: 0 }}
           />
-          <button onClick={send} style={{ width: 38, height: 38, borderRadius: 11, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", background: draft.trim() ? T.brand : (dark ? "#33405A" : "#C3CAD4"), flex: "0 0 auto", transition: "background .15s" }}><Icon k="send" size={18} sw={2.1} /></button>
+          <button type="button" onClick={send} style={{ width: 38, height: 38, borderRadius: 11, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", background: draft.trim() ? T.brand : (dark ? "#33405A" : "#C3CAD4"), flex: "0 0 auto", transition: "background .15s" }}><Icon k="send" size={18} sw={2.1} /></button>
         </div>
       </div>
     </motion.div>

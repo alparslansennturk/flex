@@ -33,8 +33,8 @@ function SubChip({ value, active, onSelect, onDelete }: {
         ? "bg-base-primary-600 border-base-primary-600 text-white"
         : "bg-base-primary-50 border-base-primary-100 text-base-primary-700 hover:border-base-primary-300"
     }`}>
-      <button onClick={onSelect} className="cursor-pointer">{value}</button>
-      <button
+      <button type="button" onClick={onSelect} className="cursor-pointer">{value}</button>
+      <button type="button"
         onClick={e => { e.stopPropagation(); onDelete(); }}
         className={`w-4 h-4 flex items-center justify-center rounded-full cursor-pointer transition-colors ${
           active ? "hover:bg-base-primary-500 text-white/70 hover:text-white" : "hover:bg-base-primary-200 text-base-primary-400 hover:text-base-primary-700"
@@ -101,7 +101,7 @@ function SectorAccordion({
   return (
     <div className="border border-surface-100 rounded-2xl overflow-hidden bg-white">
       {/* Header — genel alan accordion toggle, başlık & düzenle butonu edit mode */}
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         onClick={() => !editingName && setOpen(o => !o)}
         className="flex items-center gap-2 px-4 py-3 bg-surface-50 border-b border-surface-100 cursor-pointer hover:bg-surface-100/60 transition-colors group"
       >
@@ -119,9 +119,9 @@ function SectorAccordion({
               autoFocus
               className={`flex-1 ${inputCls}`}
             />
-            <button onClick={e => { e.stopPropagation(); saveName(); }} disabled={!name.trim() || saving}
+            <button type="button" onClick={e => { e.stopPropagation(); saveName(); }} disabled={!name.trim() || saving}
               className="p-1.5 rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer shrink-0"><Check size={13} /></button>
-            <button onClick={e => { e.stopPropagation(); setName(sector.name); setEditingName(false); }}
+            <button type="button" onClick={e => { e.stopPropagation(); setName(sector.name); setEditingName(false); }}
               className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer shrink-0"><X size={13} /></button>
           </>
         ) : (
@@ -129,7 +129,7 @@ function SectorAccordion({
             {/* Boş alan — accordion toggle için tıklanabilir, flex-1 ile genişler */}
             <div className="flex-1 flex items-center gap-2 min-w-0">
               {/* Başlık — sadece metin kadar yer kaplar */}
-              <button
+              <button type="button"
                 onClick={enterEdit}
                 className="text-[14px] font-bold text-text-primary hover:text-base-primary-700 cursor-pointer transition-colors truncate"
               >
@@ -140,14 +140,14 @@ function SectorAccordion({
               </span>
             </div>
             {/* Düzenle butonu — her zaman görünür, sağ köşede */}
-            <button
+            <button type="button"
               onClick={enterEdit}
               className="p-1.5 rounded-lg hover:bg-surface-200 text-surface-400 hover:text-surface-700 cursor-pointer transition-colors shrink-0"
               title="Düzenle"
             >
               <Pencil size={13} />
             </button>
-            <button
+            <button type="button"
               onClick={e => { e.stopPropagation(); onDelete(); }}
               className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer transition-colors shrink-0"
             >
@@ -191,12 +191,12 @@ function SectorAccordion({
                 className={`w-full ${inputCls} ${editingSub ? "border-base-primary-400 bg-base-primary-50" : ""}`}
               />
               {editingSub && (
-                <button onClick={cancelSubEdit} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 cursor-pointer">
+                <button type="button" onClick={cancelSubEdit} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 cursor-pointer">
                   <X size={12} />
                 </button>
               )}
             </div>
-            <button onClick={submitSub} disabled={!subInput.trim() || saving}
+            <button type="button" onClick={submitSub} disabled={!subInput.trim() || saving}
               className="h-9 px-4 rounded-xl bg-base-primary-600 text-white text-[12px] font-bold hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0 flex items-center gap-1.5">
               {editingSub ? <><Check size={12} /> Güncelle</> : <><Plus size={12} /> Ekle</>}
             </button>
@@ -270,7 +270,7 @@ function SectorsTab({ pool, onUpdate }: { pool: SocialMediaPool; onUpdate: (sect
             placeholder="ör. Yeme & İçme, Teknoloji, Moda..."
             className={`flex-1 ${inputCls}`}
           />
-          <button onClick={addMain} disabled={!newMain.trim() || saving} className="h-9 px-5 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer transition-colors shrink-0 flex items-center gap-2">
+          <button type="button" onClick={addMain} disabled={!newMain.trim() || saving} className="h-9 px-5 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer transition-colors shrink-0 flex items-center gap-2">
             <Plus size={14} /> Ekle
           </button>
         </div>
@@ -400,7 +400,7 @@ function BrandForm({
               <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white border border-surface-100 rounded-xl text-[13px] text-text-primary">
                 <span className="w-1.5 h-1.5 rounded-full bg-base-primary-300 shrink-0" />
                 <span className="flex-1">{p}</span>
-                <button onClick={() => setPurposes(ps => ps.filter(x => x !== p))}
+                <button type="button" onClick={() => setPurposes(ps => ps.filter(x => x !== p))}
                   className="shrink-0 text-surface-300 hover:text-status-danger-500 cursor-pointer transition-colors p-0.5">
                   <X size={12} />
                 </button>
@@ -412,7 +412,7 @@ function BrandForm({
         {/* Ortak havuzdan seç — accordion listbox */}
         {globalPurposes.length > 0 && (
           <div className="border border-surface-100 rounded-xl overflow-hidden">
-            <button
+            <button type="button"
               onClick={() => { setPoolOpen(o => !o); setSelectedPoolItem(""); }}
               className="flex items-center gap-2 w-full px-3 py-2.5 bg-surface-50 hover:bg-surface-100 transition-colors cursor-pointer"
             >
@@ -437,7 +437,7 @@ function BrandForm({
                       <option key={i} value={p}>{p}</option>
                     ))}
                 </select>
-                <button
+                <button type="button"
                   onClick={() => { if (selectedPoolItem) { addFromPool(selectedPoolItem); setSelectedPoolItem(""); setPoolOpen(false); } }}
                   disabled={!selectedPoolItem}
                   className="h-9 px-3 rounded-xl bg-base-primary-600 text-white text-[12px] font-bold hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0 flex items-center gap-1"
@@ -457,7 +457,7 @@ function BrandForm({
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
               placeholder="Bu markaya özel amaç..."
               className={`flex-1 ${inputCls}`} />
-            <button onClick={addCustom} disabled={!customInput.trim()}
+            <button type="button" onClick={addCustom} disabled={!customInput.trim()}
               className="h-9 px-3 rounded-xl bg-surface-100 text-surface-600 text-[12px] font-bold hover:bg-surface-200 disabled:opacity-40 cursor-pointer transition-colors">
               <Plus size={14} />
             </button>
@@ -476,8 +476,8 @@ function BrandForm({
 
       {/* Actions */}
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="h-9 px-4 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer transition-colors">Vazgeç</button>
-        <button onClick={save} disabled={!brandName.trim() || loading} className="h-9 px-5 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer transition-colors flex items-center gap-1.5">
+        <button type="button" onClick={onCancel} className="h-9 px-4 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer transition-colors">Vazgeç</button>
+        <button type="button" onClick={save} disabled={!brandName.trim() || loading} className="h-9 px-5 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer transition-colors flex items-center gap-1.5">
           <Check size={14} /> Kaydet
         </button>
       </div>
@@ -499,7 +499,7 @@ function BrandCard({
   return (
     <div className="border-b border-surface-100 last:border-0">
       {/* Header — tıklayınca açılır */}
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         onClick={() => setOpen(o => !o)}
         className="flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-surface-50 transition-colors group"
       >
@@ -538,7 +538,7 @@ function BrandCard({
             </span>
           ) : (
             <>
-              <button
+              <button type="button"
                 onClick={e => { e.stopPropagation(); onDelete(); }}
                 className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer transition-colors opacity-0 group-hover:opacity-100"
               >
@@ -580,7 +580,7 @@ function BrandsTab({ pool, onUpdate }: { pool: SocialMediaPool; onUpdate: (brand
   );
 
   const mainSectors = useMemo(() =>
-    [...new Set(pool.sectors.map(s => s.name))].sort(),
+    [...new Set(pool.sectors.map(s => s.name))].sort((a, b) => a.localeCompare(b, "tr")),
     [pool.sectors]
   );
 
@@ -613,7 +613,7 @@ function BrandsTab({ pool, onUpdate }: { pool: SocialMediaPool; onUpdate: (brand
           })}
         </select>
 
-        <button
+        <button type="button"
           onClick={() => setAdding(a => !a)}
           className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer shadow-sm"
         >
@@ -664,8 +664,8 @@ function FormatRow({ fmt, onEdit, onDelete }: { fmt: SMFormat; onEdit: () => voi
         <span className="text-[12px] text-surface-500">{fmt.platform || "—"}</span>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer transition-colors"><Pencil size={13} /></button>
-        <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer transition-colors"><Trash2 size={13} /></button>
+        <button type="button" onClick={onEdit} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer transition-colors"><Pencil size={13} /></button>
+        <button type="button" onClick={onDelete} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer transition-colors"><Trash2 size={13} /></button>
       </div>
     </div>
   );
@@ -692,8 +692,8 @@ function FormatFormRow({ initial, onSave, onCancel }: { initial?: SMFormat; onSa
         className={`flex-1 ${inputCls}`} />
       <input value={platform} onChange={e => setPlatform(e.target.value)} placeholder="Instagram"
         className={`flex-1 ${inputCls}`} />
-      <button onClick={save} disabled={(!dim.trim() && !type.trim()) || loading} className="h-9 w-9 flex items-center justify-center rounded-xl bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0"><Check size={14} /></button>
-      <button onClick={onCancel} className="h-9 w-9 flex items-center justify-center rounded-xl hover:bg-surface-100 text-surface-400 cursor-pointer transition-colors shrink-0"><X size={14} /></button>
+      <button type="button" onClick={save} disabled={(!dim.trim() && !type.trim()) || loading} className="h-9 w-9 flex items-center justify-center rounded-xl bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0"><Check size={14} /></button>
+      <button type="button" onClick={onCancel} className="h-9 w-9 flex items-center justify-center rounded-xl hover:bg-surface-100 text-surface-400 cursor-pointer transition-colors shrink-0"><X size={14} /></button>
     </div>
   );
 }
@@ -723,7 +723,7 @@ function FormatsTab({ pool, onUpdate }: { pool: SocialMediaPool; onUpdate: (form
           <span className="w-28 shrink-0 text-[11px] font-bold text-surface-500 uppercase tracking-wide">Boyut</span>
           <span className="flex-1 text-[11px] font-bold text-surface-500 uppercase tracking-wide">Tür</span>
           <span className="w-32 shrink-0 text-[11px] font-bold text-surface-500 uppercase tracking-wide">Platform</span>
-          <button onClick={() => { setAdding(a => !a); setEditingId(null); }}
+          <button type="button" onClick={() => { setAdding(a => !a); setEditingId(null); }}
             className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-base-primary-900 text-white text-[12px] font-bold hover:bg-base-primary-800 cursor-pointer transition-all active:scale-95">
             <Plus size={12} /> Ekle
           </button>
@@ -802,7 +802,7 @@ function RuleTab({
       {/* ── Ortak Amaç Havuzu ── */}
       <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
         {/* Header — accordion toggle */}
-        <button
+        <button type="button"
           onClick={() => setListOpen(o => !o)}
           className="flex items-center gap-3 w-full px-6 py-4 hover:bg-surface-50 transition-colors cursor-pointer"
         >
@@ -828,7 +828,7 @@ function RuleTab({
                   <div key={i} className="flex items-center gap-2 px-3 py-2 bg-surface-50 border border-surface-100 rounded-xl text-[13px] text-text-primary">
                     <span className="w-1.5 h-1.5 rounded-full bg-base-primary-300 shrink-0" />
                     <span className="flex-1">{p}</span>
-                    <button onClick={() => deletePurpose(p)} className="shrink-0 text-surface-300 hover:text-status-danger-500 cursor-pointer transition-colors p-0.5">
+                    <button type="button" onClick={() => deletePurpose(p)} className="shrink-0 text-surface-300 hover:text-status-danger-500 cursor-pointer transition-colors p-0.5">
                       <X size={12} />
                     </button>
                   </div>
@@ -839,7 +839,7 @@ function RuleTab({
             )}
 
             {/* Yeni Amaç Ekle accordion */}
-            <button
+            <button type="button"
               onClick={() => setAddOpen(o => !o)}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-dashed border-base-primary-200 text-[12px] font-bold text-base-primary-600 hover:bg-base-primary-50 cursor-pointer transition-colors"
             >
@@ -861,7 +861,7 @@ function RuleTab({
                   className={`flex-1 ${inputCls}`}
                   autoFocus={addOpen}
                 />
-                <button onClick={addPurpose} disabled={!purposeInput.trim() || savingP}
+                <button type="button" onClick={addPurpose} disabled={!purposeInput.trim() || savingP}
                   className="h-9 px-4 rounded-xl bg-base-primary-600 text-white text-[12px] font-bold hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors flex items-center gap-1.5 shrink-0">
                   <Plus size={12} /> Ekle
                 </button>
@@ -885,7 +885,7 @@ function RuleTab({
           className="w-full px-4 py-3 text-[13px] border border-surface-200 rounded-xl bg-surface-50 outline-none focus:border-base-primary-400 focus:bg-white transition-colors resize-none"
         />
         <div className="flex justify-end">
-          <button onClick={saveRule} disabled={saving}
+          <button type="button" onClick={saveRule} disabled={saving}
             className="flex items-center gap-2 h-10 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-50 cursor-pointer transition-all active:scale-95">
             {saving
               ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -991,7 +991,7 @@ export default function SocialMediaPoolPanel() {
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-surface-100/70 p-1 rounded-2xl w-fit">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button type="button" key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
               tab === t.id
                 ? "bg-white text-base-primary-900 shadow-sm border-surface-100"

@@ -28,7 +28,7 @@ function DirectoryRow({ u, conversations, selectedId, onClick, presence }: { u: 
   const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
   const sel = !!conv && conv.id === selectedId;
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
       onClick={onClick}
       className="flex items-center gap-3 cursor-pointer transition-colors"
       style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
@@ -105,7 +105,7 @@ export function ConversationListColumn({
               : navTab === "staffDirectory" ? "Personel" : navTab === "studentDirectory" ? "Öğrenciler" : "Sohbetler"}
           </h1>
           {directoryList === null && (
-            <button
+            <button type="button"
               onClick={(e) => { setCreateDropdownPos(computePopoverPosition(e.currentTarget, "left", 480)); setQuickStartQuery(""); setCreateDropdownOpen((v) => !v); }}
               title="Yeni Sohbet Başlat"
               className="flex items-center justify-center cursor-pointer transition-all"
@@ -141,7 +141,7 @@ export function ConversationListColumn({
                     { type: "group" as const, label: "Yeni Grup Oluştur", Icon: UsersRound },
                     { type: "community" as const, label: "Yeni Topluluk Oluştur", Icon: UsersThreeIcon },
                   ].map((a) => (
-                    <button
+                    <button type="button"
                       key={a.type}
                       onClick={() => { setCreateInitialType(a.type); setCreateDropdownOpen(false); setCreateOpen(true); }}
                       className="flex items-center gap-3 w-full cursor-pointer transition-colors"
@@ -224,7 +224,7 @@ export function ConversationListColumn({
       {directoryList === null && (
         <div style={{ padding: "0 20px 12px" }} className="flex gap-1.5">
           {([{ key: "all", label: "Tümü" }, { key: "unread", label: "Okunmamış" }, { key: "pinned", label: "Sabitlenen" }] as { key: ListFilter; label: string }[]).map((f) => (
-            <button
+            <button type="button"
               key={f.key} onClick={() => setListFilter(f.key)}
               className="cursor-pointer transition-all font-bold"
               style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: listFilter === f.key ? "#EAF1FB" : "transparent", color: listFilter === f.key ? "#205297" : "#8A909B" }}
@@ -262,7 +262,7 @@ export function ConversationListColumn({
             const sel = c.id === selectedId;
             const rowMenuOpen = rowMenuOpenId === c.id;
             return (
-              <div
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                 key={c.id} onClick={() => selectConversation(c.id)}
                 className="group flex items-center gap-3 cursor-pointer transition-colors"
                 style={{ position: "relative", padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
@@ -285,13 +285,13 @@ export function ConversationListColumn({
                 </div>
                 {/* 3-nokta satır menüsü (2026-07-22) — hover'da belirir, tıklanınca satırın
                     kendisini AÇMAZ (`stopPropagation`). Masaüstü karşılığı: mobilde swipe. */}
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                   data-connect-dropdown
                   style={{ opacity: rowMenuOpen ? 1 : undefined }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <button
+                  <button type="button"
                     onClick={() => setRowMenuOpenId((v) => (v === c.id ? null : c.id))}
                     className="flex items-center justify-center cursor-pointer transition-colors"
                     style={{ width: 30, height: 30, borderRadius: 9, color: rowMenuOpen ? "#2867bd" : "#8A919C", background: rowMenuOpen ? "#EAF1FB" : "transparent" }}
@@ -300,19 +300,19 @@ export function ConversationListColumn({
                   </button>
                   {rowMenuOpen && (
                     <div className="absolute" style={{ right: 0, top: "100%", marginTop: 6, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.25)", zIndex: 30, overflow: "hidden", minWidth: 190 }}>
-                      <button onClick={() => handleToggleArchiveRow(c.id, c.archived)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                      <button type="button" onClick={() => handleToggleArchiveRow(c.id, c.archived)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                         {c.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />} {c.archived ? "Arşivden Çıkar" : "Arşivle"}
                       </button>
-                      <button onClick={() => handleClearConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                      <button type="button" onClick={() => handleClearConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                         <Eraser size={14} /> Sohbeti Temizle
                       </button>
                       {c.type === "dm" && (
-                        <button onClick={() => handleHideConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                        <button type="button" onClick={() => handleHideConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                           <Trash2 size={14} /> Sohbeti Sil
                         </button>
                       )}
                       {navTab === "archived" && c.type !== "dm" && c.isOwner && (
-                        <button onClick={() => handleDeleteConversationRow(c)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                        <button type="button" onClick={() => handleDeleteConversationRow(c)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                           <Trash2 size={14} /> {c.type === "channel" ? "Kanalı Sil" : c.type === "community" ? "Topluluğu Sil" : "Grubu Sil"}
                         </button>
                       )}

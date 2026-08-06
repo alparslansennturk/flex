@@ -34,8 +34,8 @@ function buildStoragePath(studentId: string, taskId: string, originalName: strin
   const timestamp = Date.now();
   // Dosya adındaki boşluk ve özel karakterleri temizle
   const safeName = originalName
-    .replace(/[^a-zA-Z0-9._\-öçşğüıÖÇŞĞÜİ]/g, "_")
-    .replace(/_{2,}/g, "_");
+    .replaceAll(/[^a-zA-Z0-9._\-öçşğüıÖÇŞĞÜİ]/g, "_")
+    .replaceAll(/_{2,}/g, "_");
   return `submissions/${studentId}/${taskId}/${timestamp}_${safeName}`;
 }
 

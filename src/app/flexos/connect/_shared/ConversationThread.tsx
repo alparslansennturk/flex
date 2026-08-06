@@ -133,7 +133,7 @@ export function ConversationThread({
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
+                <button type="button"
                   title="Mini Moda Geç"
                   onClick={onMinimize}
                   className="flex items-center justify-center cursor-pointer transition-colors"
@@ -141,7 +141,7 @@ export function ConversationThread({
                 >
                   <Minimize2 size={17} />
                 </button>
-                <button
+                <button type="button"
                   title="Kapat"
                   onClick={onClose}
                   className="flex items-center justify-center cursor-pointer transition-colors"
@@ -150,41 +150,41 @@ export function ConversationThread({
                   <X size={17} />
                 </button>
                 <div style={{ width: 1, height: 22, background: "#E9EBEF", margin: "0 3px" }} />
-                <button title="Mesajlarda ara" onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: searchOpen ? "#2867bd" : "#5A616C", background: searchOpen ? "#EAF1FB" : "transparent" }}>
+                <button type="button" title="Mesajlarda ara" onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: searchOpen ? "#2867bd" : "#5A616C", background: searchOpen ? "#EAF1FB" : "transparent" }}>
                   <Search size={17} />
                 </button>
                 {selected.type !== "dm" && selected.isAdmin && (
-                  <button title="Düzenle" onClick={openEditModal} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}>
+                  <button type="button" title="Düzenle" onClick={openEditModal} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}>
                     <Pencil size={17} />
                   </button>
                 )}
-                <button title="Bilgi" onClick={() => setInfoOpen((v) => !v)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: infoOpen ? "#2867bd" : "#5A616C", background: infoOpen ? "#EAF1FB" : "transparent" }}>
+                <button type="button" title="Bilgi" onClick={() => setInfoOpen((v) => !v)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: infoOpen ? "#2867bd" : "#5A616C", background: infoOpen ? "#EAF1FB" : "transparent" }}>
                   <Info size={17} />
                 </button>
                 <div className="relative" data-connect-dropdown>
-                  <button title="Menü" onClick={() => setMenuOpen((v) => !v)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: menuOpen ? "#2867bd" : "#5A616C", background: menuOpen ? "#EAF1FB" : "transparent" }}>
+                  <button type="button" title="Menü" onClick={() => setMenuOpen((v) => !v)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: menuOpen ? "#2867bd" : "#5A616C", background: menuOpen ? "#EAF1FB" : "transparent" }}>
                     <MoreVertical size={17} />
                   </button>
                   {menuOpen && (
                     <div className="absolute" style={{ right: 0, top: "100%", marginTop: 6, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.25)", zIndex: 30, overflow: "hidden", minWidth: 180 }}>
-                      <button onClick={handleTogglePin} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                      <button type="button" onClick={handleTogglePin} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                         {selected.pinned ? <StarOff size={14} /> : <Star size={14} />} {selected.pinned ? "Favorilerden Çıkar" : "Favorilere Ekle"}
                       </button>
                       {selected.type !== "dm" && !selected.isOwner && (
-                        <button onClick={handleLeave} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                        <button type="button" onClick={handleLeave} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                           <LogOut size={14} /> Konuşmadan Ayrıl
                         </button>
                       )}
                       {selected.isOwner && selected.type !== "dm" && (
-                        <button onClick={handleDeleteConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                        <button type="button" onClick={handleDeleteConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                           <Trash2 size={14} /> {selected.type === "channel" ? "Kanalı Sil" : selected.type === "community" ? "Topluluğu Sil" : "Grubu Sil"}
                         </button>
                       )}
-                      <button onClick={handleClearConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                      <button type="button" onClick={handleClearConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                         <Eraser size={14} /> Sohbeti Temizle
                       </button>
                       {selected.type === "dm" && (
-                        <button onClick={handleHideConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                        <button type="button" onClick={handleHideConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                           <Trash2 size={14} /> Sohbeti Sil
                         </button>
                       )}
@@ -261,7 +261,7 @@ export function ConversationThread({
                       {!m.isMine && grouped && <div style={{ width: 34, flexShrink: 0 }} />}
                       {m.isMine && !m.deletedForEveryone && (
                         <div className="relative self-center" data-connect-dropdown>
-                          <button
+                          <button type="button"
                             onClick={(e) => {
                               setPopoverPos(computePopoverPosition(e.currentTarget, "left", 130));
                               setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
@@ -329,7 +329,7 @@ export function ConversationThread({
 
                           {!m.deletedForEveryone && (
                             <div className="relative" data-connect-dropdown style={{ position: "absolute", top: 6, right: 6 }}>
-                              <button
+                              <button type="button"
                                 onClick={(e) => {
                                   setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
                                   setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
@@ -347,32 +347,32 @@ export function ConversationThread({
                                   style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 190, overflow: "hidden" }}
                                 >
                                   {m.isMine && (
-                                    <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                    <button type="button" onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                       <Pencil size={13} /> Düzenle
                                     </button>
                                   )}
-                                  <button onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                  <button type="button" onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                     <Reply size={13} /> Yanıtla
                                   </button>
-                                  <button onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                  <button type="button" onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                     {m.starred ? <StarOff size={13} /> : <Star size={13} />} {m.starred ? "Yıldızı Kaldır" : "Yıldızla"}
                                   </button>
                                   {m.text && (
-                                    <button onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                    <button type="button" onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                       <Copy size={13} /> Kopyala
                                     </button>
                                   )}
                                   {selected?.type === "group" && !m.isMine && (
-                                    <button onClick={() => startReplyPrivately(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                    <button type="button" onClick={() => startReplyPrivately(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                       <Reply size={13} /> Özelden Yanıtla
                                     </button>
                                   )}
                                   {m.isMine && (
-                                    <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                    <button type="button" onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                                       <Trash2 size={13} /> Herkes İçin Sil
                                     </button>
                                   )}
-                                  <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                  <button type="button" onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                     <X size={13} /> Benim İçin Sil
                                   </button>
                                 </div>,
@@ -384,7 +384,7 @@ export function ConversationThread({
                         {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                           <div className="flex gap-1 flex-wrap" style={{ marginTop: 4, justifyContent: m.isMine ? "flex-end" : "flex-start" }}>
                             {Object.entries(m.reactionCounts).map(([emoji, count]) => (
-                              <button
+                              <button type="button"
                                 key={emoji}
                                 onClick={() => handleReact(m.id, emoji)}
                                 className="inline-flex items-center gap-1 cursor-pointer transition-all"
@@ -399,7 +399,7 @@ export function ConversationThread({
                       </div>
                       {!m.isMine && !m.deletedForEveryone && (
                         <div className="relative self-center" data-connect-dropdown>
-                          <button
+                          <button type="button"
                             onClick={(e) => {
                               setPopoverPos(computePopoverPosition(e.currentTarget, "right", 130));
                               setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
@@ -446,7 +446,7 @@ export function ConversationThread({
                 {editingMessageId && (
                   <div className="flex items-center justify-between" style={{ padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: "#EAF1FB" }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: "#205297" }}>Mesajı düzenliyorsun</span>
-                    <button onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                    <button type="button" onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
                       <X size={14} />
                     </button>
                   </div>
@@ -457,7 +457,7 @@ export function ConversationThread({
                       <div style={{ fontSize: 11.5, fontWeight: 700, color: "#205297" }}>{replyingTo.authorName}</div>
                       <div style={{ fontSize: 12, color: "#4A6FA5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{replyingTo.textSnippet}</div>
                     </div>
-                    <button onClick={() => setReplyingTo(null)} className="flex items-center justify-center cursor-pointer shrink-0" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                    <button type="button" onClick={() => setReplyingTo(null)} className="flex items-center justify-center cursor-pointer shrink-0" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
                       <X size={14} />
                     </button>
                   </div>
@@ -481,7 +481,7 @@ export function ConversationThread({
                     style={{ border: "none", background: "transparent", fontSize: 14, lineHeight: 1.5, color: "#1B1F26", padding: "9px 2px", maxHeight: 120, minHeight: 24 }}
                   />
                   <EmojiButton onPick={(e) => setDraft((d) => d + e)} />
-                  <button
+                  <button type="button"
                     onClick={send} disabled={!draft.trim() || sending} title="Gönder"
                     className="flex items-center justify-center shrink-0 transition-colors"
                     style={{ width: 40, height: 40, borderRadius: 11, border: "none", color: "#fff", background: draft.trim() ? "#2867bd" : "#C3CAD4", cursor: draft.trim() ? "pointer" : "default" }}
@@ -504,7 +504,7 @@ export function ConversationThread({
               >
                 <div className="flex items-center justify-between shrink-0" style={{ height: 56, padding: "0 16px", borderBottom: "1px solid #EEF0F3" }}>
                   <span style={{ fontSize: 13.5, fontWeight: 800, color: "#1B1F26" }}>Bilgi</span>
-                  <button onClick={() => setInfoOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 28, height: 28, borderRadius: 8, color: "#6B717C" }}><X size={15} /></button>
+                  <button type="button" onClick={() => setInfoOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 28, height: 28, borderRadius: 8, color: "#6B717C" }}><X size={15} /></button>
                 </div>
                 <div className="flex-1 overflow-y-auto" style={{ padding: 16 }}>
                   {!detail ? (
@@ -531,7 +531,7 @@ export function ConversationThread({
                             )}
                             {/* Üye çıkar (2026-07-18, kullanıcı isteği) — SADECE admin, sahip HARİÇ. */}
                             {selected?.isAdmin && m.uid !== detail.ownerUid && (
-                              <button title="Çıkar" onClick={() => handleRemoveMember(m.uid)} className="shrink-0 cursor-pointer flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 6, color: "#A2A8B2" }}>
+                              <button type="button" title="Çıkar" onClick={() => handleRemoveMember(m.uid)} className="shrink-0 cursor-pointer flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 6, color: "#A2A8B2" }}>
                                 <X size={13} />
                               </button>
                             )}
@@ -545,7 +545,7 @@ export function ConversationThread({
                         <div className="mt-4 pt-4" style={{ borderTop: "1px solid #EEF0F3" }}>
                           <div className="flex gap-1.5 mb-2.5">
                             {([{ key: "member", label: "Üye" }, { key: "guest", label: "Misafir" }] as { key: "member" | "guest"; label: string }[]).map((r) => (
-                              <button
+                              <button type="button"
                                 key={r.key} onClick={() => setAddMemberRole(r.key)}
                                 className="cursor-pointer transition-all font-bold" style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid transparent", fontSize: 12, background: addMemberRole === r.key ? "#EAF1FB" : "transparent", color: addMemberRole === r.key ? "#205297" : "#8A909B" }}
                               >
@@ -562,7 +562,7 @@ export function ConversationThread({
                             <div className="flex flex-col gap-1 mb-2" style={{ maxHeight: 130, overflowY: "auto" }}>
                               {guestCandidates.length === 0 && <p style={{ fontSize: 11.5, color: "#A2A8B2" }}>Bulunamadı.</p>}
                               {guestCandidates.map((u) => (
-                                <button key={u.uid} onClick={() => setSelectedGuestUid(u.uid)} className="text-left cursor-pointer transition-colors" style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: "transparent", fontSize: 12.5, fontWeight: 600, color: "#1B1F26" }}>
+                                <button type="button" key={u.uid} onClick={() => setSelectedGuestUid(u.uid)} className="text-left cursor-pointer transition-colors" style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: "transparent", fontSize: 12.5, fontWeight: 600, color: "#1B1F26" }}>
                                   {u.name}
                                 </button>
                               ))}
@@ -579,7 +579,7 @@ export function ConversationThread({
                                     {GUEST_TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
                                   </select>
                                 )}
-                                <button onClick={handleAddGuest} className="cursor-pointer" style={{ padding: "0 14px", borderRadius: 9, border: "none", background: "#2867bd", color: "#fff", fontSize: 12, fontWeight: 700, flex: addMemberRole === "guest" ? undefined : 1 }}>Ekle</button>
+                                <button type="button" onClick={handleAddGuest} className="cursor-pointer" style={{ padding: "0 14px", borderRadius: 9, border: "none", background: "#2867bd", color: "#fff", fontSize: 12, fontWeight: 700, flex: addMemberRole === "guest" ? undefined : 1 }}>Ekle</button>
                               </div>
                             </div>
                           )}

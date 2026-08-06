@@ -5,7 +5,7 @@ import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
 function formatTRDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
-  return `${parseInt(d)} ${TR_MONTHS[parseInt(m) - 1]} ${y}`;
+  return `${Number.parseInt(d)} ${TR_MONTHS[Number.parseInt(m) - 1]} ${y}`;
 }
 
 /** Türkiye saati (UTC+3) ile şimdiki dakikayı döndürür */
@@ -32,8 +32,8 @@ function parseSession(session: string): { start: number; end: number } | null {
   const match = session.match(/(\d{1,2})[.:](\d{2})\s*[-–]\s*(\d{1,2})[.:](\d{2})/);
   if (!match) return null;
   return {
-    start: parseInt(match[1]) * 60 + parseInt(match[2]),
-    end:   parseInt(match[3]) * 60 + parseInt(match[4]),
+    start: Number.parseInt(match[1]) * 60 + Number.parseInt(match[2]),
+    end:   Number.parseInt(match[3]) * 60 + Number.parseInt(match[4]),
   };
 }
 

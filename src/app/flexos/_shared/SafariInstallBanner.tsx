@@ -107,13 +107,13 @@ export default function SafariInstallBanner({ isSafari, installed, bannerDismiss
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
-                <button
+                <button type="button"
                   onClick={dismissBanner}
                   style={{ padding: "9px 10px", background: "none", border: "none", color: "#6F7B87", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
                 >
                   Kapat
                 </button>
-                <button
+                <button type="button"
                   onClick={() => setStepsOpen((v) => !v)}
                   style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: "#2867bd", color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
                 >
@@ -143,7 +143,7 @@ export default function SafariInstallBanner({ isSafari, installed, bannerDismiss
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>Nasıl Kurulur</span>
-                    <button
+                    <button type="button"
                       onClick={() => setStepsOpen(false)}
                       aria-label="Kapat"
                       style={{ width: 22, height: 22, border: "none", background: "none", color: "#8E95A3", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -163,7 +163,7 @@ export default function SafariInstallBanner({ isSafari, installed, bannerDismiss
                   </ol>
 
                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #F2F3F5" }}>
-                    <button
+                    <button type="button"
                       onClick={handleTempDismiss}
                       style={{ width: "100%", padding: "8px 0", background: "none", border: "none", color: "#6F7B87", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
                     >

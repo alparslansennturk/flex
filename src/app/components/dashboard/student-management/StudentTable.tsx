@@ -104,14 +104,14 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   <div className="flex items-center gap-4">
                     <span className="text-[12px] font-bold tracking-tight">{selectedStudentIds.length} Seçildi</span>
                     <div className="w-px h-4 bg-white/20" />
-                    <button
+                    <button type="button"
                       onClick={() => setDeleteModal({ isOpen: true, studentId: "bulk", deleteType: 'active' })}
                       className="flex items-center gap-1.5 text-[12px] font-bold text-red-300 hover:text-red-100 transition-colors cursor-pointer outline-none"
                     >
                       <Trash2 size={14} /> Seçilenleri Sil
                     </button>
                   </div>
-                  <button
+                  <button type="button"
                     onClick={() => toggleStudentSelection('clear-all')}
                     className="text-[11px] font-bold text-white/50 hover:text-white transition-colors cursor-pointer underline underline-offset-4"
                   >
@@ -160,7 +160,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                         />
                       )}
                       {onStudentClick ? (
-                        <button
+                        <button type="button"
                           onClick={(e) => { e.stopPropagation(); onStudentClick(student); }}
                           className="text-[13px] font-medium text-neutral-900 leading-none hover:text-[#3a7bd5] transition-colors cursor-pointer outline-none text-left truncate"
                         >
@@ -184,7 +184,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   )}
                   <td className="px-6 pr-6 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      <button
+                      <button type="button"
                         onClick={(e) => { e.stopPropagation(); handleEditStudent(student); }}
                         title="Düzenle"
                         className="text-[#8B5CF6] hover:text-[#6D28D9] transition-colors cursor-pointer outline-none"
@@ -194,14 +194,14 @@ export const StudentTable: React.FC<StudentTableProps> = ({
 
                       {isPassive ? (
                         <>
-                          <button
+                          <button type="button"
                             onClick={(e) => { e.stopPropagation(); handleRestoreStudent(student.id); }}
                             title="Aktife al"
                             className="text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer outline-none"
                           >
                             <RotateCcw size={16} />
                           </button>
-                          <button
+                          <button type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduated' });
@@ -214,14 +214,14 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                         </>
                       ) : (
                         <>
-                          <button
+                          <button type="button"
                             onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduate' }); }}
                             title="Mezun Et"
                             className="text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer outline-none"
                           >
                             <GraduationCap size={16} />
                           </button>
-                          <button
+                          <button type="button"
                             onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'active' }); }}
                             title="Sil"
                             className="text-red-400 hover:text-red-600 transition-colors cursor-pointer outline-none"

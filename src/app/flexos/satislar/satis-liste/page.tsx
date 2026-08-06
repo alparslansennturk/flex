@@ -75,20 +75,20 @@ function initials(name: string) {
 function fmtDate(iso: string): string {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00");
-  if (isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function fmtDdMm(iso: string): string {
   const d = new Date(iso + "T00:00:00");
-  if (isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
 }
 
 function isInRange(dateStr: string, donem: DonemKey, customStart?: string, customEnd?: string): boolean {
   if (!dateStr) return true;
   const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d.getTime())) return true;
+  if (Number.isNaN(d.getTime())) return true;
   const now = new Date();
   if (donem === "bu-ay") {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -100,11 +100,11 @@ function isInRange(dateStr: string, donem: DonemKey, customStart?: string, custo
   if (donem === "custom") {
     if (customStart) {
       const start = new Date(customStart + "T00:00:00");
-      if (!isNaN(start.getTime()) && d < start) return false;
+      if (!Number.isNaN(start.getTime()) && d < start) return false;
     }
     if (customEnd) {
       const end = new Date(customEnd + "T00:00:00");
-      if (!isNaN(end.getTime()) && d > end) return false;
+      if (!Number.isNaN(end.getTime()) && d > end) return false;
     }
     return true;
   }
@@ -267,7 +267,7 @@ export default function SatisListePage() {
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
           left={showStudentPanel ? (
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <button
+              <button type="button"
                 onClick={() => setShowStudentPanel(false)}
                 style={{ width: 46, height: 46, borderRadius: 13, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", cursor: "pointer", flexShrink: 0 }}
               >
@@ -308,7 +308,7 @@ export default function SatisListePage() {
               icon={<IconCiro />} bg="#E2EAF3" iconColor="#205297" label="Toplam Satış Cirosu" value={fmtTL(totalCiro)}
               topRight={
                 <div style={{ position: "relative" }}>
-                  <button
+                  <button type="button"
                     onClick={() => setSubeOpen((p) => !p)}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 8,
@@ -325,7 +325,7 @@ export default function SatisListePage() {
                       background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: "6px 0",
                       boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)",
                     }}>
-                      <button
+                      <button type="button"
                         onClick={() => { setSubeFilter("__all__"); setSubeOpen(false); }}
                         style={{
                           display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", border: "none",
@@ -340,7 +340,7 @@ export default function SatisListePage() {
                       {officeOptions.map((o) => {
                         const active = subeFilter === o;
                         return (
-                          <button
+                          <button type="button"
                             key={o}
                             onClick={() => { setSubeFilter(o); setSubeOpen(false); }}
                             style={{
@@ -377,7 +377,7 @@ export default function SatisListePage() {
                 {(Object.keys(DONEM_LABELS) as DonemKey[]).map((k) => {
                   const on = donem === k;
                   return (
-                    <button
+                    <button type="button"
                       key={k}
                       onClick={() => {
                         if (k === "custom") {
@@ -416,7 +416,7 @@ export default function SatisListePage() {
               {([["sales", "Satışlar"], ["transfers", "Transferler"], ["all", "Tümü"]] as const).map(([k, label]) => {
                 const on = saleKind === k;
                 return (
-                  <button key={k} onClick={() => setSaleKind(k)}
+                  <button type="button" key={k} onClick={() => setSaleKind(k)}
                     style={{ padding: "9px 15px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: on ? 700 : 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", transition: "all .14s", color: on ? "#fff" : "#6F7B87", background: on ? "linear-gradient(135deg,#2867bd,#205297)" : "transparent", boxShadow: on ? "0 4px 10px -4px rgba(32,82,151,.5)" : "none" }}>
                     {label}
                   </button>
@@ -426,7 +426,7 @@ export default function SatisListePage() {
 
             {/* branş filtresi */}
             <div style={{ position: "relative" }}>
-              <button
+              <button type="button"
                 onClick={() => setBransOpen((p) => !p)}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 11,
@@ -445,7 +445,7 @@ export default function SatisListePage() {
                   background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: "6px 0",
                   boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)",
                 }}>
-                  <button
+                  <button type="button"
                     onClick={() => { setBransFilter("__all__"); setBransOpen(false); }}
                     style={{
                       display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", border: "none",
@@ -461,7 +461,7 @@ export default function SatisListePage() {
                     const active = bransFilter === b;
                     const br = BRANS_COLORS[b] ?? BRANS_FALLBACK;
                     return (
-                      <button
+                      <button type="button"
                         key={b}
                         onClick={() => { setBransFilter(b); setBransOpen(false); }}
                         style={{
@@ -534,7 +534,7 @@ export default function SatisListePage() {
                         <tr key={s.id} style={{ borderBottom: "1px solid #EEF0F3", opacity: isCancelled ? 0.6 : 1 }}>
                           <td style={S.tdFirst}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtDate(s.date)}</span></td>
                           <td style={S.td}>
-                            <button
+                            <button type="button"
                               onClick={() => openStudentPanel(s.personId)}
                               style={{ display: "flex", alignItems: "center", gap: 11, border: "none", background: "transparent", padding: 0, cursor: "pointer", font: "inherit" }}
                             >
@@ -568,7 +568,7 @@ export default function SatisListePage() {
                           </td>
                           <td style={S.tdRight}>
                             {!isCancelled && (
-                              <button
+                              <button type="button"
                                 onClick={() => { setCancelTarget(s); setCancelReason(""); }}
                                 style={{ padding: "6px 14px", borderRadius: 9, border: "1px solid #E5484D", background: "#fff", color: "#B42318", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", transition: "all .14s" }}
                                 onMouseEnter={(e) => { e.currentTarget.style.background = "#FFF1F0"; }}
@@ -594,17 +594,17 @@ export default function SatisListePage() {
                 </div>
                 {totalPages > 1 && (
                   <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                    <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
                       style={{ ...S.pageBtn, color: page === 1 ? "#AEB4C0" : "#414B59", cursor: page === 1 ? "not-allowed" : "pointer" }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                     </button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                      <button key={p} onClick={() => setPage(p)}
+                      <button type="button" key={p} onClick={() => setPage(p)}
                         style={{ ...S.pageBtn, minWidth: 36, border: p === page ? "1px solid #2867bd" : "1px solid #E2E5EA", background: p === page ? "#2867bd" : "#fff", color: p === page ? "#fff" : "#414B59", fontWeight: p === page ? 700 : 600, fontSize: 13.5 }}>
                         {p}
                       </button>
                     ))}
-                    <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
                       style={{ ...S.pageBtn, color: page === totalPages ? "#AEB4C0" : "#414B59", cursor: page === totalPages ? "not-allowed" : "pointer" }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                     </button>
@@ -628,7 +628,7 @@ export default function SatisListePage() {
       {/* ── İptal Onay Modalı ── */}
       {cancelTarget && (
         <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={() => { if (!cancelling) { setCancelTarget(null); setCancelReason(""); } }} style={{ position: "absolute", inset: 0, background: "rgba(15,31,61,.35)", backdropFilter: "blur(4px)" }} />
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => { if (!cancelling) { setCancelTarget(null); setCancelReason(""); } }} style={{ position: "absolute", inset: 0, background: "rgba(15,31,61,.35)", backdropFilter: "blur(4px)" }} />
           <div style={{ position: "relative", width: 440, maxWidth: "90vw", background: "#fff", borderRadius: 20, padding: "28px 28px 22px", boxShadow: "0 20px 50px -12px rgba(15,31,61,.25)" }}>
             {/* header */}
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
@@ -649,10 +649,10 @@ export default function SatisListePage() {
             </div>
 
             {/* sebep */}
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#414B59", marginBottom: 7 }}>
+            <label htmlFor="cancelReason" style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#414B59", marginBottom: 7 }}>
               İptal Sebebi <span style={{ color: "#8E95A3", fontWeight: 500 }}>(opsiyonel)</span>
             </label>
-            <textarea
+            <textarea id="cancelReason"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
               placeholder="Neden iptal ediliyor?"
@@ -662,14 +662,14 @@ export default function SatisListePage() {
 
             {/* butonlar */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-              <button
+              <button type="button"
                 onClick={() => { setCancelTarget(null); setCancelReason(""); }}
                 disabled={cancelling}
                 style={{ padding: "10px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
               >
                 Vazgeç
               </button>
-              <button
+              <button type="button"
                 onClick={handleCancel}
                 disabled={cancelling}
                 style={{ padding: "10px 20px", borderRadius: 11, border: "none", background: cancelling ? "#D98B8B" : "#B42318", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: cancelling ? "not-allowed" : "pointer", transition: "background .14s" }}
@@ -682,7 +682,7 @@ export default function SatisListePage() {
       )}
 
       {/* dropdown backdrop */}
-      {(donemOpen || bransOpen || subeOpen || customCalOpen) && <div onClick={() => { setDonemOpen(false); setBransOpen(false); setSubeOpen(false); setCustomCalOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+      {(donemOpen || bransOpen || subeOpen || customCalOpen) && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => { setDonemOpen(false); setBransOpen(false); setSubeOpen(false); setCustomCalOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
     </div>
   );
 }
@@ -749,13 +749,13 @@ function MiniRangeCalendar({ start, end, onSelectStart, onSelectEnd, onClear }: 
   };
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: 14, boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)", width: 268 }} onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: 14, boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)", width: 268 }} onClick={(e) => e.stopPropagation()}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#F1F3F5", color: "#414B59", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button type="button" onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#F1F3F5", color: "#414B59", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
         <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{AY_ADLARI[month]} {year}</span>
-        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#F1F3F5", color: "#414B59", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button type="button" onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#F1F3F5", color: "#414B59", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
       </div>
@@ -772,7 +772,7 @@ function MiniRangeCalendar({ start, end, onSelectStart, onSelectEnd, onClear }: 
           const inRange = !!start && !!end && iso > start && iso < end;
           const isToday = iso === todayIso;
           return (
-            <button
+            <button type="button"
               key={iso}
               onClick={() => handlePick(iso)}
               style={{
@@ -783,7 +783,7 @@ function MiniRangeCalendar({ start, end, onSelectStart, onSelectEnd, onClear }: 
                 boxShadow: isToday && !isStart && !isEnd ? "inset 0 0 0 1.5px #2867bd" : "none",
               }}
             >
-              {parseInt(iso.slice(8, 10), 10)}
+              {Number.parseInt(iso.slice(8, 10), 10)}
             </button>
           );
         })}
@@ -793,7 +793,7 @@ function MiniRangeCalendar({ start, end, onSelectStart, onSelectEnd, onClear }: 
           {start ? `${fmtDdMm(start)}${end ? ` – ${fmtDdMm(end)}` : " – …"}` : "Başlangıç seçin"}
         </span>
         {(start || end) && (
-          <button onClick={onClear} style={{ fontSize: 11.5, fontWeight: 700, color: "#D93636", border: "none", background: "transparent", cursor: "pointer" }}>Temizle</button>
+          <button type="button" onClick={onClear} style={{ fontSize: 11.5, fontWeight: 700, color: "#D93636", border: "none", background: "transparent", cursor: "pointer" }}>Temizle</button>
         )}
       </div>
     </div>

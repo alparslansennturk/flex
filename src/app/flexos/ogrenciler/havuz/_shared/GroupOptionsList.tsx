@@ -21,7 +21,7 @@ export function GroupOptionsList({ groupOptions, selectedGroupId, selectedEnroll
         const sel = selectedGroupId === g.id && (g.enrollmentId ?? "") === (selectedEnrollmentId ?? "");
         const blocked = !!g.conflictWith;
         return (
-          <div key={`${g.id}-${g.enrollmentId}`} className={blocked ? undefined : "oh-grow"}
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={`${g.id}-${g.enrollmentId}`} className={blocked ? undefined : "oh-grow"}
             onClick={() => { if (!blocked) onSelect(g.id, g.enrollmentId); }}
             title={blocked ? `${g.conflictWith} grubuyla saat/gün çakışıyor` : undefined}
             style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: blocked ? "not-allowed" : "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff", opacity: blocked ? 0.45 : 1 }}>

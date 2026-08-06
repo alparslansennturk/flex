@@ -44,7 +44,7 @@ export function TimelineView({ isDayV, tlCols, colWidth, timelineWidth, gutter, 
               {hourLabels.map((h) => <div key={h.label} style={{ position: "absolute", left: 0, right: 0, top: h.top, height: 1, background: T.gridC }} />)}
               {col.isToday && <div style={{ position: "absolute", left: 0, right: 0, top: (((NOW_MIN - AX_START) / 60) * HOURH) + "px", height: 2, background: "#FF5A5F", zIndex: 6 }} />}
               {col.blocks.map((b, bi) => (
-                <div key={bi} onClick={() => onBlockClick({ group: b.group, instructor: b.instructor, students: b.students, timeText: b.timeText, labName: b.labName })} style={{
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={bi} onClick={() => onBlockClick({ group: b.group, instructor: b.instructor, students: b.students, timeText: b.timeText, labName: b.labName })} style={{
                   position: "absolute", top: b.top + "px", left: "calc(4px + 0px)", right: "calc(4px + 0px)", height: b.height + "px", borderRadius: 9, padding: "7px 9px", overflow: "hidden",
                   display: "flex", flexDirection: "column", gap: 2, cursor: "pointer", zIndex: b.isConflict ? 4 : 2,
                   background: b.isConflict ? `repeating-linear-gradient(135deg,${T.confBg} 0,${T.confBg} 9px,#F7DEDC 9px,#F7DEDC 16px)` : T.busyBg,

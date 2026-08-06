@@ -79,19 +79,17 @@ export function EgitimTab({
     <>
       {/* Satış Modu toggle */}
       <div style={{ display: "flex", gap: 8, marginBottom: 22 }}>
-        <button
+        <button type="button"
           onClick={onSelectBireysel}
           style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 40, padding: "0 18px", borderRadius: 10, border: "none", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", transition: "all .15s",
             ...(satisModu === "bireysel" ? { background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", boxShadow: "0 4px 12px -4px rgba(32,82,151,.4)" } : { background: "#eef2f8", color: "#64748b" }) }}>
-          <span dangerouslySetInnerHTML={{ __html: IC.user }} />
-          Bireysel Eğitim
+          <span dangerouslySetInnerHTML={{ __html: IC.user }} />Bireysel Eğitim
         </button>
-        <button
+        <button type="button"
           onClick={onSelectPaket}
           style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 40, padding: "0 18px", borderRadius: 10, border: "none", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", transition: "all .15s",
             ...(satisModu === "paket" ? { background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", boxShadow: "0 4px 12px -4px rgba(32,82,151,.4)" } : { background: "#eef2f8", color: "#64748b" }) }}>
-          <span dangerouslySetInnerHTML={{ __html: IC.layers }} />
-          Paket Satışı
+          <span dangerouslySetInnerHTML={{ __html: IC.layers }} />Paket Satışı
         </button>
       </div>
 
@@ -246,7 +244,7 @@ export function EgitimTab({
                       <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{node.tracks.length} track{node.sec.hours ? ` · ${node.sec.hours} saat` : ""}</div>
                     </div>
                     {ids.length > 0 && (
-                      <span onClick={() => setManyTracks(ids, !allOn)} style={navyBox(allOn, someOn && !allOn)}>
+                      <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setManyTracks(ids, !allOn)} style={navyBox(allOn, someOn && !allOn)}>
                         {allOn ? <span dangerouslySetInnerHTML={{ __html: IC.check }} /> : someOn ? <span style={{ width: 10, height: 2.5, borderRadius: 2, background: "#fff" }} /> : null}
                       </span>
                     )}
@@ -257,7 +255,7 @@ export function EgitimTab({
                       {node.tracks.map((t) => {
                         const on = trackOn(t.id);
                         return (
-                          <div key={t.id} onClick={() => toggleTrack(t.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, cursor: "pointer", userSelect: "none", background: on ? "#f8faff" : "transparent", transition: "background .14s" }}>
+                          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={t.id} onClick={() => toggleTrack(t.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, cursor: "pointer", userSelect: "none", background: on ? "#f8faff" : "transparent", transition: "background .14s" }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{t.name}</div>
                             </div>

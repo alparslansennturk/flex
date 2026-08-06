@@ -154,22 +154,22 @@ export const UserForm: React.FC<UserFormProps> = ({
             <div className="flex-1 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-1">
-                        <label className="text-[12px] font-bold text-neutral-500 ml-1">Ad</label>
-                        <input name="name" defaultValue={editingUser?.name} placeholder="Örn: Alparslan" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.name ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <label htmlFor="fld1" className="text-[12px] font-bold text-neutral-500 ml-1">Ad</label>
+                        <input id="fld1" name="name" defaultValue={editingUser?.name} placeholder="Örn: Alparslan" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.name ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[12px] font-bold text-neutral-500 ml-1">Soyad</label>
-                        <input name="surname" defaultValue={editingUser?.surname} placeholder="Örn: Akdağ" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.surname ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <label htmlFor="fld2" className="text-[12px] font-bold text-neutral-500 ml-1">Soyad</label>
+                        <input id="fld2" name="surname" defaultValue={editingUser?.surname} placeholder="Örn: Akdağ" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.surname ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-1">
-                        <label className="text-[12px] font-bold text-neutral-500 ml-1">E-Posta</label>
-                        <input name="email" type="email" defaultValue={editingUser?.email} placeholder="ornek@email.com" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.email ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <label htmlFor="fld3" className="text-[12px] font-bold text-neutral-500 ml-1">E-Posta</label>
+                        <input id="fld3" name="email" type="email" defaultValue={editingUser?.email} placeholder="ornek@email.com" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.email ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[12px] font-bold text-neutral-500 ml-1">Telefon</label>
-                        <input name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.phone ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <label htmlFor="fld4" className="text-[12px] font-bold text-neutral-500 ml-1">Telefon</label>
+                        <input id="fld4" name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.phone ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                 </div>
             </div>
@@ -180,8 +180,8 @@ export const UserForm: React.FC<UserFormProps> = ({
 
             {/* Rol */}
             <div className="space-y-1 relative" ref={roleDropdownRef}>
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Rol</label>
-                <div onClick={(e) => { if (!isRoleDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setRoleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsRoleDropdownOpen(!isRoleDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                <label id="lbl5" className="text-[12px] font-bold text-neutral-500 ml-1">Rol</label>
+                <div aria-labelledby="lbl5" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => { if (!isRoleDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setRoleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsRoleDropdownOpen(!isRoleDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
                     <span className={`text-[13px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{selectedRoles.length > 0 ? selectedRoles.map((r) => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
                     <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isRoleDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
@@ -189,8 +189,8 @@ export const UserForm: React.FC<UserFormProps> = ({
 
             {/* Branş — Rol'ün yanında, sadece eğitmen seçilince aktif */}
             <div className="space-y-1 relative" ref={branchDropdownRef}>
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Branş</label>
-                <div
+                <label id="lbl6" className="text-[12px] font-bold text-neutral-500 ml-1">Branş</label>
+                <div aria-labelledby="lbl6" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                     onClick={(e) => { if (selectedRoles.includes('instructor') && availableBranches.length > 0) { if (!isBranchDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsBranchDropdownOpen(!isBranchDropdownOpen); } }}
                     className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between transition-all duration-200 ${
                         !selectedRoles.includes('instructor')
@@ -213,15 +213,15 @@ export const UserForm: React.FC<UserFormProps> = ({
 
             {/* Ünvan */}
             <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Ünvan</label>
-                <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Grafik Tasarım Eğitmeni" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                <label htmlFor="fld7" className="text-[12px] font-bold text-neutral-500 ml-1">Ünvan</label>
+                <input id="fld7" name="title" defaultValue={editingUser?.title} placeholder="Örn: Grafik Tasarım Eğitmeni" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
 
             {/* Şube (coğrafi) */}
             <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Şube</label>
-                <input type="hidden" name="branch" value={localLocation} />
-                <div onClick={(e) => { if (!isLocationDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setLocationDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsLocationDropdownOpen(!isLocationDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isLocationDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                <label htmlFor="localLocation" className="text-[12px] font-bold text-neutral-500 ml-1">Şube</label>
+                <input id="localLocation" type="hidden" name="branch" value={localLocation} />
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => { if (!isLocationDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setLocationDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsLocationDropdownOpen(!isLocationDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isLocationDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
                     <span className={`text-[13px] ${localLocation ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{localLocation || 'Şube Seçiniz...'}</span>
                     <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isLocationDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
@@ -229,9 +229,9 @@ export const UserForm: React.FC<UserFormProps> = ({
 
             {/* Cinsiyet */}
             <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Cinsiyet</label>
-                <input type="hidden" name="gender" value={localGender} />
-                <div onClick={(e) => { if (!isGenderDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGenderDropdownOpen(!isGenderDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.gender ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isGenderDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                <label htmlFor="localGender" className="text-[12px] font-bold text-neutral-500 ml-1">Cinsiyet</label>
+                <input id="localGender" type="hidden" name="gender" value={localGender} />
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => { if (!isGenderDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGenderDropdownOpen(!isGenderDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.gender ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isGenderDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
                     <span className={`text-[13px] ${localGender ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{localGender === 'male' ? 'Erkek' : localGender === 'female' ? 'Kadın' : 'Cinsiyet Seçiniz...'}</span>
                     <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isGenderDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
@@ -239,8 +239,8 @@ export const UserForm: React.FC<UserFormProps> = ({
 
             {/* Doğum Tarihi */}
             <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Doğum Tarihi</label>
-                <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: React.FormEvent<HTMLInputElement>) => { const t = e.target as HTMLInputElement; let v = t.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); t.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                <label htmlFor="fld8" className="text-[12px] font-bold text-neutral-500 ml-1">Doğum Tarihi</label>
+                <input id="fld8" name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: React.FormEvent<HTMLInputElement>) => { const t = e.target as HTMLInputElement; let v = t.value.replaceAll(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); t.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
 
         </div>
@@ -265,7 +265,7 @@ export const UserForm: React.FC<UserFormProps> = ({
                     const isLocked = selectedRoles.includes('admin');
                     const IconComponent = perm.icon === 'assignment' ? ClipboardList : perm.icon === 'class' ? Users : LayoutDashboard;
                     return (
-                        <div
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                             key={perm.id}
                             onClick={() => !isLocked && handlePermissionChange(perm.id, !isEnabled)}
                             className={`flex items-center gap-4 p-4 rounded-2xl border-l-[3px] transition-all duration-200 select-none ${
@@ -334,7 +334,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         {mounted && createPortal(
             <>
                 {isRoleDropdownOpen && (
-                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsRoleDropdownOpen(false)} />
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsRoleDropdownOpen(false)} />
                 )}
                 <AnimatePresence>
                     {isRoleDropdownOpen && (
@@ -367,7 +367,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         {mounted && createPortal(
             <>
                 {isGenderDropdownOpen && (
-                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsGenderDropdownOpen(false)} />
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsGenderDropdownOpen(false)} />
                 )}
                 <AnimatePresence>
                     {isGenderDropdownOpen && (
@@ -380,7 +380,7 @@ export const UserForm: React.FC<UserFormProps> = ({
                             style={{ transformOrigin: 'top', top: genderDropPos.top, left: genderDropPos.left, width: genderDropPos.width }}
                         >
                             {[{ value: 'male', label: 'Erkek' }, { value: 'female', label: 'Kadın' }].map(opt => (
-                                <div
+                                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                                     key={opt.value}
                                     onClick={() => {
                                         const val = opt.value as 'male' | 'female';
@@ -406,7 +406,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         {mounted && createPortal(
             <>
                 {isLocationDropdownOpen && (
-                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsLocationDropdownOpen(false)} />
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsLocationDropdownOpen(false)} />
                 )}
                 <AnimatePresence>
                     {isLocationDropdownOpen && (
@@ -419,7 +419,7 @@ export const UserForm: React.FC<UserFormProps> = ({
                             style={{ transformOrigin: 'top', top: locationDropPos.top, left: locationDropPos.left, width: locationDropPos.width }}
                         >
                             {['Kadıköy Şb', 'Şirinevler Şb', 'Pendik Şb'].map(loc => (
-                                <div
+                                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                                     key={loc}
                                     onClick={() => { setLocalLocation(loc); setIsLocationDropdownOpen(false); }}
                                     className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100"
@@ -439,7 +439,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         {mounted && createPortal(
             <>
                 {isBranchDropdownOpen && selectedRoles.includes('instructor') && (
-                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsBranchDropdownOpen(false)} />
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsBranchDropdownOpen(false)} />
                 )}
                 <AnimatePresence>
                     {isBranchDropdownOpen && selectedRoles.includes('instructor') && (

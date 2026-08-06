@@ -55,7 +55,7 @@ function EntryScreen({
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "radial-gradient(ellipse at 50% 38%, #2a1245 0%, #060D1A 82%)" }}>
       <div className="flex items-center justify-between px-8 py-6 border-b border-white/6">
-        <button onClick={() => router.push("/flexos/egitmen-anasayfa")} className="flex items-center gap-2 cursor-pointer" style={{ color: "rgba(255,255,255,0.35)" }}>
+        <button type="button" onClick={() => router.push("/flexos/egitmen-anasayfa")} className="flex items-center gap-2 cursor-pointer" style={{ color: "rgba(255,255,255,0.35)" }}>
           <ArrowLeft size={17} />
           <span className="text-[15px] font-semibold">Ana Sayfa</span>
         </button>
@@ -83,7 +83,7 @@ function EntryScreen({
                 <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.30)" }}>Öğrenciler</span>
               </div>
               {selectable.length > 0 && (
-                <button onClick={toggleAll} className="text-[12px] font-bold cursor-pointer transition-opacity hover:opacity-70" style={{ color: ACCENT }}>
+                <button type="button" onClick={toggleAll} className="text-[12px] font-bold cursor-pointer transition-opacity hover:opacity-70" style={{ color: ACCENT }}>
                   {allSelected ? "Tümünü Kaldır" : "Tümünü Seç"}
                 </button>
               )}
@@ -111,7 +111,7 @@ function EntryScreen({
                     );
                   }
                   return (
-                    <button key={s.id} onClick={() => toggle(s.id)} className="w-full flex items-center gap-4 px-6 py-3.5 text-left cursor-pointer"
+                    <button type="button" key={s.id} onClick={() => toggle(s.id)} className="w-full flex items-center gap-4 px-6 py-3.5 text-left cursor-pointer"
                       style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", background: isSel ? `${ACCENT}12` : "transparent" }}>
                       <div className="w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all" style={{ borderColor: isSel ? ACCENT : "rgba(255,255,255,0.18)", background: isSel ? ACCENT : "transparent" }}>
                         {isSel && <Check size={10} className="text-white" strokeWidth={3} />}
@@ -125,7 +125,7 @@ function EntryScreen({
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <button onClick={handleStart} disabled={selected.size === 0}
+            <button type="button" onClick={handleStart} disabled={selected.size === 0}
               className="flex items-center gap-3 px-10 h-14 rounded-2xl text-[15px] font-black text-white transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: ACCENT, boxShadow: `0 8px 32px ${ACCENT}50` }}>
               Ödev Ekranına Geç <ChevronRight size={18} strokeWidth={2.5} />
@@ -227,7 +227,7 @@ function SosyalPageInner() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#060D1A" }}>
         <p className="text-white/40 text-[14px]">Ödev bulunamadı.</p>
-        <button onClick={() => router.push("/flexos/egitmen-anasayfa")} className="text-[13px] font-bold cursor-pointer" style={{ color: ACCENT, background: "none", border: "none" }}>
+        <button type="button" onClick={() => router.push("/flexos/egitmen-anasayfa")} className="text-[13px] font-bold cursor-pointer" style={{ color: ACCENT, background: "none", border: "none" }}>
           Ana sayfaya dön
         </button>
       </div>

@@ -25,7 +25,7 @@ function formatBookId(raw: string) {
 
 /** "135x195" / "135 x195" → "135 x 195" */
 function formatDimensions(raw: string) {
-  return raw.trim().replace(/\s*x\s*/gi, " x ");
+  return raw.trim().replaceAll(/\s*x\s*/gi, " x ");
 }
 
 // ─── FormSlide ────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ function BookForm({
             {isEdit ? "Kitabı Düzenle" : "Yeni Kitap Ekle"}
           </p>
         </div>
-        <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 transition-colors cursor-pointer">
+        <button type="button" onClick={onCancel} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 transition-colors cursor-pointer">
           <X size={15} />
         </button>
       </div>
@@ -123,34 +123,34 @@ function BookForm({
         {/* Satır 1: Kitap ID + ISBN */}
         <div className="grid grid-cols-[120px_1fr] gap-3">
           <div>
-            <label className={LABEL_CLS}>Kitap ID</label>
-            <input value={fields.bookId} onChange={set("bookId")} placeholder="01"
+            <label htmlFor="bookId" className={LABEL_CLS}>Kitap ID</label>
+            <input id="bookId" value={fields.bookId} onChange={set("bookId")} placeholder="01"
               className={INPUT_CLS} autoFocus={!isEdit} />
           </div>
           <div>
-            <label className={LABEL_CLS}>ISBN No</label>
-            <input value={fields.isbn} onChange={set("isbn")} placeholder="9781234567890"
+            <label htmlFor="isbn" className={LABEL_CLS}>ISBN No</label>
+            <input id="isbn" value={fields.isbn} onChange={set("isbn")} placeholder="9781234567890"
               className={INPUT_CLS} />
           </div>
         </div>
 
         {/* Satır 2: Kitap Adı */}
         <div>
-          <label className={LABEL_CLS}>Kitap Adı <span className="text-status-danger-500">*</span></label>
-          <input value={fields.title} onChange={set("title")} placeholder="Sefiller"
+          <label htmlFor="title" className={LABEL_CLS}>Kitap Adı <span className="text-status-danger-500">*</span></label>
+          <input id="title" value={fields.title} onChange={set("title")} placeholder="Sefiller"
             className={INPUT_CLS} autoFocus={isEdit} />
         </div>
 
         {/* Satır 3: Yazar + Yayınevi */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL_CLS}>Yazar Adı <span className="text-status-danger-500">*</span></label>
-            <input value={fields.author} onChange={set("author")} placeholder="Victor Hugo"
+            <label htmlFor="author" className={LABEL_CLS}>Yazar Adı <span className="text-status-danger-500">*</span></label>
+            <input id="author" value={fields.author} onChange={set("author")} placeholder="Victor Hugo"
               className={INPUT_CLS} />
           </div>
           <div>
-            <label className={LABEL_CLS}>Yayınevi</label>
-            <input value={fields.publisher} onChange={set("publisher")} placeholder="Can Yayınları"
+            <label htmlFor="publisher" className={LABEL_CLS}>Yayınevi</label>
+            <input id="publisher" value={fields.publisher} onChange={set("publisher")} placeholder="Can Yayınları"
               className={INPUT_CLS} />
           </div>
         </div>
@@ -158,13 +158,13 @@ function BookForm({
         {/* Satır 4: Sayfa Sayısı + Boyutlar */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL_CLS}>Sayfa Sayısı</label>
-            <input value={fields.pageCount} onChange={set("pageCount")} placeholder="480"
+            <label htmlFor="pageCount" className={LABEL_CLS}>Sayfa Sayısı</label>
+            <input id="pageCount" value={fields.pageCount} onChange={set("pageCount")} placeholder="480"
               className={INPUT_CLS} />
           </div>
           <div>
-            <label className={LABEL_CLS}>Boyutlar (En x Boy)</label>
-            <input value={fields.dimensions} onChange={set("dimensions")} placeholder="135 x 195"
+            <label htmlFor="dimensions" className={LABEL_CLS}>Boyutlar (En x Boy)</label>
+            <input id="dimensions" value={fields.dimensions} onChange={set("dimensions")} placeholder="135 x 195"
               className={INPUT_CLS} />
           </div>
         </div>
@@ -172,21 +172,21 @@ function BookForm({
         {/* Satır 5: Tür + Alt Tür */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL_CLS}>Kitap Türü</label>
-            <input value={fields.genre} onChange={set("genre")} placeholder="Roman"
+            <label htmlFor="genre" className={LABEL_CLS}>Kitap Türü</label>
+            <input id="genre" value={fields.genre} onChange={set("genre")} placeholder="Roman"
               className={INPUT_CLS} />
           </div>
           <div>
-            <label className={LABEL_CLS}>Alt Tür</label>
-            <input value={fields.subGenre} onChange={set("subGenre")} placeholder="Tarihi Roman"
+            <label htmlFor="subGenre" className={LABEL_CLS}>Alt Tür</label>
+            <input id="subGenre" value={fields.subGenre} onChange={set("subGenre")} placeholder="Tarihi Roman"
               className={INPUT_CLS} />
           </div>
         </div>
 
         {/* Satır 6: Arka Kapak */}
         <div>
-          <label className={LABEL_CLS}>Arka Kapak Yazısı</label>
-          <textarea value={fields.backCover} onChange={set("backCover")}
+          <label htmlFor="backCover" className={LABEL_CLS}>Arka Kapak Yazısı</label>
+          <textarea id="backCover" value={fields.backCover} onChange={set("backCover")}
             placeholder="Kitabın kısa özeti..." rows={4}
             className="w-full px-3 py-2.5 text-[13px] font-medium border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors resize-none text-text-primary placeholder:text-surface-400" />
         </div>
@@ -195,11 +195,11 @@ function BookForm({
         <div className="flex items-center justify-between pt-1">
           <p className="text-[11px] text-surface-300">* zorunlu alan</p>
           <div className="flex gap-2">
-            <button onClick={onCancel}
+            <button type="button" onClick={onCancel}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer transition-colors">
               <X size={13} /> İptal
             </button>
-            <button onClick={handleSave} disabled={!fields.title.trim() || !fields.author.trim() || loading}
+            <button type="button" onClick={handleSave} disabled={!fields.title.trim() || !fields.author.trim() || loading}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer transition-colors">
               <Check size={13} /> {isEdit ? "Güncelle" : "Kaydet"}
             </button>
@@ -252,11 +252,11 @@ function BookRow({
       </div>
       {/* Aksiyon */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pt-0.5">
-        <button onClick={() => onEdit(item)}
+        <button type="button" onClick={() => onEdit(item)}
           className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 transition-colors cursor-pointer" title="Düzenle">
           <Edit2 size={13} />
         </button>
-        <button onClick={() => onDelete(item)}
+        <button type="button" onClick={() => onDelete(item)}
           className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 transition-colors cursor-pointer" title="Sil">
           <Trash2 size={13} />
         </button>
@@ -276,19 +276,19 @@ function Pagination({ page, total, onChange }: { page: number; total: number; on
         <span className="font-bold text-text-primary">{page + 1}</span> / {count}
       </p>
       <div className="flex items-center gap-1">
-        <button onClick={() => onChange(page - 1)} disabled={page === 0}
+        <button type="button" onClick={() => onChange(page - 1)} disabled={page === 0}
           className="p-1.5 rounded-lg border border-surface-200 hover:bg-white disabled:opacity-30 cursor-pointer transition-colors">
           <ChevronLeft size={14} />
         </button>
         {Array.from({ length: count }).map((_, i) => (
-          <button key={i} onClick={() => onChange(i)}
+          <button type="button" key={i} onClick={() => onChange(i)}
             className={`w-8 h-8 rounded-lg text-[12px] font-bold border cursor-pointer transition-all ${
               i === page ? "bg-base-primary-900 text-white border-base-primary-900" : "border-surface-200 text-surface-500 hover:bg-white"
             }`}>
             {i + 1}
           </button>
         ))}
-        <button onClick={() => onChange(page + 1)} disabled={page === count - 1}
+        <button type="button" onClick={() => onChange(page + 1)} disabled={page === count - 1}
           className="p-1.5 rounded-lg border border-surface-200 hover:bg-white disabled:opacity-30 cursor-pointer transition-colors">
           <ChevronRight size={14} />
         </button>
@@ -332,7 +332,7 @@ export default function BookPoolPanel() {
   // Bir sonraki bookId: mevcut max + 1, 2 haneli
   const nextBookId = useMemo(() => {
     if (!pool?.items.length) return "01";
-    const max = Math.max(...pool.items.map(i => parseInt(i.bookId) || 0));
+    const max = Math.max(...pool.items.map(i => Number.parseInt(i.bookId) || 0));
     const next = max + 1;
     return next < 10 ? "0" + next : String(next);
   }, [pool]);
@@ -378,7 +378,7 @@ export default function BookPoolPanel() {
 
   // bookId'ye göre sırala
   const sorted = [...pool.items].sort((a, b) =>
-    (parseInt(a.bookId) || 0) - (parseInt(b.bookId) || 0)
+    (Number.parseInt(a.bookId) || 0) - (Number.parseInt(b.bookId) || 0)
   );
   const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -402,7 +402,7 @@ export default function BookPoolPanel() {
         <p className="text-[13px] font-medium text-surface-400">
           <span className="font-bold text-text-primary">{pool.items.length}</span> kitap · ID sıralı
         </p>
-        <button
+        <button type="button"
           onClick={() => { setAdding(true); setEditingItem(null); }}
           disabled={adding}
           className="flex items-center gap-2 px-4 py-2 bg-base-primary-900 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-sm"

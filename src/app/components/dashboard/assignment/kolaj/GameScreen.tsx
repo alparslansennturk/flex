@@ -224,7 +224,7 @@ function FinalOverlay({
         </div>
 
         <div className="px-10 py-3 flex justify-end gap-3 shrink-0" style={{ borderTop: "1px solid #eee" }}>
-          <button onClick={handlePrint}
+          <button type="button" onClick={handlePrint}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-[13px] font-bold cursor-pointer text-white"
             style={{ background: "#e74c3c" }}>
             <FileDown size={14} /> PDF İndir
@@ -236,7 +236,7 @@ function FinalOverlay({
                 <Check size={12} strokeWidth={3} /> Mail Gönderildi
               </div>
             ) : (
-              <button onClick={handleMail} disabled={sendingMail}
+              <button type="button" onClick={handleMail} disabled={sendingMail}
                 className="flex items-center gap-2 px-4 h-9 rounded-xl text-[13px] font-bold cursor-pointer text-white disabled:opacity-50"
                 style={{ background: "#2980b9" }}>
                 {sendingMail
@@ -249,7 +249,7 @@ function FinalOverlay({
 
         <div className="px-10 py-5 flex justify-center gap-6 shrink-0" style={{ borderTop: "1px solid #eee" }}>
           {!isPastView && (
-            <button
+            <button type="button"
               onClick={noMoreStudents ? undefined : onAdvance}
               disabled={noMoreStudents}
               className="flex items-center gap-2 px-12 py-4 rounded-full text-[15px] font-black text-white transition-transform"
@@ -262,7 +262,7 @@ function FinalOverlay({
               YENİ SEÇİM <ChevronRight size={18} strokeWidth={2.5} />
             </button>
           )}
-          <button onClick={onClose}
+          <button type="button" onClick={onClose}
             className="px-12 py-4 rounded-full text-[15px] font-bold cursor-pointer"
             style={{ background: "transparent", border: "3px solid #bdc3c7", color: "#7f8c8d" }}>
             Kapat
@@ -702,7 +702,7 @@ export default function GameScreen({
         {/* Üst bar */}
         <div className="flex items-center justify-between px-8 py-5 bg-white shrink-0"
           style={{ borderBottom: "1px solid #e8ecf2" }}>
-          <button onClick={() => router.push("/dashboard")}
+          <button type="button" onClick={() => router.push("/dashboard")}
             className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-700 transition-colors">
             <ArrowLeft size={17} />
             <span className="text-[15px] font-semibold">Ana Sayfa</span>
@@ -716,7 +716,7 @@ export default function GameScreen({
           </div>
 
           {isAdmin ? (
-            <button onClick={() => router.push("/dashboard/admin/migrate")}
+            <button type="button" onClick={() => router.push("/dashboard/admin/migrate")}
               className="flex items-center gap-2 px-4 h-8 rounded-xl text-[12px] font-bold cursor-pointer text-slate-400 hover:text-slate-700 transition-colors"
               style={{ border: "1px solid #e2e8f0" }}>
               <Settings size={13} /> Ayarlar
@@ -841,7 +841,7 @@ export default function GameScreen({
               <p className="text-[13px] text-slate-400">Sonuçları arşive kaydedin veya ödevi tamamen kapatın.</p>
 
               {/* Arşive Kaydet */}
-              <button
+              <button type="button"
                 onClick={handleArchive}
                 disabled={archiving || archived}
                 className="px-10 py-3.5 rounded-full text-[15px] font-bold text-white cursor-pointer active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
@@ -856,7 +856,7 @@ export default function GameScreen({
                   veya
                 </p>
                 {!confirmFinish ? (
-                  <button
+                  <button type="button"
                     onClick={() => setConfirmFinish(true)}
                     className="text-[14px] font-bold cursor-pointer transition-opacity hover:opacity-70"
                     style={{ color: "#e53e3e", background: "none", border: "none" }}
@@ -870,14 +870,14 @@ export default function GameScreen({
                     </p>
                     <p className="text-[11px]" style={{ color: "#e53e3e" }}>Eksik öğrenciler olsa bile ödev artık aktif olmayacak.</p>
                     <div className="flex gap-3 mt-1">
-                      <button
+                      <button type="button"
                         onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                         className="px-5 py-2 rounded-xl text-[13px] font-bold cursor-pointer text-white"
                         style={{ background: "#e53e3e", border: "none" }}
                       >
                         Evet, Tamamla
                       </button>
-                      <button
+                      <button type="button"
                         onClick={() => setConfirmFinish(false)}
                         className="px-5 py-2 rounded-xl text-[13px] font-semibold cursor-pointer"
                         style={{ background: "#f1f5f9", color: "#64748b", border: "none" }}
@@ -899,14 +899,14 @@ export default function GameScreen({
 
           {phase === "idle" && !allDone && (
             <div className="flex items-center gap-4">
-              <button onClick={handleBeginPicking}
+              <button type="button" onClick={handleBeginPicking}
                 className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
                 style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
                 Başlat
               </button>
 
               {!confirmFinish ? (
-                <button
+                <button type="button"
                   onClick={() => setConfirmFinish(true)}
                   disabled={draws.length === 0}
                   className="px-6 py-4 rounded-full text-[15px] font-black transition-all"
@@ -922,14 +922,14 @@ export default function GameScreen({
               ) : (
                 <div className="flex items-center gap-3">
                   <span className="text-[12px]" style={{ color: "#94a3b8" }}>Eksik öğrencilerle ödev kapatılsın mı?</span>
-                  <button
+                  <button type="button"
                     onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                     className="px-4 py-2 rounded-xl text-[13px] font-bold cursor-pointer text-white"
                     style={{ background: "#e53e3e", border: "none" }}
                   >
                     Evet, Tamamla
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => setConfirmFinish(false)}
                     className="px-4 py-2 rounded-xl text-[13px] font-semibold cursor-pointer"
                     style={{ background: "#f1f5f9", color: "#64748b", border: "none" }}
@@ -942,7 +942,7 @@ export default function GameScreen({
           )}
 
           {phase === "ready" && (
-            <button onClick={handleStartDrawing}
+            <button type="button" onClick={handleStartDrawing}
               className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
               style={{
                 opacity:    nameVisible ? 1 : 0,
@@ -955,7 +955,7 @@ export default function GameScreen({
           )}
 
           {phase === "done" && !showFinal && !allDone && (
-            <button onClick={handleAdvance}
+            <button type="button" onClick={handleAdvance}
               className="flex items-center gap-3 px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
               style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
               Devam Et <ChevronRight size={18} strokeWidth={2.5} />

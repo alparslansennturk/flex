@@ -53,7 +53,7 @@ function TaskQuickEditModal({
 
   return (
     <div className={`fixed inset-0 z-800 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={handleCancel}
       />
@@ -70,7 +70,7 @@ function TaskQuickEditModal({
           <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Grup</p>
           <div className="flex flex-wrap gap-2">
             {GROUPS.map(g => (
-              <button
+              <button type="button"
                 key={g}
                 onClick={() => setClassId(g)}
                 className={`px-3.5 py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
@@ -90,7 +90,7 @@ function TaskQuickEditModal({
           <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Seviye</p>
           <div className="grid grid-cols-3 gap-2">
             {LEVELS.map(l => (
-              <button
+              <button type="button"
                 key={l}
                 onClick={() => setLevel(l)}
                 className={`py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
@@ -117,13 +117,13 @@ function TaskQuickEditModal({
         </div>
 
         <div className="flex gap-3">
-          <button
+          <button type="button"
             onClick={handleCancel}
             className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer"
           >
             Vazgeç
           </button>
-          <button
+          <button type="button"
             onClick={handleSave}
             disabled={loading}
             className="flex-1 h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -188,7 +188,7 @@ function TemplateRow({
       </div>
       {/* Ana ekran görünürlük toggle */}
       <div className="shrink-0">
-        <button
+        <button type="button"
           onClick={() => onToggleVisibility(task)}
           title={isVisible ? "Ana ekrandan kaldır" : "Ana ekrana al"}
           className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
@@ -201,14 +201,14 @@ function TemplateRow({
         </button>
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        <button
+        <button type="button"
           onClick={() => onEdit(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-base-primary-50 hover:text-base-primary-500 transition-all cursor-pointer"
           title="Düzenle"
         >
           <Edit2 size={14} />
         </button>
-        <button
+        <button type="button"
           onClick={() => onDelete(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer"
           title="Sil"
@@ -249,7 +249,7 @@ function TaskRow({
     if (!d) return null;
     const [y, m, day] = d.split("-");
     const months = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-    return `${parseInt(day)} ${months[parseInt(m) - 1]} ${y}`;
+    return `${Number.parseInt(day)} ${months[Number.parseInt(m) - 1]} ${y}`;
   };
 
   const isInGrading   = task.status === "completed";
@@ -287,18 +287,15 @@ function TaskRow({
       <div className="w-28 shrink-0 hidden lg:block">
         {isCompleted ? (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-status-success-50 text-status-success-600 text-[11px] font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-status-success-500" />
-            Tamamlandı
+            <span className="w-1.5 h-1.5 rounded-full bg-status-success-500" />Tamamlandı
           </span>
         ) : isInGrading ? (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-designstudio-primary-50 text-designstudio-primary-600 text-[11px] font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-designstudio-primary-500" />
-            Not Alanında
+            <span className="w-1.5 h-1.5 rounded-full bg-designstudio-primary-500" />Not Alanında
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-100 text-surface-500 text-[11px] font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-surface-400" />
-            Aktif
+            <span className="w-1.5 h-1.5 rounded-full bg-surface-400" />Aktif
           </span>
         )}
       </div>
@@ -312,14 +309,14 @@ function TaskRow({
       </div>
       {/* Düzenle / Sil */}
       <div className="w-20 shrink-0 flex items-center gap-1">
-        <button
+        <button type="button"
           onClick={() => onEdit(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-base-primary-50 hover:text-base-primary-500 transition-all cursor-pointer"
           title="Düzenle"
         >
           <Edit2 size={14} />
         </button>
-        <button
+        <button type="button"
           onClick={() => onDelete(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer"
           title="Sil"
@@ -329,7 +326,7 @@ function TaskRow({
       </div>
       {/* Üç nokta menüsü */}
       <div className="relative shrink-0" ref={menuRef}>
-        <button
+        <button type="button"
           onClick={() => setMenuOpen(v => !v)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-all cursor-pointer"
           title="Seçenekler"
@@ -340,14 +337,14 @@ function TaskRow({
           <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-43.75">
             {tab === "active" && (
               <>
-                <button
+                <button type="button"
                   onClick={() => { onGrade(task); setMenuOpen(false); }}
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-designstudio-primary-600 hover:bg-surface-50 transition-colors cursor-pointer"
                 >
                   Not Ver
                 </button>
                 <div className="border-t border-surface-100" />
-                <button
+                <button type="button"
                   onClick={() => { onArchive(task); setMenuOpen(false); }}
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer"
                 >
@@ -357,14 +354,14 @@ function TaskRow({
             )}
             {tab === "archive" && (
               <>
-                <button
+                <button type="button"
                   onClick={() => { onActivate(task); setMenuOpen(false); }}
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer"
                 >
                   Aktife Al
                 </button>
                 <div className="border-t border-surface-100" />
-                <button
+                <button type="button"
                   onClick={() => { onSendToGrading(task); setMenuOpen(false); }}
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-600 hover:bg-surface-50 transition-colors cursor-pointer"
                 >
@@ -691,7 +688,7 @@ export default function TaskManagementPanel() {
               <CheckCircle2 size={20} />
             </div>
             <p className="text-[14px] font-bold text-text-primary">{toast.message}</p>
-            <button onClick={() => setToast({ show: false, message: "" })} className="ml-auto text-surface-300 hover:text-surface-500 cursor-pointer">
+            <button type="button" onClick={() => setToast({ show: false, message: "" })} className="ml-auto text-surface-300 hover:text-surface-500 cursor-pointer">
               <X size={16} />
             </button>
           </div>
@@ -701,7 +698,7 @@ export default function TaskManagementPanel() {
       {/* İÇ SEKMELER */}
       <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-[14px] border border-surface-100 shadow-sm mb-8">
         {innerTabs.map(tab => (
-          <button
+          <button type="button"
             key={tab.id}
             onClick={() => setAdminTab(tab.id)}
             className={`px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none ${
@@ -744,7 +741,7 @@ export default function TaskManagementPanel() {
                   <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
                 </div>
               )}
-              <button
+              <button type="button"
                 onClick={openTemplateCreate}
                 className="flex items-center gap-2 px-5 py-3 bg-base-primary-900 text-white rounded-2xl text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer shadow-sm"
               >
@@ -782,7 +779,7 @@ export default function TaskManagementPanel() {
             ) : visibleTemplates.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-surface-300">
                 <p className="text-[14px] font-semibold mb-3">Henüz şablon yok</p>
-                <button onClick={openTemplateCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-50 text-surface-500 text-[13px] font-bold hover:text-surface-700 transition-all cursor-pointer">
+                <button type="button" onClick={openTemplateCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-50 text-surface-500 text-[13px] font-bold hover:text-surface-700 transition-all cursor-pointer">
                   <Plus size={13} /> İlk şablonu oluştur
                 </button>
               </div>
@@ -832,14 +829,14 @@ export default function TaskManagementPanel() {
             </div>
             {enrichedArchived.length > 0 && (
               <div className="flex items-center gap-2">
-                <button
+                <button type="button"
                   onClick={() => toggleSelectAll(enrichedArchived.map(t => t.id))}
                   className="h-8 px-3 rounded-xl border border-surface-200 text-[12px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer"
                 >
                   {selectedArchiveIds.size === enrichedArchived.length ? "Seçimi Kaldır" : "Tümünü Seç"}
                 </button>
                 {selectedArchiveIds.size > 0 && (
-                  <button
+                  <button type="button"
                     onClick={() => handleBulkDeleteArchive(Array.from(selectedArchiveIds))}
                     className="h-8 px-3 rounded-xl bg-status-danger-500 text-white text-[12px] font-bold hover:bg-status-danger-600 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
                   >
@@ -879,7 +876,7 @@ export default function TaskManagementPanel() {
               { id: "league",  label: "Lig Ayarları",  adminOnly: false },
               { id: "scoring", label: "Puan Yönetimi", adminOnly: true  },
             ] as const).filter(t => isAdmin() || !t.adminOnly).map(tab => (
-              <button
+              <button type="button"
                 key={tab.id}
                 onClick={() => setLeagueSubTab(tab.id)}
                 className={`px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none ${
@@ -913,7 +910,7 @@ export default function TaskManagementPanel() {
                     <span className={`text-[13px] font-bold ${leagueGlobal ? "text-green-600" : "text-surface-400"}`}>
                       {leagueGlobal ? "Lig Aktif" : "Lig Kapalı"}
                     </span>
-                    <button
+                    <button type="button"
                       onClick={isAdmin() ? handleGlobalLeagueToggle : undefined}
                       disabled={!isAdmin()}
                       title={!isAdmin() ? "Bu ayar yalnızca admin tarafından değiştirilebilir" : undefined}
@@ -942,7 +939,7 @@ export default function TaskManagementPanel() {
                           <span className="text-[14px] font-bold text-base-primary-900 w-24">{group.code}</span>
                           <span className="text-[13px] text-surface-500 flex-1">{group.branch || "—"}</span>
                           <div className="w-28 flex justify-end">
-                            <button
+                            <button type="button"
                               onClick={() => handleLeagueToggle(group)}
                               className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${inLeague ? "bg-green-500" : "bg-slate-300"}`}
                             >

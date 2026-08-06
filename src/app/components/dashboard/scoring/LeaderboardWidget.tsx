@@ -256,7 +256,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           const mComp    = entries.length;
           const [y, mo]  = month.split("-");
           const mStart   = `${y}-${mo}-01`;
-          const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mLastDay = new Date(Number.parseInt(y), Number.parseInt(mo), 0).getDate();
           const mEnd     = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
           const mAssigned = g1Codes.reduce((s, cid) => s + (assignedInMonth(mStart, mEnd, cid) ?? 0), 0) || undefined;
           const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
@@ -279,7 +279,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           const mComp    = entries.length;
           const [y, mo]  = month.split("-");
           const mStart   = `${y}-${mo}-01`;
-          const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mLastDay = new Date(Number.parseInt(y), Number.parseInt(mo), 0).getDate();
           const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
           const mEnd     = month === currentMonthKey ? pastDueStr : mEndFull;
           const mAssigned = assignedInMonth(mStart, mEnd, data.groupCode);
@@ -287,7 +287,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           cumulativeScore += mScore;
         }
 
-        const score          = isFinite(cumulativeScore) && !isNaN(cumulativeScore) ? cumulativeScore : 0;
+        const score          = Number.isFinite(cumulativeScore) && !Number.isNaN(cumulativeScore) ? cumulativeScore : 0;
         const totalCompleted = classEntries.length;
         const totalPenalty   = classEntries.reduce((s, [, e]) => s + (e.penalty ?? 0), 0);
 
@@ -325,7 +325,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         </h3>
         <div className="flex items-center gap-1 bg-surface-50 border border-surface-100 rounded-xl p-1">
           {VIEW_MODES.map(mode => (
-            <button
+            <button type="button"
               key={mode}
               onClick={() => setViewMode(mode)}
               className={`text-[11px] font-bold px-2.5 h-6 rounded-lg transition-all cursor-pointer ${
@@ -372,7 +372,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
 
       {/* Tüm Sonuçları Gör */}
       <Link href="/dashboard/league">
-        <button className="mt-6 w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-[#6F74D8] text-white font-bold text-[13px] hover:bg-designstudio-secondary-600 transition-all shadow-sm cursor-pointer">
+        <button type="button" className="mt-6 w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-[#6F74D8] text-white font-bold text-[13px] hover:bg-designstudio-secondary-600 transition-all shadow-sm cursor-pointer">
           Tüm sonuçları gör <ChevronRight size={16} />
         </button>
       </Link>

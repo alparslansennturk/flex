@@ -4,7 +4,7 @@
 
 export function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} title={active ? "Kapat" : "Aç"} style={{
+    <button type="button" onClick={onClick} title={active ? "Kapat" : "Aç"} style={{
       position: "relative", width: 44, height: 24, borderRadius: 999, border: "none", flex: "0 0 auto",
       background: active ? "#22C55E" : "#D1D5DB", cursor: "pointer", transition: "background .2s", padding: 0,
     }}>
@@ -15,7 +15,7 @@ export function ToggleSwitch({ active, onClick }: { active: boolean; onClick: ()
 
 export function ChipToggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{
+    <button type="button" onClick={onClick} style={{
       padding: "9px 18px", borderRadius: 11, border: "1.5px solid", borderColor: active ? "#7C3AED" : "#E2E5EA",
       background: active ? "#EDE9FE" : "#fff", color: active ? "#7C3AED" : "#414B59",
       fontSize: 13.5, fontWeight: active ? 700 : 500, fontFamily: "inherit", cursor: "pointer", transition: "all .15s",

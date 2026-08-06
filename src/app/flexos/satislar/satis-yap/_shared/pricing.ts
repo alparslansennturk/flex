@@ -81,7 +81,7 @@ export function calcSalePricing(input: SalePricingInput): SalePricingResult {
   const hasKampanyaInd = kampanyaIndTutar > 0;
   const afterKampanya = brut - kampanyaIndTutar;
 
-  const elRaw = parseFloat(elIndirim) || 0;
+  const elRaw = Number.parseFloat(elIndirim) || 0;
   let elIndirimTutar = 0;
   if (!sifirKilit && elRaw > 0) {
     elIndirimTutar = elIndirimMod === "yuzde"
@@ -93,14 +93,14 @@ export function calcSalePricing(input: SalePricingInput): SalePricingResult {
   const kdvTutar = Math.round(indirimliMatrah * kdvOrani / 100);
   const net = indirimliMatrah + kdvTutar; // KDV DAHİL toplam = öğrencinin ödeyeceği
 
-  const alinan = sifirKilit ? 0 : odemeSatirlari.reduce((a, o) => a + (parseFloat(o.tutar) || 0), 0);
+  const alinan = sifirKilit ? 0 : odemeSatirlari.reduce((a, o) => a + (Number.parseFloat(o.tutar) || 0), 0);
   const kalan = Math.max(0, net - alinan);
 
   // senet vade farkı hesabı (FLAT: kalan × aylık% × taksit sayısı)
   const hasSenet = odemeSatirlari.some((o) => o.tip === "Senet");
   const senetSatir = odemeSatirlari.find((o) => o.tip === "Senet");
-  const senetTaksitN = senetSatir ? (parseInt(senetSatir.taksit) || 1) : 0;
-  const vadeFarkiPct = parseFloat(senetVadeFarki) || 0;
+  const senetTaksitN = senetSatir ? (Number.parseInt(senetSatir.taksit) || 1) : 0;
+  const vadeFarkiPct = Number.parseFloat(senetVadeFarki) || 0;
   const vadeFarkiTutar = hasSenet && kalan > 0 && vadeFarkiPct > 0
     ? Math.round(kalan * (vadeFarkiPct / 100) * senetTaksitN)
     : 0;

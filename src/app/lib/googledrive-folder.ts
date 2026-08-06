@@ -19,7 +19,7 @@ async function ensureFolderExists(
   console.log(`[drive-folder] ensureFolderExists — arıyor: "${folderName}" (parent: ${parentFolderId})`);
 
   const q = encodeURIComponent(
-    `name = '${folderName.replace(/'/g, "\\'")}' and ` +
+    `name = '${folderName.replaceAll(/'/g, "\\'")}' and ` +
     `'${parentFolderId}' in parents and ` +
     `mimeType = 'application/vnd.google-apps.folder' and ` +
     `trashed = false`,
@@ -91,7 +91,7 @@ export async function createFolderStructure(
   console.log(`[drive-folder] createFolderStructure — groupName="${groupName}" userName="${userName}" role="${userRole}" taskName="${taskName ?? ""}"`);
 
   const rawRoot = (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "")
-    .replace(/^["']|["']$/g, "")
+    .replaceAll(/^["']|["']$/g, "")
     .trim();
 
   if (!rawRoot) throw new Error("GOOGLE_DRIVE_FOLDER_ID env var eksik.");
@@ -140,7 +140,7 @@ export async function moveGroupFolder(
   action: "archive" | "restore",
 ): Promise<void> {
   const rawRoot = (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "")
-    .replace(/^["']|["']$/g, "")
+    .replaceAll(/^["']|["']$/g, "")
     .trim();
   if (!rawRoot) throw new Error("GOOGLE_DRIVE_FOLDER_ID env var eksik.");
 
@@ -179,7 +179,7 @@ async function findFolder(
   token:          string,
 ): Promise<string | null> {
   const q = encodeURIComponent(
-    `name = '${folderName.replace(/'/g, "\\'")}' and ` +
+    `name = '${folderName.replaceAll(/'/g, "\\'")}' and ` +
     `'${parentFolderId}' in parents and ` +
     `mimeType = 'application/vnd.google-apps.folder' and ` +
     `trashed = false`,

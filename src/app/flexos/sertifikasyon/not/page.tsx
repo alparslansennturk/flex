@@ -91,7 +91,7 @@ function initials(name: string): string {
 }
 function clamp100(raw: string): string {
   if (raw === "") return "";
-  const n = Math.max(0, Math.min(100, parseInt(raw, 10) || 0));
+  const n = Math.max(0, Math.min(100, Number.parseInt(raw, 10) || 0));
   return String(n);
 }
 
@@ -358,7 +358,7 @@ export default function SertifikaNotuPage() {
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
           left={showStudentPanel ? (
             <div className="flex items-center gap-[15px]">
-              <button
+              <button type="button"
                 onClick={() => setShowStudentPanel(false)}
                 className="w-[46px] h-[46px] rounded-[13px] flex items-center justify-center cursor-pointer shrink-0"
                 style={{ background: "linear-gradient(135deg,#2867bd,#205297)", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}
@@ -456,7 +456,7 @@ export default function SertifikaNotuPage() {
                         className="grid gap-6 items-center py-[13px] px-[22px]"
                         style={{ gridTemplateColumns: gridCols, borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}
                       >
-                        <div
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                           className="flex items-center gap-3 min-w-0 cursor-pointer group w-fit"
                           onClick={() => openStudent(r.personId)}
                         >
@@ -533,7 +533,7 @@ export default function SertifikaNotuPage() {
                 <div className="flex items-center justify-between gap-4 py-4 px-[22px] border-t border-[#EEF0F3] bg-[#FBFCFD] flex-wrap">
                   <div className="text-[12.5px] text-[#6F7B87] font-semibold">{girilenCount} / {roster.length} öğrenciye not girildi</div>
                   <div className="flex items-center gap-2.5">
-                    <button
+                    <button type="button"
                       onClick={saveDraft}
                       disabled={saving || roster.length === 0}
                       className="py-[11px] px-[18px] rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -559,8 +559,8 @@ export default function SertifikaNotuPage() {
       {modalPersonId && <StudentDetailModal personId={modalPersonId} onClose={() => setModalPersonId(null)} />}
 
       {odevWarnOpen && (
-        <div className="fixed inset-0 z-[700] flex items-center justify-center p-6 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setOdevWarnOpen(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[700] flex items-center justify-center p-6 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setOdevWarnOpen(false)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
               <BookOpen size={26} className="text-orange-500" />
             </div>
@@ -572,13 +572,13 @@ export default function SertifikaNotuPage() {
               </p>
             </div>
             <div className="flex gap-2.5 w-full mt-2">
-              <button
+              <button type="button"
                 onClick={() => setOdevWarnOpen(false)}
                 className="flex-1 h-11 rounded-xl border border-[#E2E5EA] text-[13px] font-bold text-[#414B59] hover:bg-[#F7F8FA] transition-all cursor-pointer"
               >
                 Vazgeç
               </button>
-              <button
+              <button type="button"
                 onClick={disableOdevNotu}
                 disabled={disablingOdev}
                 className="flex-1 h-11 rounded-xl text-white text-[13px] font-bold cursor-pointer disabled:opacity-50"

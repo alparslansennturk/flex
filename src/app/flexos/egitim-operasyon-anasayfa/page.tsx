@@ -119,7 +119,7 @@ function daysUntil(dateStr: string): number {
 
 function relTime(iso: string): string {
   const d = new Date(iso).getTime();
-  if (isNaN(d)) return "";
+  if (Number.isNaN(d)) return "";
   const diffMs = Date.now() - d;
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "az önce";
@@ -455,8 +455,7 @@ export default function EgitimOperasyonAnasayfaPage() {
                   </div>
                 </div>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "#E6F5ED", fontSize: 11, fontWeight: 700, color: "#007A30" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E" }} />
-                  Canlı
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E" }} />Canlı
                 </span>
               </div>
 
@@ -489,7 +488,7 @@ export default function EgitimOperasyonAnasayfaPage() {
                             <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                               {a.personName}{a.note ? ` — ${a.note}` : ""}
                             </div>
-                            <button
+                            <button type="button"
                               onClick={() => router.push("/flexos/aktivite-merkezi")}
                               style={{ marginTop: 9, display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: "none", background: "#EEF0F3", color: "#205297", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
                             >
@@ -536,7 +535,7 @@ function BigActionCard({ onClick, icon, bg, color, baslik, alt, aciklama, stats,
   cta: string; ctaColor: string;
 }) {
   return (
-    <button
+    <button type="button"
       className="eo-big-card"
       onClick={onClick}
       style={{ textAlign: "left", textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 22, padding: "30px 26px", minHeight: 230, display: "flex", flexDirection: "column", boxShadow: "0 4px 20px -12px rgba(15,31,61,.2)", cursor: "pointer", fontFamily: "inherit" }}
@@ -572,7 +571,7 @@ function BigActionCard({ onClick, icon, bg, color, baslik, alt, aciklama, stats,
 function QuickActionCard({ icon, bg, color, baslik, alt, onClick, compact }: { icon: string; bg: string; color: string; baslik: string; alt: string; onClick?: () => void; compact?: boolean }) {
   const iconSize = compact ? 32 : 44;
   return (
-    <button
+    <button type="button"
       className="eo-quick-card"
       onClick={onClick ?? (() => toast.info("Bu özellik yakında."))}
       style={{

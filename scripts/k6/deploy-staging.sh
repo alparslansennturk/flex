@@ -13,7 +13,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STAGING_PROJECT_JSON='{"projectId":"prj_Eu80acrrc9oOuqohrXTuhp95bxXb","orgId":"team_wY5slMCYYR7PRKZzZrnLdpje","projectName":"flexos-loadtest"}'
 
-if [ ! -f "$REPO_ROOT/.vercel/project.json" ]; then
+if [[ ! -f "$REPO_ROOT/.vercel/project.json" ]]; then
   echo "HATA: $REPO_ROOT/.vercel/project.json yok — önce \`vercel link\` ile prod projesine bağlanmış olmalısın." >&2
   exit 1
 fi

@@ -17,6 +17,17 @@ import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } f
 import { getFlexMessage } from "@/app/lib/messages";
 import { resolveFlexosLanding } from "@/app/lib/resolveFlexosLanding";
 
+// `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` yerine: aynı kabul/red kümesini üreten,
+// backtracking'e açık olmayan doğrudan string taraması (Sonar S8786).
+function looksLikeEmail(value: string): boolean {
+  if (/\s/.test(value)) return false;
+  const at = value.indexOf("@");
+  if (at <= 0) return false;
+  const domain = value.slice(at + 1);
+  if (domain.length === 0 || domain.includes("@")) return false;
+  return domain.slice(1, -1).includes(".");
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -56,8 +67,7 @@ function LoginForm() {
     if (e) e.preventDefault();
     setErrors({});
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!looksLikeEmail(email)) {
       setErrors({ general: getFlexMessage("auth/invalid-email").text, isEmailError: true });
       setShake(true);
       return;
@@ -115,7 +125,7 @@ function LoginForm() {
 
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center h-5">
-            <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>E-Posta</label>
+            <label htmlFor={`user_id_${formKey}`} className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>E-Posta</label>
             {errors.general && (
               <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold" style={{ color: "var(--color-status-danger-500)" }}>
                 {errors.general}
@@ -147,7 +157,7 @@ function LoginForm() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Parola</label>
+          <label htmlFor={`key_id_${formKey}`} className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Parola</label>
           <div className="relative w-full">
             <input
               autoComplete="new-password"

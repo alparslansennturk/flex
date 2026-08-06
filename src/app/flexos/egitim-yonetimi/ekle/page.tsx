@@ -12,6 +12,7 @@
  */
 
 import React, { useEffect, useRef, useState, CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -423,7 +424,7 @@ export default function EgitimEklePage() {
     ? days.some((n) => (getDay(n).ad || "").trim().length > 0)
     : !yapiStd
     ? hasBolum
-    : s.icerikMetni.replace(/<[^>]*>/g, "").trim().length > 0; // Standart Paket: içerik metni dolu olmalı
+    : s.icerikMetni.replaceAll(/<[^>]*>/g, "").trim().length > 0; // Standart Paket: içerik metni dolu olmalı
   // Ana paket fiyatı (yayın için zorunlu) — hibrit: en az bir teslim modu fiyatlı olmalı
   const mainPriceVal = (() => {
     if (isHibrit) {
@@ -610,9 +611,9 @@ export default function EgitimEklePage() {
         <FlexHeader
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="ee-iconbtn" style={S.backBtn} title="Kataloğa dön" onClick={() => router.push("/flexos/egitim-yonetimi")}>
+              <Link href="/flexos/egitim-yonetimi" className="ee-iconbtn" style={S.backBtn} title="Kataloğa dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
                   <span>Eğitim Yönetimi</span>
@@ -633,7 +634,7 @@ export default function EgitimEklePage() {
               <span style={{ width: 9, height: 9, borderRadius: "50%", flex: "0 0 auto", background: statusDot }} />
               <span style={{ fontSize: 13.5, fontWeight: 600, color: "#64748b" }}>{statusText}</span>
             </div>
-            <button style={publishStyle} disabled={!publishActive} onClick={() => publishActive && setModal(s.published ? "unpublish" : "publish")}>
+            <button type="button" style={publishStyle} disabled={!publishActive} onClick={() => publishActive && setModal(s.published ? "unpublish" : "publish")}>
               <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: s.published ? IC.stop : IC.rocket }} />
               <span style={{ position: "relative" }}>{s.published ? "Satışı Kapat" : "Satışa Başlat"}</span>
             </button>
@@ -644,7 +645,7 @@ export default function EgitimEklePage() {
             {TABS.map((t) => {
               const active = s.activeTab === t.key;
               return (
-                <button key={t.key} onClick={() => selectTab(t.key)} style={tabStyle(active)}>
+                <button type="button" key={t.key} onClick={() => selectTab(t.key)} style={tabStyle(active)}>
                   <span style={tabNumStyle(active)}>{t.num}</span>
                   <span>{t.label}</span>
                 </button>
@@ -738,7 +739,7 @@ export default function EgitimEklePage() {
             {/* sekme bazlı Kaydet footer */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "16px 32px", borderTop: "1px solid #eef1f6", background: "#fafbfd" }}>
               <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>{saveHints[s.activeTab]}</span>
-              <button onClick={() => setModal("save")} disabled={busy} style={s.saved ? S.saveOk : S.saveBtn}>
+              <button type="button" onClick={() => setModal("save")} disabled={busy} style={s.saved ? S.saveOk : S.saveBtn}>
                 <span dangerouslySetInnerHTML={{ __html: s.saved ? IC.checkSave : IC.save }} />
                 <span>{s.saved ? "Kaydedildi" : eduId ? "Güncelle" : "Kaydet"}</span>
               </button>

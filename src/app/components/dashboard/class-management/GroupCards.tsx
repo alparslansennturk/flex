@@ -85,14 +85,14 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                       <div className="flex items-center gap-4">
                         <span className="text-[12px] font-bold tracking-tight">{selectedArchiveIds.length} Seçildi</span>
                         <div className="w-px h-4 bg-white/20" />
-                        <button
+                        <button type="button"
                           onClick={() => { onBulkDeleteArchive?.(selectedArchiveIds); setSelectedArchiveIds([]); }}
                           className="flex items-center gap-1.5 text-[12px] font-bold text-red-300 hover:text-red-100 transition-colors cursor-pointer outline-none"
                         >
                           <Trash2 size={14} /> Seçilenleri Sil
                         </button>
                       </div>
-                      <button
+                      <button type="button"
                         onClick={() => setSelectedArchiveIds([])}
                         className="text-[11px] font-bold text-white/50 hover:text-white transition-colors cursor-pointer underline underline-offset-4"
                       >
@@ -131,14 +131,14 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                   <td className="px-6 py-3 text-right pr-8">
                     {isArchive ? (
                       <div className="flex justify-end gap-2">
-                        <button
+                        <button type="button"
                           onClick={() => requestModal(group.id, 'restore')}
                           className="p-2 text-base-primary-500 hover:bg-neutral-50 rounded-lg cursor-pointer transition-colors"
                           title="Geri Yükle"
                         >
                           <RotateCcw size={18} />
                         </button>
-                        <button
+                        <button type="button"
                           onClick={() => requestModal(group.id, 'delete')}
                           className="p-2 text-red-500 hover:bg-neutral-50 rounded-lg cursor-pointer transition-colors"
                           title="Tamamen Sil"
@@ -151,7 +151,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                       <div className="flex justify-end items-center gap-1">
 
                         {/* 1. DÜZENLE (Lila / Design Secondary) */}
-                        <button
+                        <button type="button"
                           onClick={() => handleEdit(group)}
                           className="p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-neutral-50 group/table-edit"
                           title="Düzenle"
@@ -163,7 +163,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                         </button>
 
                         {/* 2. GRUBU BİTİR (Kibar Gri / Neutral) */}
-                        <button
+                        <button type="button"
                           onClick={() => requestModal(group.id, 'archive')}
                           className="p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-neutral-50 group/table-archive"
                           title="Grubu Bitir"
@@ -196,7 +196,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
           </div>
           <h3 className="text-[16px] font-bold text-neutral-700 mb-1">Aktif Grup Tanımı Bulunmuyor</h3>
           <p className="text-[13px] font-medium text-neutral-400 max-w-[320px] leading-relaxed">Sistemi kullanmaya başlamak için önce bir eğitim grubu oluşturmalısınız.</p>
-          <button onClick={handleOpenForm} className="mt-6 px-6 py-2.5 bg-base-primary-700 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 transition-all cursor-pointer shadow-lg shadow-base-primary-700/20 active:scale-95 flex items-center gap-2 outline-none">
+          <button type="button" onClick={handleOpenForm} className="mt-6 px-6 py-2.5 bg-base-primary-700 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 transition-all cursor-pointer shadow-lg shadow-base-primary-700/20 active:scale-95 flex items-center gap-2 outline-none">
             <Plus size={18} /> Yeni Grup Oluştur
           </button>
         </div>
@@ -210,7 +210,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
       {filteredGroups.map((group) => {
         const isActive = selectedGroupId === group.id;
         return (
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
             key={group.id}
             onClick={() => setSelectedGroupId(group.id)}
             className={`relative w-[256px] h-[116px] rounded-[16px] p-6 transition-all cursor-pointer group ${isActive
@@ -218,7 +218,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
               : "bg-white border border-neutral-300 text-text-primary hover:bg-base-primary-700 hover:text-white hover:border-transparent"
               }`}
           >
-            <button
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
               className={`absolute top-4 right-4 p-1 rounded-lg transition-colors cursor-pointer ${isActive ? "text-white/60 hover:bg-white/10" : "text-neutral-400 group-hover:text-white/60"
                 }`}
@@ -230,7 +230,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
               <div ref={menuRef} className="absolute top-12 right-4 w-48 bg-white rounded-xl shadow-2xl border border-neutral-200 z-[60] overflow-hidden py-1.5 animate-in fade-in zoom-in-95 duration-200 cursor-default">
 
                 {/* 1. DÜZENLE (Zemin nötr gri, içerik lila) */}
-                <button
+                <button type="button"
                   onClick={(e) => { e.stopPropagation(); handleEdit(group); }}
                   className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-3 cursor-pointer transition-all duration-200 group/edit"
                 >
@@ -244,7 +244,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                 </button>
 
                 {/* 2. ARŞİVE EKLE (Zemin aynı nötr gri, içerik gri) */}
-                <button
+                <button type="button"
                   onClick={(e) => { e.stopPropagation(); requestModal(group.id, 'archive'); }}
                   className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-3 cursor-pointer transition-all duration-200 group/archive"
                 >

@@ -127,7 +127,7 @@ export default function OdevTeslimiGroupPage() {
           <div className="flex items-end justify-between mb-7 flex-wrap gap-4">
             <div className="flex items-end flex-wrap gap-6">
               <div className="flex items-center gap-4">
-                <button
+                <button type="button"
                   onClick={() => router.push("/flexos/odevler/teslim")}
                   className="w-10 h-10 rounded-[13px] bg-surface-200 hover:bg-surface-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >
@@ -145,7 +145,7 @@ export default function OdevTeslimiGroupPage() {
 
               <div className="flex items-center border-b border-surface-200">
                 {TABS.map((t) => (
-                  <button
+                  <button type="button"
                     key={t.key}
                     onClick={() => setTab(t.key)}
                     className={`flex items-center gap-2 px-5 py-2.5 text-[14px] font-semibold border-b-2 -mb-px transition-colors cursor-pointer

@@ -51,14 +51,14 @@ export const ConfirmModals: React.FC<ConfirmModalsProps> = ({
           <p className="text-sm text-neutral-500 mb-6 leading-relaxed">{content.desc}</p>
           
           <div className="flex w-full gap-3">
-            <button
+            <button type="button"
               onClick={closeModal}
               disabled={isProcessing}
               className="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 text-neutral-600 font-bold text-sm hover:bg-neutral-200 transition-colors"
             >
               Vazgeç
             </button>
-            <button
+            <button type="button"
               onClick={confirmAction}
               disabled={isProcessing}
               className={`flex-1 px-4 py-2.5 rounded-xl text-white font-bold text-sm transition-all shadow-lg active:scale-95 disabled:opacity-50 ${content.color}`}

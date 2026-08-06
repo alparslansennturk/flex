@@ -939,19 +939,19 @@ export default function FlexConnectPage() {
                   </h3>
                   <p style={{ margin: "3px 0 0", fontSize: 13, color: "#8A909B", fontWeight: 500 }}>Ad, açıklama{selected.type === "channel" ? " ve Yayıncılar" : selected.type === "community" ? " ve gruplar" : ""} güncellenebilir.</p>
                 </div>
-                <button onClick={() => setEditModalOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}><X size={18} /></button>
+                <button type="button" onClick={() => setEditModalOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}><X size={18} /></button>
               </div>
 
               <div style={{ padding: "20px 26px 8px" }}>
-                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>
+                <label htmlFor="editName" className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>
                   {selected.type === "community" ? "Topluluk Adı" : selected.type === "group" ? "Grup Adı" : "Kanal Adı"}
                 </label>
-                <input
+                <input id="editName"
                   value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus
                   className="w-full outline-none" style={{ height: 44, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 14, fontWeight: 600, marginBottom: 18 }}
                 />
-                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>Açıklama <span style={{ fontWeight: 600, color: "#C3CAD4", textTransform: "none", letterSpacing: 0 }}>· opsiyonel</span></label>
-                <textarea
+                <label htmlFor="editDescription" className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>Açıklama <span style={{ fontWeight: 600, color: "#C3CAD4", textTransform: "none", letterSpacing: 0 }}>· opsiyonel</span></label>
+                <textarea id="editDescription"
                   value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={2}
                   className="w-full outline-none resize-none" style={{ padding: "11px 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5, marginBottom: 18 }}
                 />
@@ -965,7 +965,7 @@ export default function FlexConnectPage() {
                       {staffDirectoryList.filter((u) => u.uid !== selected.ownerUid).map((u) => {
                         const sel = editAdminUids.includes(u.uid);
                         return (
-                          <button
+                          <button type="button"
                             key={u.uid}
                             onClick={() => setEditAdminUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
                             className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
@@ -1009,7 +1009,7 @@ export default function FlexConnectPage() {
                     <div className="flex flex-col gap-1.5 mb-2" style={{ maxHeight: 190, overflowY: "auto" }}>
                       {myGroupsForCommunity.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Kendi adınıza kayıtlı sınıf bulunamadı.</p>}
                       {myGroupsForCommunity.map((g) => (
-                        <button
+                        <button type="button"
                           key={g.id} disabled={addingChildGroupId === g.id} onClick={() => handleAddGroupToCommunity(g)}
                           className="flex items-center gap-2.5 cursor-pointer transition-colors disabled:opacity-50 text-left"
                           style={{ padding: "9px 11px", borderRadius: 12, border: "1.5px solid #E4E6EB", background: "#fff" }}
@@ -1028,8 +1028,8 @@ export default function FlexConnectPage() {
               </div>
 
               <div className="flex items-center justify-end gap-2.5" style={{ padding: "18px 26px 22px", marginTop: 8 }}>
-                <button onClick={() => setEditModalOpen(false)} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
-                <button
+                <button type="button" onClick={() => setEditModalOpen(false)} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
+                <button type="button"
                   onClick={handleSaveMeta} disabled={savingMeta || !editName.trim()}
                   className="inline-flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                   style={{ padding: "11px 20px", borderRadius: 11, border: "none", background: editName.trim() ? "#2867bd" : "#C3CAD4", color: "#fff", fontSize: 14, fontWeight: 700 }}
@@ -1044,14 +1044,14 @@ export default function FlexConnectPage() {
       </AnimatePresence>
     </div>
     {starredOpen && (
-      <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setStarredOpen(false)}>
-        <div onClick={(e) => e.stopPropagation()} className="flex flex-col" style={{ width: 440, maxHeight: "70vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 80px -20px rgba(18,35,59,.45)", overflow: "hidden" }}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setStarredOpen(false)}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} className="flex flex-col" style={{ width: 440, maxHeight: "70vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 80px -20px rgba(18,35,59,.45)", overflow: "hidden" }}>
           <div className="flex items-center justify-between shrink-0" style={{ padding: "16px 20px", borderBottom: "1px solid #EEF0F3" }}>
             <div className="flex items-center gap-2">
               <Star size={17} color="#F5A623" fill="#F5A623" />
               <span style={{ fontSize: 15.5, fontWeight: 800, color: "#1B1F26" }}>Yıldızlı Mesajlarım</span>
             </div>
-            <button onClick={() => setStarredOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 30, height: 30, borderRadius: 9, color: "#6B717C" }}><X size={16} /></button>
+            <button type="button" onClick={() => setStarredOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 30, height: 30, borderRadius: 9, color: "#6B717C" }}><X size={16} /></button>
           </div>
           <div className="flex-1 overflow-y-auto" style={{ padding: 10 }}>
             {loadingStarred ? (
@@ -1060,7 +1060,7 @@ export default function FlexConnectPage() {
               <p className="text-center" style={{ fontSize: 13, color: "#A2A8B2", padding: "24px 12px" }}>Henüz yıldızladığın bir mesaj yok.</p>
             ) : (
               starredMessages.map((m) => (
-                <button
+                <button type="button"
                   key={`${m.conversationId}-${m.messageId}`} onClick={() => goToStarredConversation(m.conversationId)}
                   className="flex flex-col w-full text-left cursor-pointer transition-colors"
                   style={{ padding: "12px 14px", borderRadius: 12, border: "none", background: "transparent" }}
@@ -1082,8 +1082,8 @@ export default function FlexConnectPage() {
     )}
 
     {settingsOpen && (
-      <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setSettingsOpen(false)}>
-        <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setSettingsOpen(false)}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={(e) => e.stopPropagation()}
           className="flex flex-col"
           // KVKK metni uzun/okuma amaçlı — diğer görünümlerden (Bildirimler/Yasal
@@ -1094,7 +1094,7 @@ export default function FlexConnectPage() {
           <div className="flex items-center justify-between shrink-0" style={{ padding: "16px 20px", borderBottom: "1px solid #EEF0F3" }}>
             <div className="flex items-center gap-2">
               {settingsView !== "main" && (
-                <button
+                <button type="button"
                   onClick={() => setSettingsView(settingsView === "kvkk" ? "legal" : "main")}
                   className="flex items-center justify-center cursor-pointer"
                   style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: "transparent", color: "#6B717C" }}
@@ -1107,7 +1107,7 @@ export default function FlexConnectPage() {
                 {settingsView === "main" ? "Ayarlar" : settingsView === "legal" ? "Yasal Bilgilendirmeler" : "KVKK Aydınlatma Metni"}
               </span>
             </div>
-            <button onClick={() => setSettingsOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 30, height: 30, borderRadius: 9, color: "#6B717C" }}><X size={16} /></button>
+            <button type="button" onClick={() => setSettingsOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 30, height: 30, borderRadius: 9, color: "#6B717C" }}><X size={16} /></button>
           </div>
 
           {settingsView === "main" && (
@@ -1119,7 +1119,7 @@ export default function FlexConnectPage() {
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>Masaüstü Bildirimleri</div>
                     <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Yeni mesajlarda OS bildirimi göster</div>
                   </div>
-                  <button
+                  <button type="button"
                     onClick={toggleNotifPush} disabled={notifPushLoading} role="switch" aria-checked={notifPush}
                     style={{ width: 40, height: 24, borderRadius: 999, border: "none", cursor: notifPushLoading ? "wait" : "pointer", flexShrink: 0, background: notifPush ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
                   >
@@ -1131,7 +1131,7 @@ export default function FlexConnectPage() {
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>Bildirim Sesi</div>
                     <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Bildirim gelince OS sesi çalsın</div>
                   </div>
-                  <button
+                  <button type="button"
                     onClick={toggleNotifSound} disabled={notifSoundLoading} role="switch" aria-checked={notifSound}
                     style={{ width: 40, height: 24, borderRadius: 999, border: "none", cursor: notifSoundLoading ? "wait" : "pointer", flexShrink: 0, background: notifSound ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
                   >
@@ -1141,7 +1141,7 @@ export default function FlexConnectPage() {
               </div>
 
               <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8A909B", textTransform: "uppercase", letterSpacing: ".05em", margin: "0 2px 9px" }}>Yasal</div>
-              <button
+              <button type="button"
                 onClick={() => setSettingsView("legal")}
                 className="flex items-center gap-3 w-full cursor-pointer text-left"
                 style={{ padding: "13px 15px", borderRadius: 14, border: "1px solid #E9EBEF", background: "#F7F8FA" }}
@@ -1164,7 +1164,7 @@ export default function FlexConnectPage() {
                 { title: "Kullanım Koşulları", onClick: () => toast("Yakında eklenecek.") },
                 { title: "Sürüm Bilgisi", onClick: () => toast("Yakında eklenecek.") },
               ].map((r) => (
-                <button
+                <button type="button"
                   key={r.title} onClick={r.onClick}
                   className="flex items-center gap-3 w-full cursor-pointer text-left transition-colors"
                   style={{ padding: "13px 14px", borderRadius: 12, border: "none", background: "transparent" }}

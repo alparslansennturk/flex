@@ -65,14 +65,14 @@ function initials(name: string) {
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function fmtDateTime(iso: string | null): string {
   if (!iso) return "Hiç giriş yapmadı";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" }) + " " + d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -603,7 +603,7 @@ export default function KullanicilarPage() {
               {canSeeOgrenciler && <TabBtn label="Öğrenciler" count={totalStudents} active={tab === "ogrenciler"} onClick={() => setTab("ogrenciler")} />}
             </div>
             {tab === "personel" && (
-              <button onClick={() => router.push("/flexos/kullanicilar/ekle")} style={S.addBtn}>
+              <button type="button" onClick={() => router.push("/flexos/kullanicilar/ekle")} style={S.addBtn}>
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                 Kullanıcı Ekle
               </button>
@@ -631,7 +631,7 @@ export default function KullanicilarPage() {
                   {["Tümü", "aktif", "pasif"].map((s) => <DropdownItem key={s} label={s === "Tümü" ? "Tümü" : STATUS_MAP[s]?.label ?? s} selected={statusFilter === s} onClick={() => { setStatusFilter(s); setStatusDD(false); }} />)}
                 </DropdownFilter>
                 {(search || rolFilter !== "Tümü" || subeFilter !== "Tümü" || statusFilter !== "Tümü") && (
-                  <button onClick={() => { setSearch(""); setRolFilter("Tümü"); setSubeFilter("Tümü"); setStatusFilter("Tümü"); }} style={S.clearBtn}>Temizle</button>
+                  <button type="button" onClick={() => { setSearch(""); setRolFilter("Tümü"); setSubeFilter("Tümü"); setStatusFilter("Tümü"); }} style={S.clearBtn}>Temizle</button>
                 )}
               </div>
               <div style={S.tableCard}>
@@ -673,14 +673,14 @@ export default function KullanicilarPage() {
                             </td>
                             <td style={S.tdRight}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                               {u.pendingActivation && (
-                                <button onClick={() => resendCode(u)} disabled={resendBusyId === u.id} title="Aktivasyon Kodunu Tekrar Gönder" style={S.iconBtn}>
+                                <button type="button" onClick={() => resendCode(u)} disabled={resendBusyId === u.id} title="Aktivasyon Kodunu Tekrar Gönder" style={S.iconBtn}>
                                   {resendBusyId === u.id
                                     ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-9-9"/></svg>
                                     : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>}
                                 </button>
                               )}
-                              <button onClick={() => router.push(`/flexos/kullanicilar/${u.id}/duzenle`)} title="Düzenle" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
-                              <button onClick={() => !rowIsSelf && askDelete(u)} disabled={rowIsSelf} title={rowIsSelf ? "Kendi hesabınızı silemezsiniz" : "Sil"} style={{ ...S.iconBtn, color: rowIsSelf ? "#D8DCE3" : "#94A3B8", cursor: rowIsSelf ? "not-allowed" : "pointer" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                              <button type="button" onClick={() => router.push(`/flexos/kullanicilar/${u.id}/duzenle`)} title="Düzenle" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+                              <button type="button" onClick={() => !rowIsSelf && askDelete(u)} disabled={rowIsSelf} title={rowIsSelf ? "Kendi hesabınızı silemezsiniz" : "Sil"} style={{ ...S.iconBtn, color: rowIsSelf ? "#D8DCE3" : "#94A3B8", cursor: rowIsSelf ? "not-allowed" : "pointer" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
                             </div></td>
                           </tr>
                         );
@@ -698,7 +698,7 @@ export default function KullanicilarPage() {
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
                 <SearchInput value={trnSearch} onChange={setTrnSearch} placeholder="Ad, e-posta ara…" />
-                <button onClick={() => router.push("/flexos/egitmenler")} style={S.addBtn}>Eğitmen Kadrosu&apos;na Git</button>
+                <button type="button" onClick={() => router.push("/flexos/egitmenler")} style={S.addBtn}>Eğitmen Kadrosu&apos;na Git</button>
               </div>
               <div style={S.tableCard}>
                 <div style={S.tableHead}>
@@ -753,7 +753,7 @@ export default function KullanicilarPage() {
                 <DropdownFilter label="Durum" value={stuStatusFilter === "Tümü" ? "Tümü" : STATUS_MAP[stuStatusFilter]?.label ?? stuStatusFilter} open={stuStatusDD} onToggle={() => setStuStatusDD((o) => !o)}>
                   {["Tümü", "aktif", "pasif", "askıda"].map((s) => <DropdownItem key={s} label={s === "Tümü" ? "Tümü" : STATUS_MAP[s]?.label ?? s} selected={stuStatusFilter === s} onClick={() => { setStuStatusFilter(s); setStuStatusDD(false); }} />)}
                 </DropdownFilter>
-                {(stuSearch || stuStatusFilter !== "Tümü") && <button onClick={() => { setStuSearch(""); setStuStatusFilter("Tümü"); }} style={S.clearBtn}>Temizle</button>}
+                {(stuSearch || stuStatusFilter !== "Tümü") && <button type="button" onClick={() => { setStuSearch(""); setStuStatusFilter("Tümü"); }} style={S.clearBtn}>Temizle</button>}
               </div>
               <div style={S.tableCard}>
                 <div style={S.tableHead}>
@@ -784,12 +784,12 @@ export default function KullanicilarPage() {
                               </span>
                             ); })()}</td>
                             <td style={S.tdRight}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button onClick={() => toast("Yakında kullanıma açılacak.")} title="Şifre Sıfırla" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
-                              <button onClick={() => toast("Yakında kullanıma açılacak.")} title="Tek Kullanımlık Kod" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12h4"/><path d="M10 16h4"/></svg></button>
+                              <button type="button" onClick={() => toast("Yakında kullanıma açılacak.")} title="Şifre Sıfırla" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+                              <button type="button" onClick={() => toast("Yakında kullanıma açılacak.")} title="Tek Kullanımlık Kod" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12h4"/><path d="M10 16h4"/></svg></button>
                               {s.status !== "pasif" && (
-                                <button onClick={() => askCloseAccount(s)} title="Hesabı Kapat" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></button>
+                                <button type="button" onClick={() => askCloseAccount(s)} title="Hesabı Kapat" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></button>
                               )}
-                              <button onClick={() => askStudentDelete(s)} title="Kişiyi Sil" style={{ ...S.iconBtn, color: "#DC2626" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+                              <button type="button" onClick={() => askStudentDelete(s)} title="Kişiyi Sil" style={{ ...S.iconBtn, color: "#DC2626" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
                             </div></td>
                           </tr>
                         );
@@ -800,7 +800,7 @@ export default function KullanicilarPage() {
                 <Pagination total={stuFiltered.length} totalPages={stuTotalPages} page={stuPage} setPage={setStuPage} />
                 {!stuHasLoadedFull && stuNextCursor && (
                   <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
-                    <button
+                    <button type="button"
                       onClick={fetchMoreStudents}
                       disabled={stuLoadingMore}
                       style={{
@@ -819,7 +819,7 @@ export default function KullanicilarPage() {
         </div>
         <Footer mini containerClassName="w-full max-w-[1560px] mx-auto px-9" />
       </main>
-      {(rolDD || subeDD || statusDD || stuStatusDD) && <div onClick={() => { setRolDD(false); setSubeDD(false); setStatusDD(false); setStuStatusDD(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+      {(rolDD || subeDD || statusDD || stuStatusDD) && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => { setRolDD(false); setSubeDD(false); setStatusDD(false); setStuStatusDD(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
 
       <FlexModal
         open={!!deleteModal}
@@ -870,13 +870,13 @@ export default function KullanicilarPage() {
 function daysSince(iso: string): number { return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
 
 function TabBtn({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
-  return <button onClick={onClick} style={{ padding: "12px 20px", border: "none", borderBottom: active ? "2.5px solid #7C3AED" : "2.5px solid transparent", background: "transparent", color: active ? "#7C3AED" : "#6F7B87", fontSize: 14, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
+  return <button type="button" onClick={onClick} style={{ padding: "12px 20px", border: "none", borderBottom: active ? "2.5px solid #7C3AED" : "2.5px solid transparent", background: "transparent", color: active ? "#7C3AED" : "#6F7B87", fontSize: 14, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
     {label}<span style={{ fontSize: 11.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: active ? "#EDE9FE" : "#F2F4F7", color: active ? "#7C3AED" : "#8E95A3" }}>{count}</span>
   </button>;
 }
 
 function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => void }) {
-  return <button onClick={onClick} title={active ? "Pasife al" : "Aktife al"} style={{ position: "relative", width: 44, height: 24, borderRadius: 999, border: "none", flex: "0 0 auto", background: active ? "#22C55E" : "#D1D5DB", cursor: "pointer", transition: "background .2s", padding: 0 }}>
+  return <button type="button" onClick={onClick} title={active ? "Pasife al" : "Aktife al"} style={{ position: "relative", width: 44, height: 24, borderRadius: 999, border: "none", flex: "0 0 auto", background: active ? "#22C55E" : "#D1D5DB", cursor: "pointer", transition: "background .2s", padding: 0 }}>
     <span style={{ position: "absolute", top: 2, left: active ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.2)", transition: "left .2s" }} />
   </button>;
 }
@@ -890,7 +890,7 @@ function SearchInput({ value, onChange, placeholder }: { value: string; onChange
 
 function DropdownFilter({ label, value, open, onToggle, children }: { label: string; value: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return <div style={{ position: "relative" }}>
-    <button onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
+    <button type="button" onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
       <span style={{ color: "#8E95A3", fontWeight: 500 }}>{label}:</span><span>{value}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E95A3" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     {open && <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 20, minWidth: 160, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 8px 24px -4px rgba(15,31,61,.12)", padding: "6px" }}>{children}</div>}
@@ -898,7 +898,7 @@ function DropdownFilter({ label, value, open, onToggle, children }: { label: str
 }
 
 function DropdownItem({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
-  return <button onClick={onClick} style={{ display: "block", width: "100%", padding: "9px 12px", borderRadius: 8, border: "none", background: selected ? "#F3F0FF" : "transparent", color: selected ? "#7C3AED" : "#414B59", fontSize: 13.5, fontWeight: selected ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>{label}</button>;
+  return <button type="button" onClick={onClick} style={{ display: "block", width: "100%", padding: "9px 12px", borderRadius: 8, border: "none", background: selected ? "#F3F0FF" : "transparent", color: selected ? "#7C3AED" : "#414B59", fontSize: 13.5, fontWeight: selected ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>{label}</button>;
 }
 
 function EmptyState({ text, sub }: { text: string; sub: string }) {
@@ -913,9 +913,9 @@ function Pagination({ total, totalPages, page, setPage }: { total: number; total
   return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: "15px 22px", borderTop: "1px solid #EEF0F3", background: "#F7F8FA" }}>
     <div style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>Toplam <strong style={{ color: "#1E222B", fontWeight: 700 }}>{total}</strong> kayıt</div>
     {totalPages > 1 && <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-      <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} style={{ ...S.pageBtn, color: page === 1 ? "#AEB4C0" : "#414B59", cursor: page === 1 ? "not-allowed" : "pointer" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
-      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => <button key={p} onClick={() => setPage(p)} style={{ ...S.pageBtn, minWidth: 36, border: p === page ? "1px solid #7C3AED" : "1px solid #E2E5EA", background: p === page ? "#7C3AED" : "#fff", color: p === page ? "#fff" : "#414B59", fontWeight: p === page ? 700 : 600, fontSize: 13.5 }}>{p}</button>)}
-      <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={{ ...S.pageBtn, color: page === totalPages ? "#AEB4C0" : "#414B59", cursor: page === totalPages ? "not-allowed" : "pointer" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+      <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} style={{ ...S.pageBtn, color: page === 1 ? "#AEB4C0" : "#414B59", cursor: page === 1 ? "not-allowed" : "pointer" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => <button type="button" key={p} onClick={() => setPage(p)} style={{ ...S.pageBtn, minWidth: 36, border: p === page ? "1px solid #7C3AED" : "1px solid #E2E5EA", background: p === page ? "#7C3AED" : "#fff", color: p === page ? "#fff" : "#414B59", fontWeight: p === page ? 700 : 600, fontSize: 13.5 }}>{p}</button>)}
+      <button type="button" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={{ ...S.pageBtn, color: page === totalPages ? "#AEB4C0" : "#414B59", cursor: page === totalPages ? "not-allowed" : "pointer" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
     </div>}
   </div>;
 }

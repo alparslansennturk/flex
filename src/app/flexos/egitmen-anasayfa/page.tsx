@@ -95,7 +95,7 @@ function parseTimeToMin(t?: string): number | null {
   if (!t) return null;
   const m = t.match(/(\d{1,2})[.:](\d{2})/);
   if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  return Number.parseInt(m[1], 10) * 60 + Number.parseInt(m[2], 10);
 }
 
 function todayKeyOf(d: Date): string {
@@ -161,7 +161,7 @@ function QuickActionCard({
 }) {
   const router = useRouter();
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
       onClick={() => {
         onBeforeNavigate?.();
         if (!href) { toast.info("Bu özellik yakında."); return; }
@@ -244,7 +244,7 @@ function OdevTeslimiCard({ pendingSubmissions, assignments, groups }: {
           <>
             <span className="truncate">{selected.groupCode}</span>
             {candidates.length > 1 && (
-              <button
+              <button type="button"
                 onClick={(e) => { e.stopPropagation(); setSelectedIndex((i) => (i + 1) % candidates.length); }}
                 title="Diğer grubu göster"
                 className="w-5 h-5 rounded-full bg-[#FFF4EB] hover:bg-[#FFE4C7] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
@@ -356,7 +356,7 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
         <div className="flex items-center gap-2">
           <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
           <div className="relative" ref={menuRef}>
-            <button
+            <button type="button"
               onClick={() => setMenuOpen((v) => !v)}
               className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
             >
@@ -365,7 +365,7 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
             {menuOpen && (
               <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[165px]">
                 {!isCompleted && (
-                  <button
+                  <button type="button"
                     onClick={async () => {
                       setMenuOpen(false);
                       const r = await finishAssignment(assignment.id, assignment.dueDate);
@@ -377,14 +377,14 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
                   </button>
                 )}
                 {!isCompleted && (
-                  <button
+                  <button type="button"
                     onClick={() => { setMenuOpen(false); onEdit(assignment); }}
                     className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
                   >
                     Ödevi Düzenle
                   </button>
                 )}
-                <button
+                <button type="button"
                   onClick={async () => { setMenuOpen(false); if (await archiveAssignment(assignment.id)) onArchived(assignment.id); }}
                   className={`w-full px-4 py-2.5 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer ${!isCompleted ? "border-t border-[#EEF0F3]" : ""}`}
                 >
@@ -433,7 +433,7 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
         {needsGrading ? (
           <div className="relative flex items-center gap-1.5">
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
-            <button
+            <button type="button"
               // Grup sayfasına gider, İLGİLİ ödevin akordiyonu otomatik açık gelir —
               // 2026-07-11 kullanıcı düzeltmesi: önceden yanlışlıkla doğrudan öğrenci
               // listesi/teslim detayına ([assignmentId] sayfası) gidiyordu, canlıdaki
@@ -443,7 +443,7 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
             >
               Detay
             </button>
-            <button
+            <button type="button"
               // Grup+ödev SEÇİLİ olarak açılsın diye deep-link — 2026-07-11 kullanıcı
               // bulgusu: önceden parametresiz gidiyordu, kullanıcı grubu/ödevi elle
               // tekrar seçmek zorunda kalıyordu.
@@ -454,7 +454,7 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
             </button>
           </div>
         ) : (
-          <button
+          <button type="button"
             // needsGrading dalıyla AYNI kural (yukarıdaki 2026-07-11 düzeltmesi burada
             // unutulmuştu, 2026-07-13 bulgusu): önce grubun ödev listesine gider, tıklanan
             // ödevin akordiyonu otomatik açık gelir — doğrudan teslim/roster detayına
@@ -493,7 +493,7 @@ function GhostParkourCard({ template, onStart }: { template: AssignmentTemplateI
         <div className="flex items-center gap-2">
           <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
           <div className="relative" ref={menuRef}>
-            <button
+            <button type="button"
               onClick={() => setMenuOpen((v) => !v)}
               className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
             >
@@ -501,7 +501,7 @@ function GhostParkourCard({ template, onStart }: { template: AssignmentTemplateI
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[155px]">
-                <button
+                <button type="button"
                   onClick={() => { setMenuOpen(false); onStart(template); }}
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
                 >
@@ -522,7 +522,7 @@ function GhostParkourCard({ template, onStart }: { template: AssignmentTemplateI
       </div>
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-3">
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Ödev Atölyesi</span>
-        <button
+        <button type="button"
           onClick={() => toast.info("Bu özellik yakında.")}
           className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed"
         >
@@ -557,7 +557,7 @@ function PlaceholderParkourCard() {
       </div>
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-3">
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Ödev Atölyesi</span>
-        <button disabled className="h-8 text-[11px] px-4 flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed">
+        <button type="button" disabled className="h-8 text-[11px] px-4 flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed">
           Ödev ver
         </button>
       </div>
@@ -623,7 +623,7 @@ function OdevParkuru({ groups, templates, assignments, setAssignments, refetchAs
           <Route size={22} className="text-[#FF8D28]" />
           <h3 className="text-[22px] font-bold cursor-default">Ödev Parkuru</h3>
         </div>
-        <button
+        <button type="button"
           onClick={() => setModalAcik(true)}
           className="flex items-center gap-1 h-10 px-5 rounded-xl text-white text-[13px] font-semibold active:scale-95 transition-all cursor-pointer"
           style={{ background: "linear-gradient(135deg,#FF8D28,#D66500)", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}
@@ -718,7 +718,7 @@ function LibraryCard({ t, onStart, onRemoved }: { t: AssignmentTemplateItem; onS
           <p className="text-[11px] text-[#8E95A3] line-clamp-2">{t.subtitle || t.description || "Açıklama yok"}</p>
         </div>
         <div className="relative shrink-0" ref={menuRef}>
-          <button
+          <button type="button"
             onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
           >
@@ -726,14 +726,14 @@ function LibraryCard({ t, onStart, onRemoved }: { t: AssignmentTemplateItem; onS
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[155px]">
-              <button
+              <button type="button"
                 onClick={() => { setMenuOpen(false); onStart(t); }}
                 className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
               >
                 Ödevi Başlat
               </button>
               {t.scope === "personal" && (
-                <button
+                <button type="button"
                   onClick={async () => { setMenuOpen(false); if (await removeTemplate(t.id)) onRemoved(t.id); }}
                   className="w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer border-t border-[#EEF0F3]"
                 >
@@ -750,7 +750,7 @@ function LibraryCard({ t, onStart, onRemoved }: { t: AssignmentTemplateItem; onS
             canlıdaki gibi eklenecek (bkz. proje memory'si). Branş adı DÜZ metin (renksiz,
             kullanıcı: "kütüphane kısmı renksiz olsun") — branşı yoksa "Global". */}
         <span className="text-[10px] text-[#AEB4C0] italic font-semibold opacity-60">{t.branch || "Global"}</span>
-        <button
+        <button type="button"
           onClick={() => onStart(t)}
           className="px-4 py-1.5 bg-[#F7F8FA] text-[#10294C] rounded-xl text-[11px] font-bold flex items-center gap-2 hover:bg-[#10294C] hover:text-white transition-all cursor-pointer shrink-0"
         >
@@ -847,8 +847,8 @@ function OdevKutuphanesi({ groups, templates, sharedLoaded }: { groups: GroupIte
         <div className="relative overflow-visible">
           {hasOverflow && (
             <>
-              <button onClick={() => handleScroll("left")} className="absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft size={24} /></button>
-              <button onClick={() => handleScroll("right")} className="absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
+              <button type="button" onClick={() => handleScroll("left")} className="absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft size={24} /></button>
+              <button type="button" onClick={() => handleScroll("right")} className="absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
             </>
           )}
           <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">

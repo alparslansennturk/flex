@@ -44,7 +44,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
       <style>{css}</style>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         onClick={() => router.push(homeHref)}
         style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 52px", cursor: "pointer", width: "fit-content" }}
       >

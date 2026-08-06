@@ -152,7 +152,7 @@ function FinalOverlay({
         </div>
 
         <div className="px-10 py-3 flex justify-center gap-3 shrink-0" style={{ borderTop: "1px solid #eee" }}>
-          <button onClick={handleDownloadPdf} disabled={downloading}
+          <button type="button" onClick={handleDownloadPdf} disabled={downloading}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-[13px] font-bold cursor-pointer text-white disabled:opacity-60"
             style={{ background: "#e74c3c" }}>
             <FileDown size={14} /> {downloading ? "Hazırlanıyor…" : "PDF İndir"}
@@ -162,7 +162,7 @@ function FinalOverlay({
               <Mail size={13} /> Mail Gönderildi
             </div>
           ) : (
-            <button onClick={handleResendMail} disabled={sendingMail}
+            <button type="button" onClick={handleResendMail} disabled={sendingMail}
               className="flex items-center gap-2 px-4 h-9 rounded-xl text-[13px] font-bold cursor-pointer text-white disabled:opacity-60"
               style={{ background: "#2980b9" }}>
               <Mail size={14} /> {sendingMail ? "Gönderiliyor…" : "Mail Gönder"}
@@ -172,13 +172,13 @@ function FinalOverlay({
 
         <div className="px-10 py-5 flex justify-center gap-6 shrink-0" style={{ borderTop: "1px solid #eee" }}>
           {!isPastView && (
-            <button onClick={noMoreStudents ? undefined : onAdvance} disabled={noMoreStudents}
+            <button type="button" onClick={noMoreStudents ? undefined : onAdvance} disabled={noMoreStudents}
               className="flex items-center gap-2 px-12 py-4 rounded-full text-[15px] font-black text-white transition-transform"
               style={{ background: noMoreStudents ? "#94a3b8" : "#27ae60", boxShadow: noMoreStudents ? "none" : "0 8px 20px rgba(39,174,96,0.35)", cursor: noMoreStudents ? "not-allowed" : "pointer", opacity: noMoreStudents ? 0.5 : 1 }}>
               YENİ SEÇİM <ChevronRight size={18} strokeWidth={2.5} />
             </button>
           )}
-          <button onClick={onClose} className="px-12 py-4 rounded-full text-[15px] font-bold cursor-pointer" style={{ background: "transparent", border: "3px solid #bdc3c7", color: "#7f8c8d" }}>
+          <button type="button" onClick={onClose} className="px-12 py-4 rounded-full text-[15px] font-bold cursor-pointer" style={{ background: "transparent", border: "3px solid #bdc3c7", color: "#7f8c8d" }}>
             Kapat
           </button>
         </div>
@@ -438,7 +438,7 @@ export default function KolajGameScreen({
 
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center justify-between px-8 py-5 bg-white shrink-0" style={{ borderBottom: "1px solid #e8ecf2" }}>
-            <button onClick={() => router.push("/flexos/egitmen-anasayfa")} className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-700 transition-colors">
+            <button type="button" onClick={() => router.push("/flexos/egitmen-anasayfa")} className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-700 transition-colors">
               <ArrowLeft size={17} />
               <span className="text-[15px] font-semibold">Ana Sayfa</span>
             </button>
@@ -530,7 +530,7 @@ export default function KolajGameScreen({
               <div className="text-center flex flex-col items-center gap-5" style={{ paddingTop: 48 }}>
                 <p className="text-[18px] font-bold text-slate-700">Bu oturumun tüm katılımcıları tamamlandı!</p>
                 <p className="text-[13px] text-slate-400">Ödev artık normal not girişi akışına düştü.</p>
-                <button onClick={() => router.push("/flexos/egitmen-anasayfa")}
+                <button type="button" onClick={() => router.push("/flexos/egitmen-anasayfa")}
                   className="px-10 py-3.5 rounded-full text-[15px] font-bold text-white cursor-pointer active:scale-95 transition-transform"
                   style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 6px 20px rgba(58,123,213,0.25)" }}>
                   Ana Sayfaya Dön
@@ -542,13 +542,13 @@ export default function KolajGameScreen({
           <div className="shrink-0 flex justify-center items-center py-6 px-8 bg-white" style={{ borderTop: "1px solid #e8ecf2", minHeight: 88 }}>
             {phase === "idle" && drawPhase === "idle" && !allDone && (
               <div className="flex items-center gap-4">
-                <button onClick={beginPicking}
+                <button type="button" onClick={beginPicking}
                   className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
                   style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
                   Başlat
                 </button>
                 {draws.length > 0 && (
-                  <button onClick={handleForceFinish} disabled={finalizing}
+                  <button type="button" onClick={handleForceFinish} disabled={finalizing}
                     className="px-6 py-4 rounded-full text-[15px] font-black transition-all disabled:opacity-50"
                     style={{ color: "#e53e3e", background: "#fff5f5", border: "2px solid #fed7d7", cursor: finalizing ? "wait" : "pointer" }}>
                     Ödevi Tamamla
@@ -558,7 +558,7 @@ export default function KolajGameScreen({
             )}
 
             {phase === "ready" && (
-              <button onClick={handleStartDrawing}
+              <button type="button" onClick={handleStartDrawing}
                 className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
                 style={{ opacity: nameVisible ? 1 : 0, transition: "opacity 0.4s ease 0.4s, transform 0.15s", background: "linear-gradient(135deg, #276749 0%, #38a169 100%)", boxShadow: "0 8px 28px rgba(56,161,105,0.28)" }}>
                 Ödevi Başlat
@@ -566,7 +566,7 @@ export default function KolajGameScreen({
             )}
 
             {drawPhase === "done" && !showFinal && !allDone && (
-              <button onClick={handleAdvance}
+              <button type="button" onClick={handleAdvance}
                 className="flex items-center gap-3 px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
                 style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
                 Devam Et <ChevronRight size={18} strokeWidth={2.5} />

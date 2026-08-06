@@ -86,7 +86,7 @@ function EntryScreen({
     >
       {/* Üst bar */}
       <div className="flex items-center justify-between px-8 py-6 border-b border-white/6">
-        <button
+        <button type="button"
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 cursor-pointer"
           style={{ color: "rgba(255,255,255,0.35)" }}
@@ -160,7 +160,7 @@ function EntryScreen({
                 </span>
               </div>
               {selectableStudents.length > 0 && (
-                <button
+                <button type="button"
                   onClick={toggleAll}
                   className="text-[12px] font-bold cursor-pointer transition-opacity hover:opacity-70"
                   style={{ color: accentColor }}
@@ -235,7 +235,7 @@ function EntryScreen({
                   }
 
                   return (
-                    <button
+                    <button type="button"
                       key={s.id}
                       onClick={() => toggle(s.id)}
                       className="w-full flex items-center gap-4 px-6 py-3.5 text-left cursor-pointer"
@@ -270,7 +270,7 @@ function EntryScreen({
 
           {/* Başlat butonu */}
           <div className="flex flex-col items-center gap-3">
-            <button
+            <button type="button"
               onClick={handleStart}
               disabled={selected.size === 0}
               className="flex items-center gap-3 px-10 h-14 rounded-2xl text-[15px] font-black text-white transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -354,7 +354,7 @@ export default function AssignmentScreen({
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#060D1A" }}>
         <p className="text-white/40 text-[14px]">Ödev bulunamadı.</p>
-        <button
+        <button type="button"
           onClick={() => router.push("/dashboard")}
           className="text-[13px] font-bold cursor-pointer"
           style={{ color: accentColor, background: "none", border: "none" }}

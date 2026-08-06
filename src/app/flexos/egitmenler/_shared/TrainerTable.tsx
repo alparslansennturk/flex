@@ -61,7 +61,7 @@ function TrainerTableImpl({ pageItems, loading, hasAnyTrainers, filteredCount, s
                       <span style={{ width: 38, height: 38, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(t.name)}</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span className="sg-name-link" onClick={() => onOpenDetail(t.id)} style={{ fontSize: 14.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", cursor: "pointer" }}>{t.name}</span>
+                          <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="sg-name-link" onClick={() => onOpenDetail(t.id)} style={{ fontSize: 14.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", cursor: "pointer" }}>{t.name}</span>
                           {pinnedNote && (
                             <span title={pinnedNote.text} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, flex: "0 0 auto",
                               color: pinnedNote.sentiment === "positive" ? "#007A30" : pinnedNote.sentiment === "negative" ? "#B42318" : "#8A5A00",
@@ -149,10 +149,10 @@ function TrainerTableImpl({ pageItems, loading, hasAnyTrainers, filteredCount, s
                   {/* İşlem */}
                   <td style={S.tdRight}>
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                      <button className="sg-edit-btn" onClick={() => onOpenDetail(t.id)} title="Detay" style={S.editBtnIcon}>
+                      <button type="button" className="sg-edit-btn" onClick={() => onOpenDetail(t.id)} title="Detay" style={S.editBtnIcon}>
                         <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
                       </button>
-                      <button className="sg-del-btn" onClick={() => onDelete(t.id)} title="Sil" style={S.delBtn}>
+                      <button type="button" className="sg-del-btn" onClick={() => onDelete(t.id)} title="Sil" style={S.delBtn}>
                         <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                       </button>
                     </div>
@@ -189,13 +189,13 @@ function TrainerTableImpl({ pageItems, loading, hasAnyTrainers, filteredCount, s
             <strong style={{ color: "#1E222B", fontWeight: 700 }}>{filteredCount}</strong> eğitmenden <strong style={{ color: "#1E222B", fontWeight: 700 }}>{startIdx + 1}–{startIdx + pageItems.length}</strong> arası
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1} style={{ ...S.pageNav, opacity: safePage > 1 ? 1 : 0.4, cursor: safePage > 1 ? "pointer" : "not-allowed" }}>
+            <button type="button" onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1} style={{ ...S.pageNav, opacity: safePage > 1 ? 1 : 0.4, cursor: safePage > 1 ? "pointer" : "not-allowed" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button key={p} onClick={() => setPage(p)} style={p === safePage ? S.pageActive : S.pageBtn}>{p}</button>
+              <button type="button" key={p} onClick={() => setPage(p)} style={p === safePage ? S.pageActive : S.pageBtn}>{p}</button>
             ))}
-            <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages} style={{ ...S.pageNav, opacity: safePage < totalPages ? 1 : 0.4, cursor: safePage < totalPages ? "pointer" : "not-allowed" }}>
+            <button type="button" onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages} style={{ ...S.pageNav, opacity: safePage < totalPages ? 1 : 0.4, cursor: safePage < totalPages ? "pointer" : "not-allowed" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.chevRight }} />
             </button>
           </div>

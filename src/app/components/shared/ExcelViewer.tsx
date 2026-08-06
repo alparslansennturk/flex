@@ -66,7 +66,7 @@ export default function ExcelViewer({ url, className }: ExcelViewerProps) {
       {workbook.SheetNames.length > 1 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {workbook.SheetNames.map((name, i) => (
-            <button
+            <button type="button"
               key={name}
               onClick={() => setActiveSheet(i)}
               style={{

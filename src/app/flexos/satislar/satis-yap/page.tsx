@@ -145,7 +145,7 @@ export default function SatisYapPage() {
   // TC 11 hane tamamlanınca → kişi var mı? Ek Kayıt İndirimi kampanyası otomatik uygula
   // + satıcıya "bu kişi zaten kayıtlı, hangi eğitim(ler)de" bilgisini göster (2026-07-23)
   useEffect(() => {
-    const digits = tcNo.replace(/\D/g, "");
+    const digits = tcNo.replaceAll(/\D/g, "");
     if (!authed || digits.length !== 11) { setExistingPerson(null); return; }
     const ac = new AbortController();
     (async () => {
@@ -415,13 +415,11 @@ export default function SatisYapPage() {
           {/* 1) Satış Tipi toggle */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
             <div style={S.segWrap}>
-              <button style={satisTipi === "Bireysel" ? segOn : segOff} onClick={() => setSatisTipi("Bireysel")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.user }} />
-                Bireysel Satış
+              <button type="button" style={satisTipi === "Bireysel" ? segOn : segOff} onClick={() => setSatisTipi("Bireysel")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.user }} />Bireysel Satış
               </button>
-              <button style={satisTipi === "Kurumsal" ? segOn : segOff} onClick={() => setSatisTipi("Kurumsal")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.building }} />
-                Kurumsal Satış
+              <button type="button" style={satisTipi === "Kurumsal" ? segOn : segOff} onClick={() => setSatisTipi("Kurumsal")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.building }} />Kurumsal Satış
               </button>
             </div>
           </div>
@@ -440,17 +438,14 @@ export default function SatisYapPage() {
 
           {/* 3) Tabs */}
           <div className="sy-tabs" style={{ display: "flex", alignItems: "center", gap: 4, borderBottom: "1px solid #e2e8f1", marginBottom: 24, overflowX: "auto" }}>
-            <button style={tabStyle(isGenel)} onClick={() => setStep("genel")}>
-              <span style={tabNum(isGenel)}>1</span>
-              Genel Bilgiler
+            <button type="button" style={tabStyle(isGenel)} onClick={() => setStep("genel")}>
+              <span style={tabNum(isGenel)}>1</span>Genel Bilgiler
             </button>
-            <button style={tabStyle(isEgitim)} onClick={() => setStep("egitim")}>
-              <span style={tabNum(isEgitim)}>2</span>
-              Eğitim
+            <button type="button" style={tabStyle(isEgitim)} onClick={() => setStep("egitim")}>
+              <span style={tabNum(isEgitim)}>2</span>Eğitim
             </button>
-            <button style={tabStyle(isOdeme)} onClick={() => { if (!egitim) { toast.error("Önce eğitim seçin."); setStep("egitim"); return; } setStep("odeme"); }}>
-              <span style={tabNum(isOdeme)}>3</span>
-              Ödeme
+            <button type="button" style={tabStyle(isOdeme)} onClick={() => { if (!egitim) { toast.error("Önce eğitim seçin."); setStep("egitim"); return; } setStep("odeme"); }}>
+              <span style={tabNum(isOdeme)}>3</span>Ödeme
             </button>
           </div>
 
@@ -512,16 +507,15 @@ export default function SatisYapPage() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "32px", borderTop: "1px solid #eef1f6", background: "#fafbfd" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 {(isEgitim || isOdeme) && (
-                  <button className="sy-back" style={S.backLink} onClick={() => setStep(isOdeme ? "egitim" : "genel")}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />
-                    Geri
+                  <button type="button" className="sy-back" style={S.backLink} onClick={() => setStep(isOdeme ? "egitim" : "genel")}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />Geri
                   </button>
                 )}
                 <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>
                   {isOdeme ? "Ödeme bilgilerini girip satışı tamamlayın." : isEgitim ? "Satış kapsamını onaylayıp ödemeye geçin." : "Kişisel bilgileri tamamlayıp sonraki adıma geçin."}
                 </span>
               </div>
-              <button className="sy-next" style={{ ...S.nextBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }} onClick={onNext} disabled={saving}>
+              <button type="button" className="sy-next" style={{ ...S.nextBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }} onClick={onNext} disabled={saving}>
                 {saving ? "Kaydediliyor…" : isOdeme ? "Satışı Tamamla" : isEgitim ? "Devam Et — Ödeme" : "Devam Et — Eğitim"}
                 {!saving && <span dangerouslySetInnerHTML={{ __html: isOdeme ? IC.checkWhite : IC.arrowRight }} />}
               </button>

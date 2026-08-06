@@ -55,7 +55,7 @@ export function istanbulMinutesOfDay(): number {
     timeZone: ISTANBUL_TZ, hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(new Date());
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
-  return parseInt(get("hour"), 10) * 60 + parseInt(get("minute"), 10);
+  return Number.parseInt(get("hour"), 10) * 60 + Number.parseInt(get("minute"), 10);
 }
 
 /** Kurumsal kural (2026-07-20, kullanıcı kararı) — kişisel açma/kapama YOK, herkeste

@@ -102,8 +102,8 @@ const TR_MONTHS: Record<string, number> = { Oca: 0, Şub: 1, Mar: 2, Nis: 3, May
 export function parseTrDate(s: string): Date | null {
   const p = s.split(" ");
   if (p.length < 3) return null;
-  const d = parseInt(p[0]), m = TR_MONTHS[p[1]], y = parseInt(p[2]);
-  if (isNaN(d) || m === undefined || isNaN(y)) return null;
+  const d = Number.parseInt(p[0]), m = TR_MONTHS[p[1]], y = Number.parseInt(p[2]);
+  if (Number.isNaN(d) || m === undefined || Number.isNaN(y)) return null;
   return new Date(y, m, d);
 }
 

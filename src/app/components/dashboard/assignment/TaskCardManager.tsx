@@ -22,7 +22,7 @@ export function ActivateDateModal({ onConfirm, onCancel, title = "Bitiş tarihi 
 
   return (
     <div className={`fixed inset-0 z-800 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
       <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         <div>
           <p className="text-[17px] font-bold text-base-primary-900 mb-1">{title}</p>
@@ -35,8 +35,8 @@ export function ActivateDateModal({ onConfirm, onCancel, title = "Bitiş tarihi 
           className="w-full h-12 px-4 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all cursor-pointer"
         />
         <div className="flex gap-3">
-          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
-          <button onClick={handleConfirm} disabled={!date} className="flex-1 h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{confirmLabel}</button>
+          <button type="button" onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button type="button" onClick={handleConfirm} disabled={!date} className="flex-1 h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -80,7 +80,7 @@ export function TaskRow({ task, onEdit, onDelete, onSendToLibrary, onActivate }:
     if (!d) return null;
     const [y, m, day] = d.split("-");
     const months = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
-    return `${parseInt(day)} ${months[parseInt(m) - 1]} ${y}`;
+    return `${Number.parseInt(day)} ${months[Number.parseInt(m) - 1]} ${y}`;
   };
 
   return (
@@ -126,18 +126,18 @@ export function TaskRow({ task, onEdit, onDelete, onSendToLibrary, onActivate }:
       </div>
       {/* Düzenle / Sil — her zaman görünür, hover'da koyulaşır */}
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onEdit(task)}
+        <button type="button" onClick={() => onEdit(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-base-primary-50 hover:text-base-primary-500 transition-all cursor-pointer" title="Düzenle">
           <Edit2 size={14} />
         </button>
-        <button onClick={() => onDelete(task)}
+        <button type="button" onClick={() => onDelete(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer" title="Sil">
           <Trash2 size={14} />
         </button>
       </div>
       {/* 3-nokta menü — durum aksiyonları */}
       <div className="relative shrink-0" ref={menuRef}>
-        <button
+        <button type="button"
           onClick={() => setMenuOpen(v => !v)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-all cursor-pointer"
           title="Seçenekler"
@@ -152,14 +152,14 @@ export function TaskRow({ task, onEdit, onDelete, onSendToLibrary, onActivate }:
           const libraryDisabled   = !task.isActive && !task.isHidden;
           return (
             <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-[175px]">
-              <button
+              <button type="button"
                 onClick={() => { if (!activateDisabled) { onActivate(task); setMenuOpen(false); } }}
                 disabled={activateDisabled}
                 className={`w-full px-4 py-2.5 text-left text-[13px] font-bold transition-colors ${activateDisabled ? "text-surface-300 cursor-not-allowed" : "text-base-primary-900 hover:bg-surface-50 cursor-pointer"}`}
               >
                 Aktife Al
               </button>
-              <button
+              <button type="button"
                 onClick={() => { if (!libraryDisabled) { onSendToLibrary(task); setMenuOpen(false); } }}
                 disabled={libraryDisabled}
                 className={`w-full px-4 py-2.5 text-left text-[13px] font-bold transition-colors border-t border-surface-100 ${libraryDisabled ? "text-surface-300 cursor-not-allowed" : "text-base-primary-900 hover:bg-surface-50 cursor-pointer"}`}
@@ -185,7 +185,7 @@ export function DeleteConfirmModal({ task, onCancel, onConfirm }: {
 
   return (
     <div className={`fixed inset-0 z-700 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
       <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         <div className="w-14 h-14 rounded-full bg-status-danger-50 flex items-center justify-center">
           <AlertTriangle size={26} className="text-status-danger-500" />
@@ -197,8 +197,8 @@ export function DeleteConfirmModal({ task, onCancel, onConfirm }: {
           </p>
         </div>
         <div className="flex gap-3 w-full">
-          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
-          <button onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer">Evet, sil</button>
+          <button type="button" onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button type="button" onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer">Evet, sil</button>
         </div>
       </div>
     </div>
@@ -228,7 +228,7 @@ export function TaskList({ tasks, loading, onEdit, onDelete, onCreateFirst, onSe
       <div className="flex flex-col items-center justify-center py-24 text-surface-300">
         <Palette size={48} className="mb-4 opacity-40" />
         <p className="text-[15px] font-semibold mb-3">Henüz kart yok</p>
-        <button onClick={onCreateFirst}
+        <button type="button" onClick={onCreateFirst}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-50 text-surface-500 text-[13px] font-bold hover:text-surface-700 transition-all cursor-pointer">
           <Plus size={14} /> İlk kartı oluştur
         </button>

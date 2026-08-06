@@ -78,7 +78,7 @@ function StudentTableImpl({
               const hasGroup = groupCount > 0;
               const groupPopupOpen = hoveredGroup === st.id && groupCount > 1;
               return (
-                <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => onRowClick(st.id)}>
+                <tr key={st.id} className="oh-row" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => onRowClick(st.id)}>
                   {/* Ad Soyad */}
                   <td style={S.cell}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -88,7 +88,7 @@ function StudentTableImpl({
                   </td>
                   {/* Branş */}
                   <td style={{ ...S.cell, paddingLeft: 8 }}>
-                    <div
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                       style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8, cursor: "default" }}
                       onMouseEnter={() => setHoveredBrans(st.id)}
                       onMouseLeave={() => setHoveredBrans(null)}
@@ -118,7 +118,7 @@ function StudentTableImpl({
                     </div>
                   </td>
                   {/* Eğitim */}
-                  <td style={S.cell} onClick={(e) => e.stopPropagation()}>
+                  <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.cell} onClick={(e) => e.stopPropagation()}>
                     {st.educations.length === 0 ? (
                       <span style={{ fontSize: 13, color: "#CDD2DA" }}>—</span>
                     ) : (
@@ -164,11 +164,10 @@ function StudentTableImpl({
                   {/* Telefon — geniş ekran */}
                   <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{st.phone ? formatTrPhone(st.phone) : "—"}</span></td>
                   {/* Grup */}
-                  <td style={S.cell} onClick={(e) => e.stopPropagation()}>
+                  <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.cell} onClick={(e) => e.stopPropagation()}>
                     {groupCount === 0 ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#8E95A3", fontStyle: "italic", whiteSpace: "nowrap" }}>
-                        <span dangerouslySetInnerHTML={{ __html: IC.alert }} />
-                        Atanmadı
+                        <span dangerouslySetInnerHTML={{ __html: IC.alert }} />Atanmadı
                       </span>
                     ) : groupCount === 1 ? (
                       <span style={S.groupChip}>
@@ -209,7 +208,7 @@ function StudentTableImpl({
                     )}
                   </td>
                   {/* İşlem — 3 nokta menü: Gruba Ata / Grup Değiştir / Tamamen Sil */}
-                  <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                  <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
                     {(canAssignGroup || canTransfer || canDeleteEnrollment) ? (() => {
                       const canAssign = canAssignGroup && st.assignableEnrollments.length > 0;
                       const canDoTransfer = canTransfer && hasGroup;
@@ -227,19 +226,18 @@ function StudentTableImpl({
                           {step === "root" ? (
                             <>
                               {canAssignGroup && (
-                                <button
+                                <button type="button"
                                   className={canAssign ? "oh-ddrow" : undefined}
                                   disabled={!canAssign}
                                   title={canAssign ? "" : "Atanabilir grupsuz kayıt yok"}
                                   onClick={() => { closeMenu(); onOpenAssign(st); }}
                                   style={{ ...S.menuItem, color: canAssign ? "#1E222B" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
                                 >
-                                  <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                                  Gruba Ata
+                                  <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />Gruba Ata
                                 </button>
                               )}
                               {canTransfer && (
-                                <button
+                                <button type="button"
                                   className={canDoTransfer ? "oh-ddrow" : undefined}
                                   disabled={!canDoTransfer}
                                   title={canDoTransfer ? "" : "Grup değiştirmek için önce bir gruba atanmış olmalı"}
@@ -250,12 +248,11 @@ function StudentTableImpl({
                                   }}
                                   style={{ ...S.menuItem, color: canDoTransfer ? "#1E222B" : "#CDD2DA", cursor: canDoTransfer ? "pointer" : "not-allowed" }}
                                 >
-                                  <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                                  Grup Değiştir
+                                  <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />Grup Değiştir
                                 </button>
                               )}
                               {canDeleteEnrollment && deleteCandidates.length > 0 && (
-                                <button
+                                <button type="button"
                                   className="oh-ddrow"
                                   title="Kaydı kalıcı olarak sil (satışa bağlı/notlu kayıtlar reddedilir)"
                                   onClick={() => {
@@ -268,23 +265,21 @@ function StudentTableImpl({
                                   }}
                                   style={{ ...S.menuItem, color: "#D93636" }}
                                 >
-                                  <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                                  Tamamen Sil
+                                  <span dangerouslySetInnerHTML={{ __html: IC.trash }} />Tamamen Sil
                                 </button>
                               )}
                             </>
                           ) : step === "pickDelete" ? (
                             <>
-                              <button
+                              <button type="button"
                                 onClick={() => setActionMenuStep("root")}
                                 className="oh-ddrow"
                                 style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
                               >
-                                <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
-                                HANGİ KAYIT SİLİNSİN?
+                                <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />HANGİ KAYIT SİLİNSİN?
                               </button>
                               {deleteCandidates.map((d) => (
-                                <button
+                                <button type="button"
                                   key={d.enrollmentId}
                                   onClick={() => { closeMenu(); onOpenDelete(st, d.enrollmentId, d.label); }}
                                   className="oh-ddrow"
@@ -300,18 +295,17 @@ function StudentTableImpl({
                             </>
                           ) : (
                             <>
-                              <button
+                              <button type="button"
                                 onClick={() => setActionMenuStep("root")}
                                 className="oh-ddrow"
                                 style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
                               >
-                                <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
-                                HANGİ GRUPTAN TAŞINSIN?
+                                <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />HANGİ GRUPTAN TAŞINSIN?
                               </button>
                               {groups.map((g) => {
                                 const c = BRANS[g.branch] ?? BRANS_FALLBACK;
                                 return (
-                                  <button
+                                  <button type="button"
                                     key={g.groupId}
                                     onClick={() => { closeMenu(); onOpenTransfer(st, g); }}
                                     className="oh-ddrow"
@@ -331,7 +325,7 @@ function StudentTableImpl({
                       );
                       return (
                         <div data-oh-actionmenu={st.id} style={{ position: "relative", display: "inline-flex" }}>
-                          <button
+                          <button type="button"
                             className="oh-iconbtn"
                             title="İşlemler"
                             onClick={(e) => {
@@ -399,13 +393,13 @@ function StudentTableImpl({
             <strong style={{ color: "#1E222B", fontWeight: 700 }}>{total ? startIdx + 1 : 0}–{startIdx + pageStudents.length}</strong> arası gösteriliyor
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <button style={{ ...S.pageArrow, cursor: curPage > 1 ? "pointer" : "not-allowed", opacity: curPage > 1 ? 1 : 0.4 }} onClick={() => setPage(Math.max(1, curPage - 1))}>
+            <button type="button" style={{ ...S.pageArrow, cursor: curPage > 1 ? "pointer" : "not-allowed", opacity: curPage > 1 ? 1 : 0.4 }} onClick={() => setPage(Math.max(1, curPage - 1))}>
               <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button key={p} style={p === curPage ? S.pageCur : S.pageReg} onClick={() => setPage(p)}>{p}</button>
+              <button type="button" key={p} style={p === curPage ? S.pageCur : S.pageReg} onClick={() => setPage(p)}>{p}</button>
             ))}
-            <button style={{ ...S.pageArrow, cursor: curPage < totalPages ? "pointer" : "not-allowed", opacity: curPage < totalPages ? 1 : 0.4 }} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>
+            <button type="button" style={{ ...S.pageArrow, cursor: curPage < totalPages ? "pointer" : "not-allowed", opacity: curPage < totalPages ? 1 : 0.4 }} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>
               <span dangerouslySetInnerHTML={{ __html: IC.chevRight }} />
             </button>
           </div>

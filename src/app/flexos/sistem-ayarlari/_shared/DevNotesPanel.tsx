@@ -171,7 +171,7 @@ export default function DevNotesPanel() {
           ]).map((f) => {
             const active = statusFilter === f.key;
             return (
-              <button key={f.key} onClick={() => setStatusFilter(f.key)} style={{
+              <button type="button" key={f.key} onClick={() => setStatusFilter(f.key)} style={{
                 padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer",
                 fontSize: 13, fontWeight: active ? 700 : 600, fontFamily: "inherit",
                 color: active ? "#1E222B" : "#6F7B87", background: active ? "#F2F4F7" : "transparent",
@@ -181,7 +181,7 @@ export default function DevNotesPanel() {
             );
           })}
         </div>
-        <button onClick={openNewForm} style={S.addBtn}>+ Yeni Not</button>
+        <button type="button" onClick={openNewForm} style={S.addBtn}>+ Yeni Not</button>
       </div>
 
       {loading ? (
@@ -195,7 +195,7 @@ export default function DevNotesPanel() {
             const resolved = n.status === "cozuldu";
             return (
               <div key={n.id} style={{ ...S.card, opacity: resolved ? 0.6 : 1, display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <button
+                <button type="button"
                   onClick={() => toggleStatus(n)}
                   disabled={busyId === n.id}
                   title={resolved ? "Tekrar aç" : "Çözüldü olarak işaretle"}
@@ -219,8 +219,8 @@ export default function DevNotesPanel() {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, flex: "0 0 auto" }}>
-                  <button onClick={() => openEditForm(n)} title="Düzenle" style={S.iconBtn}><PencilIcon /></button>
-                  <button onClick={() => setDeleteId(n.id)} title="Sil" style={S.iconBtn}><TrashIcon /></button>
+                  <button type="button" onClick={() => openEditForm(n)} title="Düzenle" style={S.iconBtn}><PencilIcon /></button>
+                  <button type="button" onClick={() => setDeleteId(n.id)} title="Sil" style={S.iconBtn}><TrashIcon /></button>
                 </div>
               </div>
             );
@@ -229,28 +229,28 @@ export default function DevNotesPanel() {
       )}
 
       {formOpen && (
-        <div onClick={() => setFormOpen(false)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.formModal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setFormOpen(false)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.formModal}>
             <div style={{ padding: "28px 30px 6px" }}>
               <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#1E222B" }}>{editId ? "Notu Düzenle" : "Yeni Geliştirici Notu"}</h3>
             </div>
             <div style={{ padding: "18px 30px", display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                <label style={S.label}>Başlık</label>
-                <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} style={S.input} placeholder="Kısa özet" autoFocus />
+                <label htmlFor="fTitle" style={S.label}>Başlık</label>
+                <input id="fTitle" value={fTitle} onChange={(e) => setFTitle(e.target.value)} style={S.input} placeholder="Kısa özet" autoFocus />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                <label style={S.label}>Açıklama</label>
-                <textarea value={fDesc} onChange={(e) => setFDesc(e.target.value)} style={{ ...S.input, minHeight: 130, resize: "vertical" as const, fontFamily: "inherit" }} placeholder="Ne oldu, nasıl tekrarlanır..." />
+                <label htmlFor="fDesc" style={S.label}>Açıklama</label>
+                <textarea id="fDesc" value={fDesc} onChange={(e) => setFDesc(e.target.value)} style={{ ...S.input, minHeight: 130, resize: "vertical" as const, fontFamily: "inherit" }} placeholder="Ne oldu, nasıl tekrarlanır..." />
               </div>
               <div style={{ display: "flex", gap: 14 }}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
-                  <label style={S.label}>Modül <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></label>
-                  <input value={fModule} onChange={(e) => setFModule(e.target.value)} style={S.input} placeholder="Bilmiyorsan boş bırak" />
+                  <label htmlFor="fModule" style={S.label}>Modül <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></label>
+                  <input id="fModule" value={fModule} onChange={(e) => setFModule(e.target.value)} style={S.input} placeholder="Bilmiyorsan boş bırak" />
                 </div>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                  <label style={S.label}>Öncelik</label>
-                  <select value={fPriority} onChange={(e) => setFPriority(e.target.value as Priority)} style={S.input}>
+                  <label htmlFor="fPriority" style={S.label}>Öncelik</label>
+                  <select id="fPriority" value={fPriority} onChange={(e) => setFPriority(e.target.value as Priority)} style={S.input}>
                     <option value="dusuk">Düşük</option>
                     <option value="orta">Orta</option>
                     <option value="yuksek">Yüksek</option>
@@ -259,23 +259,23 @@ export default function DevNotesPanel() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, padding: "18px 30px 26px", justifyContent: "flex-end" }}>
-              <button onClick={() => setFormOpen(false)} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={saveForm} disabled={saving} style={{ ...S.addBtn, opacity: saving ? 0.6 : 1 }}>{saving ? "Kaydediliyor…" : "Kaydet"}</button>
+              <button type="button" onClick={() => setFormOpen(false)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={saveForm} disabled={saving} style={{ ...S.addBtn, opacity: saving ? 0.6 : 1 }}>{saving ? "Kaydediliyor…" : "Kaydet"}</button>
             </div>
           </div>
         </div>
       )}
 
       {deleteId && (
-        <div onClick={() => setDeleteId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 380 }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setDeleteId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ ...S.modal, maxWidth: 380 }}>
             <div style={{ padding: "24px 24px 8px" }}>
               <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, color: "#1E222B" }}>Notu sil</h3>
               <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>Bu işlem geri alınamaz.</p>
             </div>
             <div style={{ display: "flex", gap: 10, padding: "16px 24px 22px", justifyContent: "flex-end" }}>
-              <button onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={confirmDelete} style={{ ...S.addBtn, background: "#D93636" }}>Evet, sil</button>
+              <button type="button" onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={confirmDelete} style={{ ...S.addBtn, background: "#D93636" }}>Evet, sil</button>
             </div>
           </div>
         </div>

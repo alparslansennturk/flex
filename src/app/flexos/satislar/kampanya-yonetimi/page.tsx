@@ -223,8 +223,8 @@ export default function KampanyaYonetimiPage() {
   const toggleBranch = (id: string) => setSelBranches((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
   const toggleEdu    = (id: string) => setSelEdus   ((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
-  const parsedDisc = parseFloat(discValue) || 0;
-  const parsedNth  = parseInt(nthN, 10) || 2;
+  const parsedDisc = Number.parseFloat(discValue) || 0;
+  const parsedNth  = Number.parseInt(nthN, 10) || 2;
 
   const openAdd = () => {
     setEditId(null); setFormName(""); setFormDesc("");
@@ -321,13 +321,13 @@ export default function KampanyaYonetimiPage() {
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Kampanya ara…" style={{ paddingLeft: 33, paddingRight: 14, height: 40, borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", fontSize: 13.5, fontWeight: 500, outline: "none", width: 220, fontFamily: "inherit", color: "#1E222B" }} />
               </div>
               {(["Tümü", "aktif", "yaklaşan", "taslak", "bitti"] as const).map((v) => (
-                <button key={v} onClick={() => setStatusFilter(v)} className="kp-fb"
+                <button type="button" key={v} onClick={() => setStatusFilter(v)} className="kp-fb"
                   style={{ height: 40, padding: "0 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: statusFilter === v ? "linear-gradient(135deg,#2867bd,#205297)" : "#fff", color: statusFilter === v ? "#fff" : "#6F7B87", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", boxShadow: statusFilter === v ? "0 4px 10px -4px rgba(32,82,151,.4)" : "none", transition: "all .14s" }}>
                   {v === "Tümü" ? "Tümü" : STATUS_STYLE[v].label}
                 </button>
               ))}
             </div>
-            <button onClick={openAdd} className="kp-add"
+            <button type="button" onClick={openAdd} className="kp-add"
               style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 42, padding: "0 20px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Kampanya Oluştur
             </button>
@@ -383,10 +383,10 @@ export default function KampanyaYonetimiPage() {
                       </td>
                       <td style={{ padding: "15px 20px" }}>
                         <div style={{ display: "flex", gap: 7 }}>
-                          <button onClick={() => openEdit(c)} className="kp-ib" style={{ width: 33, height: 33, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <button type="button" onClick={() => openEdit(c)} className="kp-ib" style={{ width: 33, height: 33, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.edit }} />
                           </button>
-                          <button onClick={() => setDeleteId(c.id)} className="kp-ib-d" style={{ width: 33, height: 33, borderRadius: 9, border: "1px solid #FFCDD2", background: "#FFF5F5", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <button type="button" onClick={() => setDeleteId(c.id)} className="kp-ib-d" style={{ width: 33, height: 33, borderRadius: 9, border: "1px solid #FFCDD2", background: "#FFF5F5", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                           </button>
                         </div>
@@ -423,7 +423,7 @@ export default function KampanyaYonetimiPage() {
                     <p style={{ margin: "2px 0 0", fontSize: 12, color: "#8E95A3" }}>Kapsam, indirim tipi ve tarih aralığı belirleyin.</p>
                   </div>
                 </div>
-                <button onClick={() => !saving && setShowForm(false)} className="kp-close-btn" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #E2E5EA", background: "#F7F8FA", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <button type="button" onClick={() => !saving && setShowForm(false)} className="kp-close-btn" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #E2E5EA", background: "#F7F8FA", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   <span dangerouslySetInnerHTML={{ __html: IC.close }} />
                 </button>
               </div>
@@ -444,7 +444,7 @@ export default function KampanyaYonetimiPage() {
                       ]).map(({ t, label, sub, icon }) => {
                         const active = scopeType === t;
                         return (
-                          <button key={t} onClick={() => { setScopeType(t); setSelBranches([]); setSelEdus([]); }} className="kp-scope-btn"
+                          <button type="button" key={t} onClick={() => { setScopeType(t); setSelBranches([]); setSelEdus([]); }} className="kp-scope-btn"
                             style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 11, border: `1.5px solid ${active ? "#205297" : "#E2E5EA"}`, background: active ? "#EBF2FF" : "#F7F8FA", cursor: "pointer", fontFamily: "inherit", transition: "all .12s", textAlign: "left" as const }}>
                             <div style={{ width: 36, height: 36, borderRadius: 9, background: active ? "#205297" : "#E8EBF0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background .12s" }}>
                               <span dangerouslySetInnerHTML={{ __html: icon }} style={{ color: active ? "#fff" : "#6F7B87", filter: active ? "brightness(10)" : "none" }} />
@@ -477,7 +477,7 @@ export default function KampanyaYonetimiPage() {
                       const sel = selBranches.includes(b.id);
                       const c = BRANS_COLORS[b.name] ?? { color: "#414B59", bg: "#EEF0F3" };
                       return (
-                        <div key={b.id} onClick={() => toggleBranch(b.id)} className="kp-sel-row"
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={b.id} onClick={() => toggleBranch(b.id)} className="kp-sel-row"
                           style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 11, marginBottom: 6, cursor: "pointer", background: sel ? "#EBF2FF" : "#F7F8FA", border: `1px solid ${sel ? "#92B6E8" : "#EEF0F3"}`, transition: "all .1s" }}>
                           <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${sel ? "#205297" : "#CDD2DA"}`, background: sel ? "#205297" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                             {sel && <span dangerouslySetInnerHTML={{ __html: IC.check }} style={{ color: "#fff" }} />}
@@ -502,7 +502,7 @@ export default function KampanyaYonetimiPage() {
                           const sel = selEdus.includes(edu.id);
                           const c = BRANS_COLORS[edu.brans] ?? { color: "#414B59", bg: "#EEF0F3" };
                           return (
-                            <div key={edu.id} onClick={() => toggleEdu(edu.id)} className="kp-sel-row"
+                            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={edu.id} onClick={() => toggleEdu(edu.id)} className="kp-sel-row"
                               style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, marginBottom: 5, cursor: "pointer", background: sel ? "#EBF2FF" : "#F7F8FA", border: `1px solid ${sel ? "#92B6E8" : "#EEF0F3"}`, transition: "all .1s" }}>
                               <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${sel ? "#205297" : "#CDD2DA"}`, background: sel ? "#205297" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                 {sel && <span dangerouslySetInnerHTML={{ __html: IC.check }} style={{ color: "#fff" }} />}
@@ -528,12 +528,12 @@ export default function KampanyaYonetimiPage() {
                     {/* Ad + açıklama */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                       <div>
-                        <label style={S.lbl}>Kampanya Adı *</label>
-                        <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Yaz İndirimi…" style={S.inp} />
+                        <label htmlFor="formName" style={S.lbl}>Kampanya Adı *</label>
+                        <input id="formName" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Yaz İndirimi…" style={S.inp} />
                       </div>
                       <div>
-                        <label style={S.lbl}>Açıklama</label>
-                        <input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Kısa açıklama…" style={S.inp} />
+                        <label htmlFor="formDesc" style={S.lbl}>Açıklama</label>
+                        <input id="formDesc" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Kısa açıklama…" style={S.inp} />
                       </div>
                     </div>
 
@@ -548,7 +548,7 @@ export default function KampanyaYonetimiPage() {
                         ]).map(({ t, label, sub }) => {
                           const active = discType === t;
                           return (
-                            <button key={t} onClick={() => setDiscType(t)} className="kp-disc-btn"
+                            <button type="button" key={t} onClick={() => setDiscType(t)} className="kp-disc-btn"
                               style={{ padding: "10px 10px", borderRadius: 10, border: `1.5px solid ${active ? "#205297" : "#E2E5EA"}`, background: active ? "#EBF2FF" : "#F7F8FA", cursor: "pointer", fontFamily: "inherit", transition: "all .12s", textAlign: "left" as const }}>
                               <div style={{ fontSize: 12.5, fontWeight: 800, color: active ? "#205297" : "#414B59", marginBottom: 3 }}>{label}</div>
                               <div style={{ fontSize: 10.5, color: active ? "#5A8AC7" : "#8E95A3", lineHeight: 1.3 }}>{sub}</div>
@@ -561,25 +561,25 @@ export default function KampanyaYonetimiPage() {
                     {/* İndirim değeri */}
                     {discType !== "nth" ? (
                       <div style={{ marginBottom: 14 }}>
-                        <label style={S.lbl}>{discType === "percent" ? "İndirim Oranı *" : "İndirim Tutarı *"}</label>
+                        <label htmlFor="discValue" style={S.lbl}>{discType === "percent" ? "İndirim Oranı *" : "İndirim Tutarı *"}</label>
                         <div style={{ display: "flex", alignItems: "center", background: "#fff", borderRadius: 10, border: "1.5px solid #205297", overflow: "hidden", boxShadow: "0 0 0 3px rgba(32,82,151,.08)" }}>
-                          <input value={discValue} onChange={(e) => setDiscValue(e.target.value.replace(/[^\d.]/g, ""))} placeholder="0"
+                          <input id="discValue" value={discValue} onChange={(e) => setDiscValue(e.target.value.replaceAll(/[^\d.]/g, ""))} placeholder="0"
                             style={{ flex: 1, height: 46, padding: "0 14px", border: "none", background: "transparent", fontSize: 24, fontWeight: 900, fontFamily: "inherit", outline: "none", color: "#1E222B", textAlign: "right" as const }} />
                           <span style={{ fontSize: 18, fontWeight: 800, color: "#205297", padding: "0 14px 0 4px" }}>{discType === "percent" ? "%" : "₺"}</span>
                         </div>
                       </div>
                     ) : (
                       <div style={{ marginBottom: 14 }}>
-                        <label style={S.lbl}>N. Alışveriş İndirimi *</label>
+                        <label htmlFor="nthN" style={S.lbl}>N. Alışveriş İndirimi *</label>
                         <div style={{ display: "flex", gap: 8 }}>
                           <div style={{ display: "flex", alignItems: "center", background: "#F7F8FA", borderRadius: 10, border: "1px solid #E2E5EA", overflow: "hidden", flex: "0 0 auto" }}>
                             <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", padding: "0 10px", whiteSpace: "nowrap" as const }}>Kaçıncı?</span>
-                            <input type="number" min={2} max={10} value={nthN} onChange={(e) => setNthN(e.target.value)}
+                            <input id="nthN" type="number" min={2} max={10} value={nthN} onChange={(e) => setNthN(e.target.value)}
                               style={{ width: 48, height: 46, border: "none", background: "transparent", fontSize: 20, fontWeight: 900, fontFamily: "inherit", outline: "none", color: "#205297", textAlign: "center" as const, padding: "0 8px 0 0" }} />
                             <span style={{ fontSize: 14, fontWeight: 700, color: "#205297", paddingRight: 10 }}>.</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", background: "#fff", borderRadius: 10, border: "1.5px solid #205297", overflow: "hidden", flex: 1, boxShadow: "0 0 0 3px rgba(32,82,151,.08)" }}>
-                            <input value={discValue} onChange={(e) => setDiscValue(e.target.value.replace(/[^\d.]/g, ""))} placeholder="0"
+                            <input value={discValue} onChange={(e) => setDiscValue(e.target.value.replaceAll(/[^\d.]/g, ""))} placeholder="0"
                               style={{ flex: 1, height: 46, padding: "0 10px", border: "none", background: "transparent", fontSize: 24, fontWeight: 900, fontFamily: "inherit", outline: "none", color: "#1E222B", textAlign: "right" as const }} />
                             <span style={{ fontSize: 18, fontWeight: 800, color: "#205297", paddingRight: 12 }}>%</span>
                           </div>
@@ -594,9 +594,9 @@ export default function KampanyaYonetimiPage() {
 
                     {/* Tarih */}
                     <div>
-                      <label style={S.lbl}>Tarih Aralığı *</label>
+                      <label htmlFor="formStart" style={S.lbl}>Tarih Aralığı *</label>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <input type="date" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ flex: 1, height: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#F7F8FA", fontSize: 13.5, fontFamily: "inherit", outline: "none", color: "#1E222B" }} />
+                        <input id="formStart" type="date" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ flex: 1, height: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#F7F8FA", fontSize: 13.5, fontFamily: "inherit", outline: "none", color: "#1E222B" }} />
                         <span style={{ color: "#CDD2DA", fontWeight: 700, flexShrink: 0 }}>→</span>
                         <input type="date" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} min={formStart} style={{ flex: 1, height: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#F7F8FA", fontSize: 13.5, fontFamily: "inherit", outline: "none", color: "#1E222B" }} />
                       </div>
@@ -610,13 +610,13 @@ export default function KampanyaYonetimiPage() {
                   <div style={{ borderTop: "1px solid #E2E5EA", padding: "20px 24px 32px", background: "#fff", flexShrink: 0 }}>
                     <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                       {(["taslak", "aktif"] as const).map((v) => (
-                        <button key={v} onClick={() => setFormStatus(v)} className="kp-status-btn"
+                        <button type="button" key={v} onClick={() => setFormStatus(v)} className="kp-status-btn"
                           style={{ flex: 1, height: 36, borderRadius: 9, border: `1.5px solid ${formStatus === v ? "#205297" : "#E2E5EA"}`, background: formStatus === v ? "#EBF2FF" : "#F7F8FA", color: formStatus === v ? "#205297" : "#6F7B87", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                           {v === "taslak" ? "Taslak" : "Yayınla"}
                         </button>
                       ))}
                     </div>
-                    <button onClick={save} disabled={saving} className="kp-save"
+                    <button type="button" onClick={save} disabled={saving} className="kp-save"
                       style={{ width: "100%", height: 44, borderRadius: 11, border: "none", background: saving ? "#CDD2DA" : "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: saving ? "none" : "0 6px 14px -6px rgba(32,82,151,.5)" }}>
                       {saving ? "Kaydediliyor…" : editId ? "Değişiklikleri Kaydet" : "Kampanyayı Kaydet"}
                     </button>
@@ -644,8 +644,8 @@ export default function KampanyaYonetimiPage() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 10, padding: "0 26px 20px" }}>
-                  <button onClick={() => setDeleteId(null)} style={{ flex: 1, height: 40, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Vazgeç</button>
-                  <button onClick={confirmDelete} disabled={deleting} style={{ flex: 1, height: 40, borderRadius: 10, border: "none", background: "#D93636", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                  <button type="button" onClick={() => setDeleteId(null)} style={{ flex: 1, height: 40, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Vazgeç</button>
+                  <button type="button" onClick={confirmDelete} disabled={deleting} style={{ flex: 1, height: 40, borderRadius: 10, border: "none", background: "#D93636", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
                     {deleting ? "Siliniyor…" : "Evet, sil"}
                   </button>
                 </div>

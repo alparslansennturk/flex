@@ -11,7 +11,7 @@
  * süzüp baştan kurar). Hem giriş onChange'inde hem gösterimde kullanılır.
  */
 export function formatTrPhone(input: string): string {
-  let d = (input ?? "").replace(/\D/g, "");
+  let d = (input ?? "").replaceAll(/\D/g, "");
   if (d.startsWith("0")) d = d.slice(1); // baştaki 0 bizde sabit
   d = d.slice(0, 10); // 5xx xxx xx xx = 10 hane
 

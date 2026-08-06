@@ -12,6 +12,7 @@
  */
 
 import React, { useEffect, useState, CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -164,9 +165,9 @@ export default function TatilGunleriPage() {
         <FlexHeader
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="th-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
+              <Link href="/flexos/egitim-yonetimi/ayarlar" className="th-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
                   <span>Eğitim Yönetimi</span>
@@ -192,21 +193,21 @@ export default function TatilGunleriPage() {
             <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 11, letterSpacing: ".01em" }}>YENİ TATİL EKLE</div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <label style={S.label}>Tatil Adı</label>
-                <input className="th-input" type="text" value={name}
+                <label htmlFor="name" style={S.label}>Tatil Adı</label>
+                <input id="name" className="th-input" type="text" value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addHoliday(); }}
                   placeholder="Örn: Kurban Bayramı" style={{ ...S.input, width: "100%" }} />
               </div>
               <div>
-                <label style={S.label}>Başlangıç</label>
-                <input className="th-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={S.input} />
+                <label htmlFor="startDate" style={S.label}>Başlangıç</label>
+                <input id="startDate" className="th-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={S.input} />
               </div>
               <div>
-                <label style={S.label}>Bitiş (tek günse boş)</label>
-                <input className="th-input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} style={S.input} />
+                <label htmlFor="endDate" style={S.label}>Bitiş (tek günse boş)</label>
+                <input id="endDate" className="th-input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} style={S.input} />
               </div>
-              <button onClick={addHoliday} disabled={!canAdd} style={addBtnStyle(canAdd)}>
+              <button type="button" onClick={addHoliday} disabled={!canAdd} style={addBtnStyle(canAdd)}>
                 <span dangerouslySetInnerHTML={{ __html: IC.plus }} />
                 {saving ? "Ekleniyor…" : "Ekle"}
               </button>
@@ -238,20 +239,20 @@ export default function TatilGunleriPage() {
                       {isEditing ? (
                         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
                           <div style={{ flex: 1, minWidth: 160 }}>
-                            <label style={S.label}>Tatil Adı</label>
-                            <input className="th-input" type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                            <label htmlFor="editName" style={S.label}>Tatil Adı</label>
+                            <input id="editName" className="th-input" type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); }} style={{ ...S.input, width: "100%" }} />
                           </div>
                           <div>
-                            <label style={S.label}>Başlangıç</label>
-                            <input className="th-input" type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} style={S.input} />
+                            <label htmlFor="editStart" style={S.label}>Başlangıç</label>
+                            <input id="editStart" className="th-input" type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} style={S.input} />
                           </div>
                           <div>
-                            <label style={S.label}>Bitiş</label>
-                            <input className="th-input" type="date" value={editEnd} min={editStart || undefined} onChange={(e) => setEditEnd(e.target.value)} style={S.input} />
+                            <label htmlFor="editEnd" style={S.label}>Bitiş</label>
+                            <input id="editEnd" className="th-input" type="date" value={editEnd} min={editStart || undefined} onChange={(e) => setEditEnd(e.target.value)} style={S.input} />
                           </div>
-                          <button onClick={saveEdit} style={addBtnStyle(true)}>Kaydet</button>
-                          <button onClick={() => setEditingId(null)} style={S.cancelBtn}>Vazgeç</button>
+                          <button type="button" onClick={saveEdit} style={addBtnStyle(true)}>Kaydet</button>
+                          <button type="button" onClick={() => setEditingId(null)} style={S.cancelBtn}>Vazgeç</button>
                         </div>
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
@@ -265,10 +266,10 @@ export default function TatilGunleriPage() {
                               {" · "}{dayCount(h)} gün
                             </div>
                           </div>
-                          <button onClick={() => startEdit(h)} style={S.iconBtnSmall} title="Düzenle">
+                          <button type="button" onClick={() => startEdit(h)} style={S.iconBtnSmall} title="Düzenle">
                             <span dangerouslySetInnerHTML={{ __html: IC.edit }} />
                           </button>
-                          <button onClick={() => removeHoliday(h.id)} style={S.iconBtnSmallDanger} title="Sil">
+                          <button type="button" onClick={() => removeHoliday(h.id)} style={S.iconBtnSmallDanger} title="Sil">
                             <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                           </button>
                         </div>

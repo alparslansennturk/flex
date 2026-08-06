@@ -17,6 +17,17 @@ import { resolveFlexosLanding } from "../lib/resolveFlexosLanding";
 
 // ─── Normal Login ─────────────────────────────────────────────────────────────
 
+// `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` yerine: aynı kabul/red kümesini üreten,
+// backtracking'e açık olmayan doğrudan string taraması (Sonar S8786).
+function looksLikeEmail(value: string): boolean {
+  if (/\s/.test(value)) return false;
+  const at = value.indexOf("@");
+  if (at <= 0) return false;
+  const domain = value.slice(at + 1);
+  if (domain.length === 0 || domain.includes("@")) return false;
+  return domain.slice(1, -1).includes(".");
+}
+
 function LoginForm() {
   const router = useRouter();
   const [email, setEmail]           = useState("");
@@ -46,8 +57,7 @@ function LoginForm() {
     if (e) e.preventDefault();
     setErrors({});
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!looksLikeEmail(email)) {
       setErrors({ general: getFlexMessage('auth/invalid-email').text, isEmailError: true });
       setShake(true);
       return;
@@ -140,7 +150,7 @@ function LoginForm() {
 
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center h-5">
-            <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>E-Posta</label>
+            <label htmlFor={`user_id_${formKey}`} className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>E-Posta</label>
             {errors.general && (
               <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold" style={{ color: 'var(--color-status-danger-500)' }}>
                 {errors.general}
@@ -172,7 +182,7 @@ function LoginForm() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Parola</label>
+          <label htmlFor={`key_id_${formKey}`} className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Parola</label>
           <div className="relative w-full">
             <input
               autoComplete="new-password"
@@ -328,14 +338,14 @@ function ActivationForm({ prefillEmail, prefillCode }: { prefillEmail: string; p
         {/* Aktivasyon Kodu */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center h-5">
-            <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Aktivasyon Kodu</label>
+            <label htmlFor="code" className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Aktivasyon Kodu</label>
             {error && (
               <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold" style={{ color: 'var(--color-status-danger-500)' }}>
                 {error}
               </span>
             )}
           </div>
-          <input
+          <input id="code"
             type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -352,9 +362,9 @@ function ActivationForm({ prefillEmail, prefillCode }: { prefillEmail: string; p
 
         {/* Yeni Şifre */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Şifre Belirle</label>
+          <label htmlFor="newPassword" className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Şifre Belirle</label>
           <div className="relative w-full">
-            <input
+            <input id="newPassword"
               type={showPassword ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -376,8 +386,8 @@ function ActivationForm({ prefillEmail, prefillCode }: { prefillEmail: string; p
 
         {/* Şifre Tekrar */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Şifre Tekrar</label>
-          <input
+          <label htmlFor="confirmPassword" className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Şifre Tekrar</label>
+          <input id="confirmPassword"
             type={showPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

@@ -65,11 +65,11 @@ export function GenelBilgilerTab({
 
       <SectionTitle>Uyruk &amp; Kimlik</SectionTitle>
       <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
-        <div onClick={() => setUyruk("TC")} style={uyrukCard(isTc)}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setUyruk("TC")} style={uyrukCard(isTc)}>
           <span style={uyrukRadio(isTc)}>{isTc && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4f46e5" }} />}</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>T.C. Vatandaşı</span>
         </div>
-        <div onClick={() => setUyruk("Yabanci")} style={uyrukCard(isYabanci)}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setUyruk("Yabanci")} style={uyrukCard(isYabanci)}>
           <span style={uyrukRadio(isYabanci)}>{isYabanci && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4f46e5" }} />}</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>Yabancı Uyruklu</span>
         </div>

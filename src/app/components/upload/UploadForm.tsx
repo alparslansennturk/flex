@@ -73,7 +73,7 @@ export default function UploadForm({
         </div>
         <p className="text-[15px] font-bold text-base-primary-900">Ödev teslim edildi!</p>
         <p className="text-[13px] text-surface-400">Eğitmen inceleyecek ve geri bildirim verecek.</p>
-        <button
+        <button type="button"
           onClick={() => setState("idle")}
           className="mt-2 text-[12px] font-bold text-base-primary-500 hover:underline cursor-pointer"
         >
@@ -106,10 +106,10 @@ export default function UploadForm({
       </div>
 
       <div>
-        <label className="block text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">
+        <label htmlFor="note" className="block text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">
           Not <span className="text-surface-300 font-normal normal-case">(opsiyonel)</span>
         </label>
-        <textarea
+        <textarea id="note"
           value={note}
           onChange={e => setNote(e.target.value)}
           disabled={state === "uploading"}

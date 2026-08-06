@@ -128,11 +128,11 @@ function ResultModal({
         <div style={{ margin: "0 40px", height: 2, background: "linear-gradient(90deg, #1B5EBF, #a855f7)" }} />
 
         <div style={{ padding: "20px 40px 28px", display: "flex", gap: 12, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "12px 28px", borderRadius: 12, background: "transparent", border: "2px solid #e2e8f0", color: "#666", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+          <button type="button" onClick={onClose} style={{ padding: "12px 28px", borderRadius: 12, background: "transparent", border: "2px solid #e2e8f0", color: "#666", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
             Kapat
           </button>
           {!isPastView && (
-            <button
+            <button type="button"
               onClick={noMoreStudents ? onClose : onAdvance}
               style={{
                 padding: "12px 32px", borderRadius: 12,
@@ -415,7 +415,7 @@ export default function SocialGameScreen({
 
         <div className="flex-1 flex flex-col">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 32px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-            <button onClick={() => router.push("/flexos/egitmen-anasayfa")} style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.35)", background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+            <button type="button" onClick={() => router.push("/flexos/egitmen-anasayfa")} style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.35)", background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
               <ArrowLeft size={16} /> Ana Sayfa
             </button>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -489,7 +489,7 @@ export default function SocialGameScreen({
               <div className="text-center flex flex-col items-center gap-5" style={{ paddingTop: 48 }}>
                 <p className="text-[18px] font-bold" style={{ color: "rgba(255,255,255,0.9)" }}>Bu oturumun tüm katılımcıları tamamlandı!</p>
                 <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.45)" }}>Ödev artık normal not girişi akışına düştü.</p>
-                <button onClick={() => router.push("/flexos/egitmen-anasayfa")}
+                <button type="button" onClick={() => router.push("/flexos/egitmen-anasayfa")}
                   className="px-10 py-3.5 rounded-full text-[15px] font-bold text-white cursor-pointer active:scale-95 transition-transform"
                   style={{ background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)", boxShadow: "0 6px 20px rgba(168,85,247,0.25)" }}>
                   Ana Sayfaya Dön
@@ -501,11 +501,11 @@ export default function SocialGameScreen({
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 32px", borderTop: "1px solid rgba(255,255,255,0.07)", minHeight: 88, gap: 16 }}>
             {phase === "idle" && !spinning && !allDone && (
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <button onClick={beginPicking} style={{ padding: "16px 52px", borderRadius: 100, background: "linear-gradient(135deg, #7c3aed, #a855f7)", boxShadow: "0 8px 28px rgba(168,85,247,0.30)", color: "white", fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer" }}>
+                <button type="button" onClick={beginPicking} style={{ padding: "16px 52px", borderRadius: 100, background: "linear-gradient(135deg, #7c3aed, #a855f7)", boxShadow: "0 8px 28px rgba(168,85,247,0.30)", color: "white", fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer" }}>
                   Başlat
                 </button>
                 {draws.length > 0 && (
-                  <button onClick={handleForceFinish} disabled={finalizing}
+                  <button type="button" onClick={handleForceFinish} disabled={finalizing}
                     className="disabled:opacity-50"
                     style={{ padding: "16px 28px", borderRadius: 100, fontSize: 15, fontWeight: 700, background: "transparent", border: "2px solid rgba(248,113,113,0.30)", color: "rgba(248,113,113,0.70)", cursor: finalizing ? "wait" : "pointer" }}>
                     Ödevi Tamamla
@@ -515,7 +515,7 @@ export default function SocialGameScreen({
             )}
 
             {phase === "ready" && !spinning && (
-              <button onClick={handleStartSpin} disabled={!poolReady}
+              <button type="button" onClick={handleStartSpin} disabled={!poolReady}
                 style={{
                   padding: "16px 52px", borderRadius: 100, background: "linear-gradient(135deg, #276749, #38a169)",
                   boxShadow: "0 8px 28px rgba(56,161,105,0.28)", color: "white", fontSize: 16, fontWeight: 800, border: "none",

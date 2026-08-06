@@ -98,7 +98,7 @@ export function FilterBar({
         </Dd>
 
         {anyFilter && (
-          <button className="am-clear-btn" onClick={onClear}
+          <button type="button" className="am-clear-btn" onClick={onClear}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 13px", borderRadius: 11, border: "1px dashed #F3B0B0", background: "#fff", color: "#D93636", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             Temizle
@@ -107,7 +107,7 @@ export function FilterBar({
       </div>
 
       {/* Aktivite Ekle */}
-      <button className="am-orange-btn" onClick={onAddClick}
+      <button type="button" className="am-orange-btn" onClick={onAddClick}
         style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 18px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
         Aktivite Ekle

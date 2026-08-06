@@ -80,14 +80,14 @@ export default function FlexosSifremiUnuttumPage() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-end h-5">
-                <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>E-Posta</label>
+                <label htmlFor="email" className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>E-Posta</label>
                 {error && (
                   <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold" style={{ color: "var(--color-status-danger-500)" }}>
                     {error}
                   </span>
                 )}
               </div>
-              <input
+              <input id="email"
                 autoComplete="new-password"
                 data-lpignore="true"
                 spellCheck="false"

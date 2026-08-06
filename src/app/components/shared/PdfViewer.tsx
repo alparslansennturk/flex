@@ -39,20 +39,20 @@ export default function PdfViewer({ url, className }: PdfViewerProps) {
     <div className={className} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 10, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={() => setPageNumber((p) => Math.max(1, p - 1))} disabled={pageNumber <= 1} style={{ ...iconBtnStyle, opacity: pageNumber <= 1 ? 0.4 : 1 }}>
+          <button type="button" onClick={() => setPageNumber((p) => Math.max(1, p - 1))} disabled={pageNumber <= 1} style={{ ...iconBtnStyle, opacity: pageNumber <= 1 ? 0.4 : 1 }}>
             <ChevronLeft size={15} />
           </button>
           <span style={{ fontSize: 12.5, fontWeight: 600, color: "#414B59", minWidth: 60, textAlign: "center" }}>
             {pageNumber} / {numPages ?? "…"}
           </span>
-          <button onClick={() => setPageNumber((p) => Math.min(numPages ?? p, p + 1))} disabled={!numPages || pageNumber >= numPages} style={{ ...iconBtnStyle, opacity: !numPages || pageNumber >= numPages ? 0.4 : 1 }}>
+          <button type="button" onClick={() => setPageNumber((p) => Math.min(numPages ?? p, p + 1))} disabled={!numPages || pageNumber >= numPages} style={{ ...iconBtnStyle, opacity: !numPages || pageNumber >= numPages ? 0.4 : 1 }}>
             <ChevronRight size={15} />
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={() => setScale((s) => Math.max(0.5, +(s - 0.2).toFixed(1)))} style={iconBtnStyle}><ZoomOut size={14} /></button>
+          <button type="button" onClick={() => setScale((s) => Math.max(0.5, +(s - 0.2).toFixed(1)))} style={iconBtnStyle}><ZoomOut size={14} /></button>
           <span style={{ fontSize: 12, color: "#8E95A3", minWidth: 38, textAlign: "center" }}>{Math.round(scale * 100)}%</span>
-          <button onClick={() => setScale((s) => Math.min(2.5, +(s + 0.2).toFixed(1)))} style={iconBtnStyle}><ZoomIn size={14} /></button>
+          <button type="button" onClick={() => setScale((s) => Math.min(2.5, +(s + 0.2).toFixed(1)))} style={iconBtnStyle}><ZoomIn size={14} /></button>
         </div>
       </div>
 

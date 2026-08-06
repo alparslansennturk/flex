@@ -177,14 +177,14 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
               {canEdit && (
                 editing ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
+                    <button type="button"
                       onClick={cancelEdit}
                       disabled={saving}
                       className="px-3.5 py-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer disabled:opacity-50"
                     >
                       Vazgeç
                     </button>
-                    <button
+                    <button type="button"
                       onClick={handleSave}
                       disabled={saving}
                       className="px-3.5 py-2 rounded-[10px] border-none text-white text-[13px] font-bold cursor-pointer disabled:opacity-60"
@@ -194,7 +194,7 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
                     </button>
                   </div>
                 ) : (
-                  <button
+                  <button type="button"
                     onClick={startEdit}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer shrink-0 hover:border-[#92b6e8] hover:text-[#205297] hover:bg-[#EFF3FA]"
                   >
@@ -209,7 +209,7 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
           {/* TABS */}
           <div className="flex items-center gap-1 border-b border-[#E2E5EA] mb-5.5">
             {tabs.map((t) => (
-              <button
+              <button type="button"
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className="px-4.5 py-3 border-none bg-transparent text-[14.5px] font-semibold cursor-pointer -mb-px"

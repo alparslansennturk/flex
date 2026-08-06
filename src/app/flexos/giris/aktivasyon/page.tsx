@@ -86,11 +86,11 @@ function ResetPasswordForm({ oobCode }: { oobCode: string }) {
       <form onSubmit={handleReset} noValidate className="w-full flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-end h-5">
-            <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Yeni Parola</label>
+            <label htmlFor="password" className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Yeni Parola</label>
             {error && <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold text-nowrap" style={{ color: "var(--color-status-danger-500)" }}>{error}</span>}
           </div>
           <div className="relative w-full">
-            <input
+            <input id="password"
               autoFocus
               type={showPassword ? "text" : "password"}
               value={password}
@@ -108,8 +108,8 @@ function ResetPasswordForm({ oobCode }: { oobCode: string }) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Yeni Parola (Tekrar)</label>
-          <input
+          <label htmlFor="confirmPassword" className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Yeni Parola (Tekrar)</label>
+          <input id="confirmPassword"
             type={showPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
@@ -209,10 +209,10 @@ function ActivationCodeForm({ prefillEmail, prefillCode }: { prefillEmail: strin
       <form onSubmit={handleActivate} className="w-full flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center h-5">
-            <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Aktivasyon Kodu</label>
+            <label htmlFor="code" className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Aktivasyon Kodu</label>
             {error && <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold" style={{ color: "var(--color-status-danger-500)" }}>{error}</span>}
           </div>
-          <input
+          <input id="code"
             type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -224,9 +224,9 @@ function ActivationCodeForm({ prefillEmail, prefillCode }: { prefillEmail: strin
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Şifre Belirle</label>
+          <label htmlFor="newPassword" className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Şifre Belirle</label>
           <div className="relative w-full">
-            <input
+            <input id="newPassword"
               type={showPassword ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -241,8 +241,8 @@ function ActivationCodeForm({ prefillEmail, prefillCode }: { prefillEmail: strin
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Şifre Tekrar</label>
-          <input
+          <label htmlFor="confirmPassword2" className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Şifre Tekrar</label>
+          <input id="confirmPassword2"
             type={showPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

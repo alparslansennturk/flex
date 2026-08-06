@@ -82,7 +82,7 @@ export default function CommentSection({
                     ? "bg-accent-purple-100 text-accent-purple-700"
                     : "bg-base-primary-100 text-base-primary-700"
                 }`}>
-                  {c.authorName.charAt(0).toUpperCase()}
+                  {(Array.from(c.authorName)[0] ?? "").toUpperCase()}
                 </div>
 
                 {/* Balon */}

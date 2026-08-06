@@ -309,16 +309,16 @@ export const StudentForm: React.FC<StudentFormProps> = ({
             </div>
             <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
               <div className="space-y-1.5">
-                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Ad</label>
-                <input name="name" placeholder="Örn: Alparslan" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <label htmlFor="studentName" className="text-[14px] font-semibold text-neutral-500 ml-1">Ad</label>
+                <input id="studentName" name="name" placeholder="Örn: Alparslan" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Soyad</label>
-                <input name="surname" placeholder="Örn: Akdağ" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.lastName ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <label htmlFor="studentLastName" className="text-[14px] font-semibold text-neutral-500 ml-1">Soyad</label>
+                <input id="studentLastName" name="surname" placeholder="Örn: Akdağ" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.lastName ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[14px] font-semibold text-neutral-500 ml-1">E-Posta</label>
-                <input
+                <label htmlFor="studentEmail" className="text-[14px] font-semibold text-neutral-500 ml-1">E-Posta</label>
+                <input id="studentEmail"
                   name="email" type="email" placeholder="ornek@email.com" value={studentEmail}
                   onChange={(e) => { setStudentEmail(e.target.value); setLocalErrors(p => { const n = {...p}; delete n.email; return n; }); setEmailErrorMsg(""); }}
                   className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}
@@ -329,27 +329,27 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               </div>
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
-                <div tabIndex={0} onClick={(e) => { if (!isGenderDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGenderDropOpen(!isGenderDropOpen); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); setIsGenderDropOpen(v => !v); } }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 outline-none focus:ring-2 focus:ring-orange-300 ${localErrors.gender ? 'border-red-500 bg-red-50' : isGenderDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                <div role="button" tabIndex={0} onClick={(e) => { if (!isGenderDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGenderDropOpen(!isGenderDropOpen); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); setIsGenderDropOpen(v => !v); } }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 outline-none focus:ring-2 focus:ring-orange-300 ${localErrors.gender ? 'border-red-500 bg-red-50' : isGenderDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
                   <span className={`text-[14px] ${studentGender ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{studentGender === 'male' ? 'Erkek' : studentGender === 'female' ? 'Kadın' : 'Cinsiyet Seçiniz...'}</span>
                   <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isGenderDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Şube</label>
-                <div tabIndex={0} onClick={(e) => { if (!isBranchDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsBranchDropOpen(!isBranchDropOpen); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); setIsBranchDropOpen(v => !v); } }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 outline-none focus:ring-2 focus:ring-orange-300 ${localErrors.branch ? 'border-red-500 bg-red-50' : isBranchDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                <div role="button" tabIndex={0} onClick={(e) => { if (!isBranchDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsBranchDropOpen(!isBranchDropOpen); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); setIsBranchDropOpen(v => !v); } }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 outline-none focus:ring-2 focus:ring-orange-300 ${localErrors.branch ? 'border-red-500 bg-red-50' : isBranchDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
                   <span className={`text-[14px] ${studentBranch ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{studentBranch || 'Şube Seçiniz...'}</span>
                   <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isBranchDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Grup Seçimi</label>
-                <div tabIndex={0} onClick={(e) => { if (!isGroupDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGroupDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGroupDropOpen(!isGroupDropOpen); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGroupDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); setIsGroupDropOpen(v => !v); } }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 outline-none focus:ring-2 focus:ring-orange-300 ${localErrors.groupId ? 'border-red-500 bg-red-50' : isGroupDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                <div role="button" tabIndex={0} onClick={(e) => { if (!isGroupDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGroupDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGroupDropOpen(!isGroupDropOpen); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGroupDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); setIsGroupDropOpen(v => !v); } }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 outline-none focus:ring-2 focus:ring-orange-300 ${localErrors.groupId ? 'border-red-500 bg-red-50' : isGroupDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
                   <span className={`text-[14px] truncate ${selectedGroupIdForStudent ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{(() => { if (!selectedGroupIdForStudent) return 'Bir grup seçin...'; const g = groups.find(x => x.id === selectedGroupIdForStudent); return g ? `${g.code}${g.branch ? ` (${g.branch})` : ''}` : 'Bir grup seçin...'; })()}</span>
                   <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isGroupDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
                 </div>
               </div>
               <div className="space-y-1.5 col-span-2">
-                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Katılım Türü</label>
+                <label htmlFor="studentNote" className="text-[14px] font-semibold text-neutral-500 ml-1">Katılım Türü</label>
                 <div className="flex gap-3">
                   <button
                     type="button"
@@ -381,7 +381,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
             <div className="flex items-center gap-3 text-[#10294C] font-semibold text-[16px] border-l-4 border-[#10294C] pl-4">
               <span>Öğrenci Notları</span>
             </div>
-            <textarea name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[14px] placeholder:text-neutral-500 placeholder:font-normal focus:border-orange-200 focus:bg-white transition-all resize-none" />
+            <textarea id="studentNote" name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[14px] placeholder:text-neutral-500 placeholder:font-normal focus:border-orange-200 focus:bg-white transition-all resize-none" />
           </div>
         </div>
         <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">
@@ -396,7 +396,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
 
     {mounted && createPortal(
       <>
-        {isGenderDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsGenderDropOpen(false)} />}
+        {isGenderDropOpen && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsGenderDropOpen(false)} />}
         <AnimatePresence>
           {isGenderDropOpen && (
             <motion.div className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
@@ -405,7 +405,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               style={{ transformOrigin: 'top', top: genderDropPos.top, left: genderDropPos.left, width: genderDropPos.width }}
             >
               {[{ value: 'male', label: 'Erkek' }, { value: 'female', label: 'Kadın' }].map(opt => (
-                <div key={opt.value} onClick={() => { setStudentGender(opt.value); setAvatarId(getUnusedAvatar(opt.value, students, editingStudent?.id ?? null, TOTAL_AVATARS)); setIsGenderDropOpen(false); }}
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={opt.value} onClick={() => { setStudentGender(opt.value); setAvatarId(getUnusedAvatar(opt.value, students, editingStudent?.id ?? null, TOTAL_AVATARS)); setIsGenderDropOpen(false); }}
                   className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
                   <span className="text-[14px] font-medium text-neutral-700">{opt.label}</span>
                   {studentGender === opt.value && <Check size={16} className="text-orange-500" strokeWidth={3} />}
@@ -419,7 +419,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
 
     {mounted && createPortal(
       <>
-        {isBranchDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsBranchDropOpen(false)} />}
+        {isBranchDropOpen && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsBranchDropOpen(false)} />}
         <AnimatePresence>
           {isBranchDropOpen && (
             <motion.div className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
@@ -428,7 +428,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               style={{ transformOrigin: 'top', top: branchDropPos.top, left: branchDropPos.left, width: branchDropPos.width }}
             >
               {['Kadıköy', 'Şirinevler', 'Pendik'].map(loc => (
-                <div key={loc} onClick={() => { setStudentBranch(loc); setIsBranchDropOpen(false); }}
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={loc} onClick={() => { setStudentBranch(loc); setIsBranchDropOpen(false); }}
                   className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
                   <span className="text-[14px] font-medium text-neutral-700">{loc}</span>
                   {studentBranch === loc && <Check size={16} className="text-orange-500" strokeWidth={3} />}
@@ -442,7 +442,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
 
     {mounted && createPortal(
       <>
-        {isGroupDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsGroupDropOpen(false)} />}
+        {isGroupDropOpen && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[9998]" onClick={() => setIsGroupDropOpen(false)} />}
         <AnimatePresence>
           {isGroupDropOpen && (
             <motion.div className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden max-h-60 overflow-y-auto"
@@ -451,7 +451,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               style={{ transformOrigin: 'top', top: groupDropPos.top, left: groupDropPos.left, width: groupDropPos.width }}
             >
               {groups.filter(g => g && (g.code || g.name)).map(g => (
-                <div key={g.id} onClick={() => { setSelectedGroupIdForStudent(g.id); setIsGroupDropOpen(false); }}
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={g.id} onClick={() => { setSelectedGroupIdForStudent(g.id); setIsGroupDropOpen(false); }}
                   className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
                   <span className="text-[14px] font-medium text-neutral-700">{g.code}{g.branch ? ` (${g.branch})` : ''}</span>
                   {selectedGroupIdForStudent === g.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}
@@ -465,7 +465,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
 
     {mounted && duplicateModal.open && createPortal(
       <div className="fixed inset-0 z-[700] flex items-center justify-center p-6">
-        <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-sm" onClick={() => setDuplicateModal({ open: false, msg: "" })} />
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-sm" onClick={() => setDuplicateModal({ open: false, msg: "" })} />
         <motion.div
           className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
           initial={{ opacity: 0, scale: 0.94, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -480,7 +480,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               {duplicateModal.msg}<br />
               Aktif bir gruptaki öğrenciye tanımlı e-posta ile yeni kayıt yapılamaz.
             </p>
-            <button
+            <button type="button"
               onClick={() => setDuplicateModal({ open: false, msg: "" })}
               className="h-11 w-full bg-[#10294C] hover:bg-[#1c3a64] text-white rounded-xl text-[14px] font-semibold transition-colors cursor-pointer"
             >

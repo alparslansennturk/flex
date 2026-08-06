@@ -268,7 +268,7 @@ export default function SubmissionPreviewPage() {
     <div className="flex flex-col h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
       {/* Top bar */}
       <div className="shrink-0 h-[56px] border-b border-surface-200 bg-white flex items-center gap-4 px-5">
-        <button
+        <button type="button"
           onClick={() => router.push(`/flexos/odevler/teslim/${groupId}/${assignmentId}`)}
           className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-surface-100 text-surface-600 hover:bg-surface-200 hover:text-surface-900 transition-all cursor-pointer shrink-0"
           title="Geri"
@@ -292,7 +292,7 @@ export default function SubmissionPreviewPage() {
             </span>
           )}
           {submission && submission.status === "completed" ? (
-            <button
+            <button type="button"
               onClick={() => handleStatus("reviewing")}
               disabled={actionLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-200 bg-surface-100 text-surface-600 text-[12px] font-semibold hover:bg-surface-200 transition-colors cursor-pointer disabled:opacity-40"
@@ -301,14 +301,14 @@ export default function SubmissionPreviewPage() {
             </button>
           ) : submission && submission.status !== "retracted" && files.length > 0 && (
             <>
-              <button
+              <button type="button"
                 onClick={() => handleStatus("revision")}
                 disabled={actionLoading || submission.status === "revision"}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 bg-orange-50 text-orange-600 text-[12px] font-semibold hover:bg-orange-100 transition-colors cursor-pointer disabled:opacity-40"
               >
                 <RotateCcw size={13} /> Revize İste
               </button>
-              <button
+              <button type="button"
                 onClick={() => handleStatus("completed")}
                 disabled={actionLoading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-[12px] font-semibold hover:bg-emerald-600 transition-colors cursor-pointer disabled:opacity-40"
@@ -345,7 +345,7 @@ export default function SubmissionPreviewPage() {
                   </div>
                 </div>
               ) : previewUrl ? (
-                <iframe src={previewUrl} className="absolute inset-0 w-full h-full border-0" allow="autoplay" />
+                <iframe src={previewUrl} title="Teslim önizleme" className="absolute inset-0 w-full h-full border-0" allow="autoplay" />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center gap-4 text-white/40">
                   <FileText size={40} strokeWidth={1.2} />
@@ -383,7 +383,7 @@ export default function SubmissionPreviewPage() {
                       key={f.id}
                       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors ${f.id === activeFileId ? "bg-base-primary-50 border border-base-primary-200" : "bg-surface-50 border border-transparent hover:bg-surface-100"}`}
                     >
-                      <button onClick={() => setActiveFileId(f.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer">
+                      <button type="button" onClick={() => setActiveFileId(f.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer">
                         <FileText size={14} className={f.id === activeFileId ? "text-base-primary-600" : "text-surface-400"} />
                         <div className="min-w-0 flex-1">
                           <p className="text-[12px] font-semibold text-text-primary truncate">{f.fileName}</p>
@@ -394,7 +394,7 @@ export default function SubmissionPreviewPage() {
                         <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">Son</span>
                       )}
                       {submission?.status !== "completed" && (
-                        <button
+                        <button type="button"
                           onClick={() => setDeleteFileTarget({ id: f.id, fileName: f.fileName })}
                           title="Dosyayı sil"
                           className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-surface-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
@@ -435,7 +435,7 @@ export default function SubmissionPreviewPage() {
                 rows={2}
                 className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2.5 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white"
               />
-              <button
+              <button type="button"
                 onClick={sendComment}
                 disabled={!commentText.trim()}
                 className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
@@ -449,8 +449,8 @@ export default function SubmissionPreviewPage() {
 
       {/* Dosya silme onayı — yonetim/page.tsx "Şablon silme onayı" ile AYNI desen. */}
       {deleteFileTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => !deletingFile && setDeleteFileTarget(null)}>
-          <div className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => !deletingFile && setDeleteFileTarget(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6.5 pt-6.5 pb-5">
               <div className="w-12 h-12 rounded-xl bg-[#FFECEC] text-[#D93636] flex items-center justify-center mb-4">
                 <Trash2 size={22} />
@@ -461,8 +461,8 @@ export default function SubmissionPreviewPage() {
               </p>
             </div>
             <div className="flex gap-2.5 justify-end px-6.5 pb-5.5">
-              <button onClick={() => setDeleteFileTarget(null)} disabled={deletingFile} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">Vazgeç</button>
-              <button onClick={confirmDeleteFile} disabled={deletingFile} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all disabled:opacity-60" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
+              <button type="button" onClick={() => setDeleteFileTarget(null)} disabled={deletingFile} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">Vazgeç</button>
+              <button type="button" onClick={confirmDeleteFile} disabled={deletingFile} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all disabled:opacity-60" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
                 {deletingFile ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Evet, sil
               </button>
             </div>
@@ -508,7 +508,7 @@ function ThreadMessage({
         <span className="text-[11px] font-semibold text-surface-400">{isMe ? "Sen" : comment.authorName}</span>
         {isMe && !editing && (
           <div className="relative" ref={menuRef}>
-            <button
+            <button type="button"
               onMouseDown={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
               className="p-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-500 hover:text-surface-800 transition-colors cursor-pointer"
             >
@@ -516,13 +516,13 @@ function ThreadMessage({
             </button>
             {menuOpen && (
               <div className={`absolute z-20 top-5 ${isMe ? "right-0" : "left-0"} bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]`}>
-                <button
+                <button type="button"
                   onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
                 >
                   <Pencil size={11} /> Düzenle
                 </button>
-                <button
+                <button type="button"
                   onClick={() => { setMenuOpen(false); onDelete(comment.id); }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-status-danger-600 hover:bg-status-danger-50 transition-colors cursor-pointer"
                 >
@@ -544,8 +544,8 @@ function ThreadMessage({
             className="w-full resize-none rounded-xl border border-base-primary-300 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-500 bg-white"
           />
           <div className="flex gap-1">
-            <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
-            <button onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
+            <button type="button" onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
+            <button type="button" onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
           </div>
         </div>
       ) : (

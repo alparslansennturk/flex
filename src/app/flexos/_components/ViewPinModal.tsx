@@ -85,7 +85,7 @@ export default function ViewPinModal({ open, onClose, onVerified }: ViewPinModal
             <input
               ref={inputRef}
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              onChange={(e) => setPin(e.target.value.replaceAll(/\D/g, "").slice(0, 4))}
               disabled={busy}
               inputMode="numeric"
               autoComplete="off"

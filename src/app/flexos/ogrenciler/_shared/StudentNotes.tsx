@@ -85,7 +85,7 @@ export function StudentNotes({
             className="w-full flex-1 min-h-[90px] bg-white border border-[#DCE3EC] rounded-[8px] px-2.5 py-2 text-[13.5px] font-medium text-[#1E222B] outline-none focus:border-[#2867bd] resize-y"
           />
           <div className="flex justify-end mt-2">
-            <button
+            <button type="button"
               onClick={save}
               disabled={saving || !dirty}
               className="px-3.5 py-1.5 rounded-[9px] border-none text-white text-[12.5px] font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

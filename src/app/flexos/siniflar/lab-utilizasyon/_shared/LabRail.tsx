@@ -20,7 +20,7 @@ export function LabRail({ labItems, onSelect }: LabRailProps) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {labItems.map(({ lab, active, busy, pct, barC, fr, slotText }) => (
-          <button key={lab.id} onClick={() => onSelect(lab.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "13px 14px", borderRadius: 13, border: "1.5px solid " + (active ? T.brand : T.border), background: active ? "#F4F8FE" : T.panel, cursor: "pointer", fontFamily: "inherit", transition: "all .13s" }}>
+          <button type="button" key={lab.id} onClick={() => onSelect(lab.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "13px 14px", borderRadius: 13, border: "1.5px solid " + (active ? T.brand : T.border), background: active ? "#F4F8FE" : T.panel, cursor: "pointer", fontFamily: "inherit", transition: "all .13s" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
               <div style={{ width: 38, height: 38, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", background: active ? T.brand : "#EEF1F5", color: active ? "#fff" : T.text2 }}>
                 <Icon paths={labIconPaths(lab.type)} size={18} />

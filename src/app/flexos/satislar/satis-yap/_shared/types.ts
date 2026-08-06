@@ -19,7 +19,7 @@ export const TODAY = new Date(2026, 5, 19); // 19 Haziran 2026 — tasarım refe
 export function ageFrom(dateStr: string): number | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
+  if (Number.isNaN(d.getTime())) return null;
   let age = TODAY.getFullYear() - d.getFullYear();
   const m = TODAY.getMonth() - d.getMonth();
   if (m < 0 || (m === 0 && TODAY.getDate() < d.getDate())) age--;

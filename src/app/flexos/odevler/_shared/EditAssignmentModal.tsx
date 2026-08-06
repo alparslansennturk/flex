@@ -143,12 +143,12 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-[18px] font-bold text-base-primary-900">Ödevi Düzenle</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
+          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
         </div>
 
         <div>
-          <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Başlık</label>
-          <input
+          <label htmlFor="title" className="text-[12px] font-semibold text-surface-500 mb-1 block">Başlık</label>
+          <input id="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors"
@@ -157,8 +157,8 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
         </div>
 
         <div>
-          <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Açıklama</label>
-          <textarea
+          <label htmlFor="description" className="text-[12px] font-semibold text-surface-500 mb-1 block">Açıklama</label>
+          <textarea id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
@@ -169,8 +169,8 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Son Teslim Tarihi</label>
-            <input
+            <label htmlFor="dueDate" className="text-[12px] font-semibold text-surface-500 mb-1 block">Son Teslim Tarihi</label>
+            <input id="dueDate"
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
@@ -178,8 +178,8 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
             />
           </div>
           <div className="flex-1">
-            <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Durum</label>
-            <select
+            <label htmlFor="status" className="text-[12px] font-semibold text-surface-500 mb-1 block">Durum</label>
+            <select id="status"
               value={status}
               onChange={(e) => setStatus(e.target.value as AssignmentStatus)}
               className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors bg-white"
@@ -230,10 +230,10 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50">
             İptal
           </button>
-          <button onClick={handleSave} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white bg-base-primary-600 hover:bg-base-primary-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2">
+          <button type="button" onClick={handleSave} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white bg-base-primary-600 hover:bg-base-primary-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2">
             {saving && <Loader2 size={14} className="animate-spin" />} Kaydet
           </button>
         </div>

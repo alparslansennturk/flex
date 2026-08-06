@@ -19,7 +19,7 @@ import { StudentDetailModal as FlexosStudentDetailModal } from '@/app/flexos/ogr
 // metin ve sorgu ikisi de bu fonksiyondan geçmeli ki İ/I/i/ı farkı arama için
 // önemsiz olsun.
 function trLower(s: string): string {
-  return s.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i');
+  return s.toLocaleLowerCase('tr-TR').replaceAll(/ı/g, 'i');
 }
 
 // ─── Sabit Aksiyon Kataloğu ───────────────────────────────────────────────────
@@ -622,7 +622,7 @@ export default function QuickSearch() {
                               const idx = results.indexOf(item);
                               const isSelected = idx === selectedIndex;
                               return (
-                                <button
+                                <button type="button"
                                   key={item.id}
                                   onClick={() => handleSelect(item)}
                                   onMouseEnter={() => setSelectedIndex(idx)}

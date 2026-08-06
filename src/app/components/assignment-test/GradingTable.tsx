@@ -54,8 +54,8 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
   const handleGradeBlur = async (submissionId: string) => {
     const val = pendingGrades[submissionId];
     if (val === undefined) return;
-    const num = parseFloat(val);
-    if (isNaN(num) || num < 0 || num > 100) {
+    const num = Number.parseFloat(val);
+    if (Number.isNaN(num) || num < 0 || num > 100) {
       setPendingGrades(prev => { const n = { ...prev }; delete n[submissionId]; return n; });
       return;
     }
@@ -88,7 +88,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1 bg-surface-50 rounded-xl p-1 border border-surface-200">
           {STATUS_OPTIONS.map(opt => (
-            <button
+            <button type="button"
               key={opt.value}
               onClick={() => setStatusFilter(opt.value)}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all cursor-pointer ${
@@ -109,7 +109,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
             </span>
           )}
           {onExportCsv && (
-            <button
+            <button type="button"
               onClick={onExportCsv}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-200 text-[12px] font-bold text-surface-600 hover:bg-surface-50 transition-colors cursor-pointer"
             >
@@ -117,7 +117,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
             </button>
           )}
           {selected.length > 0 && onBulkApprove && (
-            <button
+            <button type="button"
               onClick={() => { onBulkApprove(selected); setSelected([]); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-[12px] font-bold hover:bg-emerald-600 transition-colors cursor-pointer"
             >
@@ -138,7 +138,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
             <thead>
               <tr className="border-b border-surface-100 bg-surface-50">
                 <th className="px-4 py-3 w-10">
-                  <button onClick={toggleAll} className="text-surface-400 hover:text-base-primary-600 transition-colors cursor-pointer">
+                  <button type="button" onClick={toggleAll} className="text-surface-400 hover:text-base-primary-600 transition-colors cursor-pointer">
                     {allSelected ? <CheckSquare size={16} className="text-base-primary-600" /> : <Square size={16} />}
                   </button>
                 </th>
@@ -157,7 +157,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
                 const gradeVal = pendingGrades[row.id] ?? (row.grade != null ? String(row.grade) : "");
                 return (
                   <tr key={row.id} className="border-b border-surface-50 last:border-0 hover:bg-surface-50/50 transition-colors">
-                    <td className="px-4 py-3" onClick={() => toggleSelect(row.id)}>
+                    <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="px-4 py-3" onClick={() => toggleSelect(row.id)}>
                       <div className="cursor-pointer text-surface-300 hover:text-base-primary-600 transition-colors">
                         {selected.includes(row.id) ? <CheckSquare size={15} className="text-base-primary-600" /> : <Square size={15} />}
                       </div>
@@ -190,7 +190,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
+                      <button type="button"
                         onClick={() => router.push(`/dashboard/assignment/${row.groupId}/${row.taskId}?student=${row.studentId}&mode=grading`)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-surface-200 text-[11px] font-bold text-surface-600 hover:bg-surface-50 transition-colors cursor-pointer"
                       >

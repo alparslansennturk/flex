@@ -57,7 +57,7 @@ function ActivityRowImpl({
   return (
     <React.Fragment>
       {/* ── main row ── */}
-      <tr className="am-tr" style={{ cursor: "pointer", borderBottom: "1px solid #EEF0F3", background: expanded ? "#EFF3FA" : "transparent" }} onClick={() => onRowClick(a.id)}>
+      <tr className="am-tr" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ cursor: "pointer", borderBottom: "1px solid #EEF0F3", background: expanded ? "#EFF3FA" : "transparent" }} onClick={() => onRowClick(a.id)}>
         <td style={{ padding: "15px 14px 15px 22px", verticalAlign: "middle", width: 40 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#AEB4C0" }}>{rowNumber}</span>
         </td>
@@ -82,7 +82,7 @@ function ActivityRowImpl({
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{a.ad}</span>
               {personCount > 1 && (
-                <span
+                <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   onClick={e => { e.stopPropagation(); onBadgeClick(a.id); }}
                   className="am-badge-btn"
                   title="Bu kişinin diğer kayıtları"
@@ -121,7 +121,7 @@ function ActivityRowImpl({
           </div>
         </td>
         <td style={{ padding: "15px 22px 15px 14px", textAlign: "right", width: 48, verticalAlign: "middle" }}>
-          <button className="am-chev-btn" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #E2E5EA", background: expanded ? "#DDE8F8" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: expanded ? "#205297" : "#8E95A3" }}>
+          <button type="button" className="am-chev-btn" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #E2E5EA", background: expanded ? "#DDE8F8" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: expanded ? "#205297" : "#8E95A3" }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
               {expanded ? <path d="m18 15-6-6-6 6"/> : <path d="m6 9 6 6 6-6"/>}
             </svg>
@@ -168,7 +168,7 @@ function ActivityRowImpl({
               {/* Geçmiş aksiyonlar (salt-okunur) — accordion, varsayılan kapalı */}
               {a._backend && a._log && a._log.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <button
+                  <button type="button"
                     onClick={e => { e.stopPropagation(); onToggleGecmis(a.id); }}
                     style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: "pointer", padding: "0 0 6px", fontFamily: "inherit" }}
                   >
@@ -296,11 +296,11 @@ function ActivityRowImpl({
                       {FLEX_MESSAGES['flexos/durum-required'].text}
                     </span>
                   )}
-                  <button onClick={e => { e.stopPropagation(); onCancel(); }} className="am-cancel-btn"
+                  <button type="button" onClick={e => { e.stopPropagation(); onCancel(); }} className="am-cancel-btn"
                     style={{ padding: "10px 18px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                     İptal
                   </button>
-                  <button onClick={e => { e.stopPropagation(); onSave(a.id); }} disabled={savingAct || savedAct} className="am-save-btn"
+                  <button type="button" onClick={e => { e.stopPropagation(); onSave(a.id); }} disabled={savingAct || savedAct} className="am-save-btn"
                     style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 11, border: "none", background: savedAct ? "linear-gradient(135deg,#009F3E,#007A30)" : "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: (savingAct || savedAct) ? "default" : "pointer", boxShadow: savedAct ? "0 6px 14px -6px rgba(0,122,48,.55)" : "0 6px 14px -6px rgba(32,82,151,.55)", transition: "background .25s, box-shadow .25s", minWidth: 110 }}>
                     {savingAct ? (
                       <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin .7s linear infinite", flexShrink: 0 }}><path d="M12 2a10 10 0 1 0 10 10"/></svg>Kaydediliyor…</>
@@ -316,7 +316,7 @@ function ActivityRowImpl({
               {/* ── Diğer Aktiviteler ── */}
               {diger.length > 0 && (
                 <div style={{ marginTop: 18, borderTop: "1px solid #D8E3F0" }}>
-                  <button
+                  <button type="button"
                     onClick={e => { e.stopPropagation(); onToggleDiger(a.id); }}
                     style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0 4px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                   >

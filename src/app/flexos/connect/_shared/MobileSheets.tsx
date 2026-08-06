@@ -53,7 +53,7 @@ export function MobileQuickStartSheet({
         <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px", flex: "0 0 auto" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 10px", flex: "0 0 auto" }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: T.text, letterSpacing: "-.3px" }}>Yeni Sohbet Başlat</div>
-          <button onClick={() => setSheetOpen(false)} style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: T.card, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button type="button" onClick={() => setSheetOpen(false)} style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: T.card, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon k="close" size={16} color={T.text2} />
           </button>
         </div>
@@ -70,7 +70,7 @@ export function MobileQuickStartSheet({
               { k: "group" as const, title: "Yeni Grup", desc: "Personel/eğitmen ile karşılıklı sohbet", tone: "#2E8B57" },
               { k: "community" as const, title: "Yeni Topluluk", desc: "Birden çok grubu tek çatıda topla", tone: "#6C5CE7" },
             ].map((o) => (
-              <button key={o.k} onClick={() => startCreate(o.k)} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+              <button type="button" key={o.k} onClick={() => startCreate(o.k)} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: o.tone + (dark ? "26" : "1F"), color: o.tone }}><Icon k={o.k} size={21} sw={2} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{o.title}</div>
@@ -79,7 +79,7 @@ export function MobileQuickStartSheet({
                 <Icon k="chev" size={19} color={T.chev} />
               </button>
             ))}
-            <button onClick={() => { setSheetOpen(false); setScreen("archive"); }} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+            <button type="button" onClick={() => { setSheetOpen(false); setScreen("archive"); }} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
               <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.text2 + (dark ? "26" : "1F"), color: T.text2 }}><Icon k="archive" size={20} sw={2} /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>Arşiv</div>
@@ -101,7 +101,7 @@ export function MobileQuickStartSheet({
                 <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>Sık Görüşülenler</div>
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                   {recentDms.map((c, i, arr) => (
-                    <button
+                    <button type="button"
                       key={c.id}
                       onClick={() => { setSheetOpen(false); openDirectMessage(c.peerUid, c.realm); }}
                       style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
@@ -127,7 +127,7 @@ export function MobileQuickStartSheet({
             if (rows.length === 0) return null;
             return (
               <div key={title} style={{ marginBottom: 14 }}>
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   onClick={() => { setSheetOpen(false); setStaffTabView(view); setTab("staff"); }}
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 2px 8px", cursor: "pointer" }}
                 >
@@ -136,7 +136,7 @@ export function MobileQuickStartSheet({
                 </div>
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                   {rows.map((p, i, arr) => (
-                    <button
+                    <button type="button"
                       key={p.uid}
                       onClick={() => { setSheetOpen(false); openDirectMessage(p.uid, realm); }}
                       style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
@@ -191,7 +191,7 @@ export function MobilePresenceSheet({ T, dark, presenceSheetOpen, setPresenceShe
             { status: "in_class" as PresenceStatus, title: "Derste", color: "#F59E0B", desc: "Şu an ders veriyorsun" },
             { status: "dnd" as PresenceStatus, title: "Rahatsız Etmeyin", color: "#F59E0B", desc: "Meşgulsün, sonra bakacaksın" },
           ]).map((o) => (
-            <button
+            <button type="button"
               key={o.status}
               onClick={async () => {
                 setPresenceSheetOpen(false);

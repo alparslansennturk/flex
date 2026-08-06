@@ -108,7 +108,7 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className={`fixed inset-0 z-[700] flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={handleClose}
       />
@@ -125,7 +125,7 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
               <p className="text-[11px] text-white/50 mt-0.5">Ver ve unut</p>
             </div>
           </div>
-          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors">
+          <button type="button" onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -135,10 +135,10 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
 
           {/* Ödev adı */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-bold text-surface-500 ml-1">
+            <label htmlFor="name" className="text-[12px] font-bold text-surface-500 ml-1">
               Ödev Adı <span className="text-status-danger-500">*</span>
             </label>
-            <input
+            <input id="name"
               value={name}
               onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: false })); }}
               placeholder="ör. Poster Tasarımı"
@@ -151,10 +151,10 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
 
           {/* Alt başlık */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-bold text-surface-500 ml-1">
+            <label htmlFor="subtitle" className="text-[12px] font-bold text-surface-500 ml-1">
               Alt Başlık <span className="text-surface-300 font-normal">(isteğe bağlı)</span>
             </label>
-            <input
+            <input id="subtitle"
               value={subtitle}
               onChange={e => setSubtitle(e.target.value)}
               placeholder="ör. A4 formatında, minimalist tasarım"
@@ -168,7 +168,7 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
               <label className="text-[12px] font-bold text-surface-500 ml-1">Tür</label>
               <div className="flex gap-1.5">
                 {typeOptions.map(opt => (
-                  <button
+                  <button type="button"
                     key={opt.value}
                     onClick={() => setType(opt.value)}
                     className={`flex-1 h-11 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
@@ -184,11 +184,11 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[12px] font-bold text-surface-500 ml-1">
+              <label htmlFor="groupId" className="text-[12px] font-bold text-surface-500 ml-1">
                 Grup <span className="text-status-danger-500">*</span>
               </label>
               <div className="relative">
-                <select
+                <select id="groupId"
                   value={groupId}
                   onChange={e => { setGroupId(e.target.value); setErrors(p => ({ ...p, groupId: false })); }}
                   className={`w-full h-11 px-4 pr-9 rounded-xl border text-[13px] font-bold outline-none appearance-none cursor-pointer transition-all ${
@@ -207,10 +207,10 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
 
           {/* Bitiş tarihi */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-bold text-surface-500 ml-1">
+            <label htmlFor="endDate" className="text-[12px] font-bold text-surface-500 ml-1">
               Bitiş Tarihi <span className="text-surface-300 font-normal">(isteğe bağlı)</span>
             </label>
-            <input
+            <input id="endDate"
               type="date"
               value={endDate}
               min={today}
@@ -220,7 +220,7 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Şablona kaydet */}
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
             onClick={() => setSaveAsTemplate(v => !v)}
             className={`flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all select-none ${
               saveAsTemplate
@@ -245,13 +245,13 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
 
         {/* Footer */}
         <div className="px-7 py-5 bg-surface-50 border-t border-surface-100 flex items-center justify-end gap-3">
-          <button
+          <button type="button"
             onClick={handleClose}
             className="px-5 font-bold text-surface-400 hover:text-surface-700 cursor-pointer transition-colors text-[13px]"
           >
             Vazgeç
           </button>
-          <button
+          <button type="button"
             onClick={handleSave}
             disabled={saving}
             className="h-11 px-8 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-bold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 shadow-md"

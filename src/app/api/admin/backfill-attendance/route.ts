@@ -33,11 +33,11 @@ function parseWeekDays(label: string): number[] {
   if (!label) return [];
   const lower = label
     .toLowerCase()
-    .replace(/ı/g, "i")
-    .replace(/ş/g, "s")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ö/g, "o");
+    .replaceAll(/ı/g, "i")
+    .replaceAll(/ş/g, "s")
+    .replaceAll(/ğ/g, "g")
+    .replaceAll(/ü/g, "u")
+    .replaceAll(/ö/g, "o");
   const found: number[] = [];
   for (const [key, day] of Object.entries(TR_DAYS)) {
     if (lower.includes(key) && !found.includes(day)) found.push(day);

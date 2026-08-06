@@ -53,11 +53,11 @@ export function FilterPanel({ pSearch, setPSearch, pSube, setPSube, pBrans, setP
         <div style={{ flex: 1, minWidth: 6 }} />
 
         {anyFilter && (
-          <button className="sg-clear-btn" onClick={onClear} style={S.clearBtn}>
+          <button type="button" className="sg-clear-btn" onClick={onClear} style={S.clearBtn}>
             <span dangerouslySetInnerHTML={{ __html: IC.xSmall }} /> Temizle
           </button>
         )}
-        <button className="sg-filter-btn" onClick={onApply} style={S.filterBtn}>
+        <button type="button" className="sg-filter-btn" onClick={onApply} style={S.filterBtn}>
           <span dangerouslySetInnerHTML={{ __html: IC.filter }} /> Filtrele
         </button>
       </div>

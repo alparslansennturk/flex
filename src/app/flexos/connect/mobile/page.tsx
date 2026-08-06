@@ -998,16 +998,16 @@ export default function FlexConnectMobile() {
             <p style={{ margin: "8px 0 30px", fontSize: 14, fontWeight: 500, lineHeight: 1.5, color: T.text2 }}>Kurum hesabınızla giriş yaparak eğitmen ve öğrenci işleri ile güvenle iletişim kurun.</p>
 
             <form onSubmit={handleLogin}>
-              <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Kurum E-postası</label>
+              <label htmlFor="loginEmail" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Kurum E-postası</label>
               <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
                 <Icon k="mail" size={18} color={T.muted} />
-                <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="ad.soyad@kurum.edu.tr" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+                <input id="loginEmail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="ad.soyad@kurum.edu.tr" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
               </div>
 
-              <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Şifre</label>
+              <label htmlFor="loginPassword" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Şifre</label>
               <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: loginError ? 10 : 16 }}>
                 <Icon k="lock" size={18} color={T.muted} />
-                <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+                <input id="loginPassword" type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
               </div>
               {loginError && <p style={{ margin: "0 0 12px", fontSize: 12.5, fontWeight: 600, color: "#D93636" }}>{loginError}</p>}
 

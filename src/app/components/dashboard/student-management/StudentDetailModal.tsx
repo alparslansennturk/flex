@@ -177,7 +177,7 @@ function useCountUp(target: number | null, active: boolean, duration = 900): num
       const progress = Math.min((ts - startTime) / duration, 1);
       // easeOutCubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(parseFloat((target * eased).toFixed(1)));
+      setDisplay(Number.parseFloat((target * eased).toFixed(1)));
       if (progress < 1) raf = requestAnimationFrame(step);
     };
 
@@ -784,7 +784,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           const mComp = entries.length;
           const [y, mo] = month.split("-");
           const mStart   = `${y}-${mo}-01`;
-          const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mLastDay = new Date(Number.parseInt(y), Number.parseInt(mo), 0).getDate();
           const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
           const mAssigned = countAssignedInMonthForCodes(mStart, mEndFull, g1ClassIds);
           const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
@@ -819,14 +819,14 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         const mComp = entries.length;
         const [y, mo] = month.split("-");
         const mStart   = `${y}-${mo}-01`;
-        const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+        const mLastDay = new Date(Number.parseInt(y), Number.parseInt(mo), 0).getDate();
         const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
         const mEnd     = month === ligCurrentMonth ? ligToday : mEndFull;
         const mAssigned = countAssignedInMonth(mStart, mEnd);
         const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
         cumulativeMonthlyScore += mScore;
       }
-      const computedFinalScore = isFinite(cumulativeMonthlyScore) && !isNaN(cumulativeMonthlyScore)
+      const computedFinalScore = Number.isFinite(cumulativeMonthlyScore) && !Number.isNaN(cumulativeMonthlyScore)
         ? cumulativeMonthlyScore : 0;
       if (process.env.NODE_ENV === "development" && student) {
         console.log(`[StudentModal] ${student.name} ${student.lastName}`, { computedFinalScore, g2Bonus, g2ClassEntries: g2ClassEntries.length, months: Object.keys(byMonthEntries) });
@@ -1115,10 +1115,9 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       >
 
         {/* Kapat */}
-        <button
+        <button type="button"
           onClick={handleClose}
-          className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-12 transition-colors cursor-pointer z-20
-            ${activeTab === "ders" ? "bg-white/20 hover:bg-white/30" : "bg-white/20 hover:bg-white/30"}`}
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-12 transition-colors cursor-pointer z-20 bg-white/20 hover:bg-white/30"
         >
           <X size={14} className="text-white" />
         </button>
@@ -1204,7 +1203,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
                 const Icon = tab.icon;
                 const active = activeTab === tab.id;
                 return (
-                  <button
+                  <button type="button"
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap

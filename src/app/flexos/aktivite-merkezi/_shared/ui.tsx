@@ -42,7 +42,7 @@ export const CSS = `
 export function Dd({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <div style={{ position: "relative" }}>
-      <button className="am-dd-btn" onClick={onToggle}
+      <button type="button" className="am-dd-btn" onClick={onToggle}
         style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: FONT, cursor: "pointer", whiteSpace: "nowrap" }}>
         {label}
         <ChevIcon />
@@ -54,7 +54,7 @@ export function Dd({ label, open, onToggle, children }: { label: string; open: b
 
 export function DdItem({ label, active, onClick }: { label: React.ReactNode; active: boolean; onClick: () => void }) {
   return (
-    <div onClick={onClick}
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={onClick}
       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 11px", borderRadius: 9, cursor: "pointer", fontSize: 13.5, fontWeight: active ? 700 : 500, color: active ? "#205297" : "#414B59", background: active ? "#E2EAF3" : "transparent" }}>
       <span>{label}</span>
       {active && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#205297" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>}

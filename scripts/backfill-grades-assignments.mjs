@@ -183,7 +183,7 @@ async function main() {
         stats.warnings.push(`Grup ${code} GRAFIK_1: person ${g.studentId} (${g.studentName}) bulunamadı, atlandı`);
         continue;
       }
-      const targetGroupId = cfg.split ? grafik1GroupId : grafik1GroupId; // split ise sentetik, değilse (550) kendi live id'si
+      const targetGroupId = grafik1GroupId; // split ise sentetik, değilse (550) kendi live id'si — grafik1GroupId zaten cfg.split'e göre yukarıda atanmış
       const enrollmentId = cfg.split ? `${g.studentId}_grafik1_${cfg.liveGroupId}` : g.studentId; // 550: dünkü enrollment id'sini reuse et
       const enrollmentDoc = clean({
         id: enrollmentId,

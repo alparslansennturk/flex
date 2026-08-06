@@ -83,7 +83,7 @@ export default function EgitimAyarlariPage() {
             {cards.map((c) => {
               const active = !!c.to;
               return (
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                   key={c.key}
                   className="ea-card"
                   style={{ ...S.card, cursor: "pointer", opacity: active ? 1 : 0.85 }}

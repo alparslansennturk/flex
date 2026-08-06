@@ -178,7 +178,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
 
   return (
     <div className={`fixed inset-0 z-600 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleClose} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleClose} />
 
       <div className={`relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"} ${shake ? "error-shake" : ""}`}>
 
@@ -197,7 +197,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
               </p>
             </div>
           </div>
-          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors"><X size={20} /></button>
+          <button type="button" onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors"><X size={20} /></button>
         </div>
 
         {/* Body — 2 kolon, 4 satır */}
@@ -208,8 +208,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             <>
               {/* Kart adı — tam genişlik */}
               <div className="col-span-2 space-y-1.5">
-                <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
-                <input
+                <label htmlFor="name" className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
+                <input id="name"
                   value={name}
                   onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: false })); }}
                   placeholder="ör. Kolaj bahçesi"
@@ -220,11 +220,11 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
               {/* Branş seçimi — yeni ve mevcut şablonlarda görünür */}
               {branchList.length > 0 && (
                 <div className="col-span-2 space-y-1.5">
-                  <label className={`${labelCls} ${errors.discipline ? "text-red-500" : ""}`}>
+                  <label htmlFor="templateDiscipline" className={`${labelCls} ${errors.discipline ? "text-red-500" : ""}`}>
                     Branş <span className="font-normal text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <select
+                    <select id="templateDiscipline"
                       value={templateDiscipline}
                       onChange={e => {
                         const id = e.target.value;
@@ -256,11 +256,11 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
               <div className={`col-span-2 grid gap-x-6 ${isAdmin() ? "grid-cols-2" : "grid-cols-1"}`}>
                 {/* Modül — yalnızca grafik branşı seçiliyse aktif */}
                 <div className="space-y-1.5">
-                  <label className={labelCls}>
+                  <label htmlFor="module" className={labelCls}>
                     Modül {isGrafikDiscipline && <span className="text-status-danger-500">*</span>}
                   </label>
                   <div className="relative">
-                    <select
+                    <select id="module"
                       value={module}
                       disabled={!isGrafikDiscipline}
                       onChange={e => { setModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | ""); setErrors(p => ({ ...p, module: false })); }}
@@ -282,9 +282,9 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                 {/* Seviye — yalnızca admin + gamified scope'ta görünür ve aktif */}
                 {isAdmin() && (
                   <div className="space-y-1.5">
-                    <label className={labelCls}>Seviye</label>
+                    <label htmlFor="level" className={labelCls}>Seviye</label>
                     <div className="relative">
-                      <select
+                      <select id="level"
                         value={level}
                         disabled={scope !== "gamified"}
                         onChange={e => setLevel(e.target.value)}
@@ -307,8 +307,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             <>
               {/* Kart adı */}
               <div className="space-y-1.5">
-                <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
-                <input
+                <label htmlFor="name2" className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
+                <input id="name2"
                   value={name}
                   onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: false })); }}
                   placeholder="ör. Kolaj bahçesi"
@@ -318,8 +318,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
 
               {!sourceTemplateId && (
                 <div className="space-y-1.5">
-                  <label className={labelCls}>Bitiş tarihi</label>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
+                  <label htmlFor="endDate" className={labelCls}>Bitiş tarihi</label>
+                  <input id="endDate" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
                 </div>
               )}
             </>
@@ -330,7 +330,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             <label className={labelCls}>Tür</label>
             <div className="grid grid-cols-3 gap-2">
               {typeOptions.map(opt => (
-                <button key={opt.value} onClick={() => handleTypeChange(opt.value)}
+                <button type="button" key={opt.value} onClick={() => handleTypeChange(opt.value)}
                   className={`h-11 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
                     type === opt.value ? "bg-base-primary-900 text-white border-base-primary-900"
                     : "bg-surface-50 text-surface-500 border-surface-200 hover:border-surface-400 hover:text-surface-700"}`}>
@@ -388,7 +388,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                 ] as const).map(opt => {
                   const isDisabled = !isAdmin() && opt.value !== "personal";
                   return (
-                    <button
+                    <button type="button"
                       key={opt.value}
                       disabled={isDisabled}
                       onClick={() => { if (isDisabled) return; setScope(opt.value); if (opt.value !== "gamified") setLevel(""); }}
@@ -410,8 +410,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
 
           {/* Alt Başlık (full width) */}
           <div className="col-span-2 space-y-1.5">
-            <label className={labelCls}>Alt Başlık</label>
-            <input
+            <label htmlFor="subtitle" className={labelCls}>Alt Başlık</label>
+            <input id="subtitle"
               value={subtitle}
               onChange={e => setSubtitle(e.target.value)}
               placeholder="ör. Kolaj tekniğiyle bir bahçe tasarla"
@@ -421,8 +421,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
 
           {/* Ödev Metni (full width) */}
           <div className="col-span-2 space-y-1.5">
-            <label className={labelCls}>Ödev Metni</label>
-            <textarea
+            <label htmlFor="description" className={labelCls}>Ödev Metni</label>
+            <textarea id="description"
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Öğrenciye gösterilecek tam ödev açıklaması..."
@@ -439,8 +439,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
               {saveError || getFlexMessage("validation/required-fields").text}
             </span>
           )}
-          <button onClick={handleClose} className="px-6 font-bold text-surface-400 hover:text-surface-700 cursor-pointer transition-colors text-[14px]">Vazgeç</button>
-          <button onClick={handleSave} disabled={saving}
+          <button type="button" onClick={handleClose} className="px-6 font-bold text-surface-400 hover:text-surface-700 cursor-pointer transition-colors text-[14px]">Vazgeç</button>
+          <button type="button" onClick={handleSave} disabled={saving}
             className="h-12 px-10 rounded-xl bg-designstudio-secondary-500 text-white text-[14px] font-bold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg">
             {saving
               ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

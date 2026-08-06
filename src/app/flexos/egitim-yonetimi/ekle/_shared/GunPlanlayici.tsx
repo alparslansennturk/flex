@@ -26,8 +26,7 @@ export function GunPlanlayici({ days, getDay, setDay, addKonu, removeKonu }: {
                 <span style={S.dayIcon} dangerouslySetInnerHTML={{ __html: IC.calDay }} />
                 <span style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d", flex: 1 }}>{n}. Gün</span>
                 <span style={S.dayTime}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.clock }} />
-                  10:00 – 16:00 · 6 saat
+                  <span dangerouslySetInnerHTML={{ __html: IC.clock }} />10:00 – 16:00 · 6 saat
                 </span>
               </div>
               <div style={{ padding: "14px 16px" }}>
@@ -37,7 +36,7 @@ export function GunPlanlayici({ days, getDay, setDay, addKonu, removeKonu }: {
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#f8fafc", border: "1px solid #eef1f6", borderRadius: 10 }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#cbd5e1", flex: "0 0 auto" }} />
                       <span style={{ fontSize: 13.5, fontWeight: 500, color: "#334155", flex: 1 }}>{text}</span>
-                      <button className="ee-kondel" style={S.konuDel} onClick={() => removeKonu(n, idx)}>
+                      <button type="button" className="ee-kondel" style={S.konuDel} onClick={() => removeKonu(n, idx)}>
                         <span dangerouslySetInnerHTML={{ __html: IC.xSm }} />
                       </button>
                     </div>
@@ -45,9 +44,8 @@ export function GunPlanlayici({ days, getDay, setDay, addKonu, removeKonu }: {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <input className="ee-input" type="text" value={d.draft || ""} onChange={(e) => setDay(n, { draft: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") addKonu(n); }} placeholder="Konu başlığı ekle…" style={{ ...S.inputSm, flex: 1, background: "#fff" }} />
-                  <button className="ee-konadd" style={S.konuAdd} onClick={() => addKonu(n)}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.plusXs }} />
-                    Konu Ekle
+                  <button type="button" className="ee-konadd" style={S.konuAdd} onClick={() => addKonu(n)}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.plusXs }} />Konu Ekle
                   </button>
                 </div>
               </div>

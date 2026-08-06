@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       let uploadedBytes = 0;
       if (range) {
         const m = range.match(/bytes=0-(\d+)/);
-        if (m) uploadedBytes = parseInt(m[1]) + 1;
+        if (m) uploadedBytes = Number.parseInt(m[1]) + 1;
       }
       return NextResponse.json({ status: "incomplete", uploadedBytes });
     }

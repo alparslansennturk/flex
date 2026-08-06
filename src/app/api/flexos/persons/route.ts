@@ -378,7 +378,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   // döner (authUid'siz kişilerle AYNI varsayılan).
   const withAccountStatus = req.nextUrl.searchParams.get("withAccountStatus") === "true";
   const limitParam = req.nextUrl.searchParams.get("limit");
-  const limit = limitParam ? parseInt(limitParam, 10) : null;
+  const limit = limitParam ? Number.parseInt(limitParam, 10) : null;
   const cursor = req.nextUrl.searchParams.get("cursor") ?? undefined;
 
   // 2026-08-05 /code-review bulgusu (gerçek): assigned-scope aktörler (örn. standalone

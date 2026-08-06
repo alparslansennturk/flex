@@ -248,7 +248,7 @@ export default function EgitimYonetimiPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={S.countChip}>{total} eğitim</span>
             </div>
-            <button className="ey-addbtn" style={S.addBtn} onClick={() => router.push("/flexos/egitim-yonetimi/ekle")}>
+            <button type="button" className="ey-addbtn" style={S.addBtn} onClick={() => router.push("/flexos/egitim-yonetimi/ekle")}>
               <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Eğitim Ekle
             </button>
           </div>
@@ -263,7 +263,7 @@ export default function EgitimYonetimiPage() {
 
               {/* BRANŞ */}
               <div style={{ position: "relative" }}>
-                <button className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("bran")}>
+                <button type="button" className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("bran")}>
                   <span dangerouslySetInnerHTML={{ __html: IC.branch }} />
                   <span>Branş</span>
                   {selectedBranchIds.length > 0 && <span style={S.filterBadge}>{selectedBranchIds.length}</span>}
@@ -277,7 +277,7 @@ export default function EgitimYonetimiPage() {
                       const checked = selectedBranchIds.includes(b.id);
                       const pal = BRANCH_PALETTE[i % BRANCH_PALETTE.length];
                       return (
-                        <div key={b.id} className="ey-ddrow" style={S.ddRow} onClick={() => toggleBranch(b.id)}>
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={b.id} className="ey-ddrow" style={S.ddRow} onClick={() => toggleBranch(b.id)}>
                           <span style={{ ...S.checkbox, border: checked ? "1.5px solid #4f46e5" : "1.5px solid #cbd5e1", background: checked ? "#4f46e5" : "#fff" }}>
                             {checked && <span dangerouslySetInnerHTML={{ __html: IC.check }} />}
                           </span>
@@ -292,7 +292,7 @@ export default function EgitimYonetimiPage() {
 
               {/* EĞİTİM MODU */}
               <div style={{ position: "relative" }}>
-                <button className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("mod")}>
+                <button type="button" className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("mod")}>
                   <span dangerouslySetInnerHTML={{ __html: IC.monitor }} />
                   <span>Eğitim Modu</span>
                   {selectedMode && <span style={S.filterPill}>{selectedMode === "online" ? "Online" : "Yüz Yüze"}</span>}
@@ -302,7 +302,7 @@ export default function EgitimYonetimiPage() {
                   <div style={{ ...S.dropdown, width: 210 }}>
                     <div style={S.ddLabel}>Teslim Modu</div>
                     {([{ l: "Tümü", v: null }, { l: "Online", v: "online" }, { l: "Yüz Yüze", v: "in_person" }] as const).map((o) => (
-                      <div key={o.l} className="ey-ddrow" style={selectedMode === o.v ? S.ddOptActive : S.ddOpt} onClick={() => { setSelectedMode(o.v); setOpenDropdown(null); setPage(1); }}>
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={o.l} className="ey-ddrow" style={selectedMode === o.v ? S.ddOptActive : S.ddOpt} onClick={() => { setSelectedMode(o.v); setOpenDropdown(null); setPage(1); }}>
                         <span>{o.l}</span>
                         {selectedMode === o.v && <span dangerouslySetInnerHTML={{ __html: IC.checkIndigo }} />}
                       </div>
@@ -313,7 +313,7 @@ export default function EgitimYonetimiPage() {
 
               {/* EĞİTİM TİPİ */}
               <div style={{ position: "relative" }}>
-                <button className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("tip")}>
+                <button type="button" className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("tip")}>
                   <span dangerouslySetInnerHTML={{ __html: IC.users }} />
                   <span>Eğitim Tipi</span>
                   {selectedType && <span style={S.filterPill}>{selectedType === "individual" ? "Bireysel" : "Kurumsal"}</span>}
@@ -323,7 +323,7 @@ export default function EgitimYonetimiPage() {
                   <div style={{ ...S.dropdown, width: 210 }}>
                     <div style={S.ddLabel}>Katılım Tipi</div>
                     {([{ l: "Tümü", v: null }, { l: "Bireysel", v: "individual" }, { l: "Kurumsal", v: "corporate" }] as const).map((o) => (
-                      <div key={o.l} className="ey-ddrow" style={selectedType === o.v ? S.ddOptActive : S.ddOpt} onClick={() => { setSelectedType(o.v); setOpenDropdown(null); setPage(1); }}>
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={o.l} className="ey-ddrow" style={selectedType === o.v ? S.ddOptActive : S.ddOpt} onClick={() => { setSelectedType(o.v); setOpenDropdown(null); setPage(1); }}>
                         <span>{o.l}</span>
                         {selectedType === o.v && <span dangerouslySetInnerHTML={{ __html: IC.checkIndigo }} />}
                       </div>
@@ -333,9 +333,8 @@ export default function EgitimYonetimiPage() {
               </div>
 
               {anyFilter && (
-                <button className="ey-clearbtn" style={S.clearBtn} onClick={clearFilters}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-                  Temizle
+                <button type="button" className="ey-clearbtn" style={S.clearBtn} onClick={clearFilters}>
+                  <span dangerouslySetInnerHTML={{ __html: IC.x }} />Temizle
                 </button>
               )}
 
@@ -358,14 +357,12 @@ export default function EgitimYonetimiPage() {
           {selected.length > 0 && (
             <div style={S.bulkBar}>
               <div style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 14, fontWeight: 600, color: "#3730a3" }}>
-                <span style={S.bulkCount}>{selected.length}</span>
-                eğitim seçildi
+                <span style={S.bulkCount}>{selected.length}</span>eğitim seçildi
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <button style={S.bulkClear} onClick={() => setSelected([])}>Seçimi Temizle</button>
-                <button style={S.bulkDelete} onClick={() => askDelete(selected)}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
-                  Seçilenleri Sil
+                <button type="button" style={S.bulkClear} onClick={() => setSelected([])}>Seçimi Temizle</button>
+                <button type="button" style={S.bulkDelete} onClick={() => askDelete(selected)}>
+                  <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />Seçilenleri Sil
                 </button>
               </div>
             </div>
@@ -378,7 +375,7 @@ export default function EgitimYonetimiPage() {
                 <thead>
                   <tr style={{ background: "#fafbfd", borderBottom: "1px solid #eef1f6" }}>
                     <th style={{ width: 52, padding: "14px 10px 14px 24px", textAlign: "left" }}>
-                      <span onClick={toggleAllPage} style={S.thCheck}>
+                      <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={toggleAllPage} style={S.thCheck}>
                         {allSelected && <span style={S.checkFill}><span dangerouslySetInnerHTML={{ __html: IC.check }} /></span>}
                       </span>
                     </th>
@@ -396,8 +393,8 @@ export default function EgitimYonetimiPage() {
                     const st = e.onSale ? STATUS.satista : STATUS.taslak;
                     return (
                       <tr key={e.id} className="ey-row" style={{ background: sel ? "#f6f8ff" : "#fff", borderBottom: "1px solid #f1f4f9", transition: "background .12s" }}>
-                        <td style={{ ...S.cell, width: 52, paddingLeft: 24, paddingRight: 10 }} onClick={(ev) => ev.stopPropagation()}>
-                          <span onClick={() => toggleSelect(e.id)} style={S.thCheck}>
+                        <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ ...S.cell, width: 52, paddingLeft: 24, paddingRight: 10 }} onClick={(ev) => ev.stopPropagation()}>
+                          <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => toggleSelect(e.id)} style={S.thCheck}>
                             {sel && <span style={S.checkFill}><span dangerouslySetInnerHTML={{ __html: IC.check }} /></span>}
                           </span>
                         </td>
@@ -453,10 +450,10 @@ export default function EgitimYonetimiPage() {
                             {st.label}
                           </span>
                         </td>
-                        <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(ev) => ev.stopPropagation()}>
+                        <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(ev) => ev.stopPropagation()}>
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <button className="ey-edit" style={S.iconBtn} title="Düzenle" onClick={() => router.push(`/flexos/egitim-yonetimi/ekle?id=${e.id}`)}><span dangerouslySetInnerHTML={{ __html: IC.edit }} /></button>
-                            <button className="ey-del" style={{ ...S.iconBtn, color: "#94a3b8" }} title="Sil" onClick={() => askDelete([e.id])}><span dangerouslySetInnerHTML={{ __html: IC.trash }} /></button>
+                            <button type="button" className="ey-edit" style={S.iconBtn} title="Düzenle" onClick={() => router.push(`/flexos/egitim-yonetimi/ekle?id=${e.id}`)}><span dangerouslySetInnerHTML={{ __html: IC.edit }} /></button>
+                            <button type="button" className="ey-del" style={{ ...S.iconBtn, color: "#94a3b8" }} title="Sil" onClick={() => askDelete([e.id])}><span dangerouslySetInnerHTML={{ __html: IC.trash }} /></button>
                           </div>
                         </td>
                       </tr>
@@ -485,17 +482,17 @@ export default function EgitimYonetimiPage() {
                   <strong style={{ color: "#1e293b", fontWeight: 700 }}>{total ? startIdx + 1 : 0}–{startIdx + pageItems.length}</strong> arası gösteriliyor
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <button style={{ ...S.pageArrow, cursor: curPage > 1 ? "pointer" : "not-allowed", opacity: curPage > 1 ? 1 : 0.4 }} onClick={() => setPage(Math.max(1, curPage - 1))}>
+                  <button type="button" style={{ ...S.pageArrow, cursor: curPage > 1 ? "pointer" : "not-allowed", opacity: curPage > 1 ? 1 : 0.4 }} onClick={() => setPage(Math.max(1, curPage - 1))}>
                     <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />
                   </button>
                   {pageNumbers.map((pn, i) =>
                     pn.ellipsis ? (
                       <span key={`e${i}`} style={{ minWidth: 24, textAlign: "center", color: "#cbd5e1", fontWeight: 700 }}>…</span>
                     ) : (
-                      <button key={pn.p} style={pn.p === curPage ? S.pageCur : S.pageReg} onClick={() => setPage(pn.p!)}>{pn.p}</button>
+                      <button type="button" key={pn.p} style={pn.p === curPage ? S.pageCur : S.pageReg} onClick={() => setPage(pn.p!)}>{pn.p}</button>
                     ),
                   )}
-                  <button style={{ ...S.pageArrow, cursor: curPage < totalPages ? "pointer" : "not-allowed", opacity: curPage < totalPages ? 1 : 0.4 }} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>
+                  <button type="button" style={{ ...S.pageArrow, cursor: curPage < totalPages ? "pointer" : "not-allowed", opacity: curPage < totalPages ? 1 : 0.4 }} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>
                     <span dangerouslySetInnerHTML={{ __html: IC.chevRight }} />
                   </button>
                 </div>
@@ -507,7 +504,7 @@ export default function EgitimYonetimiPage() {
       </main>
 
       {/* click-away overlay */}
-      {openDropdown && <div onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+      {openDropdown && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
 
       {/* silme onay modalı */}
       <FlexModal

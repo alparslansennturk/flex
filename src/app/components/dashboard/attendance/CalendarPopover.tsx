@@ -84,7 +84,7 @@ export function DayCalendarPopover({
   const startOff  = rawDow === 0 ? 6 : rawDow - 1;
   const daysInMon = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = [
-    ...Array(startOff).fill(null),
+    ...new Array(startOff).fill(null),
     ...Array.from({ length: daysInMon }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
@@ -104,7 +104,7 @@ export function DayCalendarPopover({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-surface-50">
-        <button
+        <button type="button"
           onClick={() => setViewMonth(m => shiftMonth(m, -1))}
           disabled={!canPrev}
           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
@@ -114,7 +114,7 @@ export function DayCalendarPopover({
         <span className="text-[13px] font-bold text-text-primary capitalize">
           {viewMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
         </span>
-        <button
+        <button type="button"
           onClick={() => setViewMonth(m => shiftMonth(m, 1))}
           disabled={!canNext}
           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
@@ -186,7 +186,7 @@ export function DayCalendarPopover({
           }
 
           return (
-            <button
+            <button type="button"
               key={dateStr}
               disabled={isDisabled}
               onClick={() => { onChange(new Date(dateStr + "T12:00:00")); setOpen(false); }}
@@ -204,7 +204,7 @@ export function DayCalendarPopover({
       {/* Today shortcut */}
       {maxStr && todayStr <= maxStr && (
         <div className="px-4 pb-3 border-t border-surface-50 pt-2 flex justify-center">
-          <button
+          <button type="button"
             onClick={() => { onChange(new Date(todayStr + "T12:00:00")); setOpen(false); }}
             className="text-[11px] font-bold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer"
           >
@@ -217,7 +217,7 @@ export function DayCalendarPopover({
 
   return (
     <div className="relative" ref={triggerRef}>
-      <div onClick={handleToggle}>{children}</div>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={handleToggle}>{children}</div>
       {open && typeof document !== "undefined" && ReactDOM.createPortal(popoverContent, document.body)}
     </div>
   );
@@ -292,14 +292,14 @@ export function MonthCalendarPopover({ value, onChange, maxDate, children }: Mon
     >
       {/* Year header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-surface-50">
-        <button
+        <button type="button"
           onClick={() => setViewYear(y => y - 1)}
           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary"
         >
           <ChevronLeft size={14} />
         </button>
         <span className="text-[14px] font-bold text-text-primary">{viewYear}</span>
-        <button
+        <button type="button"
           onClick={() => setViewYear(y => y + 1)}
           disabled={viewYear >= maxYear}
           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
@@ -316,7 +316,7 @@ export function MonthCalendarPopover({ value, onChange, maxDate, children }: Mon
           const isDisabled = viewYear > maxYear || (viewYear === maxYear && idx > maxMonth);
 
           return (
-            <button
+            <button type="button"
               key={name}
               disabled={isDisabled}
               title={TR_MONTHS[idx]}
@@ -341,7 +341,7 @@ export function MonthCalendarPopover({ value, onChange, maxDate, children }: Mon
 
   return (
     <div className="relative" ref={triggerRef}>
-      <div onClick={handleToggle}>{children}</div>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={handleToggle}>{children}</div>
       {open && typeof document !== "undefined" && ReactDOM.createPortal(popoverContent, document.body)}
     </div>
   );

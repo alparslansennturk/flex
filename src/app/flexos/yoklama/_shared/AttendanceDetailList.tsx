@@ -263,7 +263,7 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
     if (filteredGroups.length === 0) { setStats([]); setLoading(false); return; }
     setLoading(true);
     const [yearStr, monthStr] = selectedMonth.split("-");
-    const year = parseInt(yearStr, 10), month = parseInt(monthStr, 10) - 1;
+    const year = Number.parseInt(yearStr, 10), month = Number.parseInt(monthStr, 10) - 1;
     const [fromM, toM] = [`${selectedMonth}-01`, `${selectedMonth}-31`];
 
     (async () => {
@@ -389,7 +389,7 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
       {/* ── Grup Sekmeleri ── */}
       <div className="flex border-b border-surface-100">
         {([["active", "Aktif Gruplar"], ["closed", "Tamamlanan Gruplar"]] as const).map(([tab, label]) => (
-          <button key={tab} onClick={() => setGroupTab(tab)}
+          <button type="button" key={tab} onClick={() => setGroupTab(tab)}
             className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-colors ${groupTab === tab ? "border-base-primary-600 text-base-primary-700" : "border-transparent text-surface-400 hover:text-text-primary"}`}>
             {label}
           </button>
@@ -435,7 +435,7 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
                 <span className="text-[12px] text-surface-400 truncate">&quot;{searchCode}&quot; · {searchResults.length} kayıt · {searchFrom} – {searchTo}</span>
               )}
             </div>
-            <button onClick={() => setSearchCode("")} className="text-[12px] font-medium text-surface-400 hover:text-base-primary-600 transition-colors shrink-0 ml-3">Temizle</button>
+            <button type="button" onClick={() => setSearchCode("")} className="text-[12px] font-medium text-surface-400 hover:text-base-primary-600 transition-colors shrink-0 ml-3">Temizle</button>
           </div>
           {searchLoading ? (
             <div className="flex items-center justify-center py-14"><div className="w-6 h-6 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" /></div>
@@ -544,7 +544,7 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
                         ) : <span className="text-[12px] text-surface-300 italic">—</span>}
                       </div>
                       <div className="w-20 shrink-0 flex justify-end">
-                        <button
+                        <button type="button"
                           onClick={() => onGroupDetail(s.group.id, selectedMonth, isClosedGroup(s.group))}
                           className="text-[12px] font-bold text-base-primary-600 hover:text-white hover:bg-base-primary-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap">
                           Detay
@@ -577,7 +577,7 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
                   (self scope, admin/Op/Finans dahil kimse göremez). Varsayılan bulanık. */}
               {canSeeEarnings && earnings && (
                 <div className="flex items-center gap-2.5 shrink-0">
-                  <button
+                  <button type="button"
                     onClick={() => setEarningsBlurred((v) => !v)}
                     title={earningsBlurred ? "Hak edişi göster" : "Hak edişi gizle"}
                     className="p-1.5 rounded-lg text-base-primary-400 hover:text-base-primary-700 hover:bg-white/60 transition-colors cursor-pointer outline-none shrink-0"

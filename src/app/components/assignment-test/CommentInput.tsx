@@ -58,7 +58,7 @@ export default function CommentInput({ authorType, onSend }: Props) {
       {/* Footer */}
       <div className="px-4 pb-3 flex items-center justify-between">
         <p className="text-[11px] text-surface-400">Ctrl+Enter ile gönder</p>
-        <button
+        <button type="button"
           onClick={handleSend}
           disabled={!text.trim() || sending}
           className="flex items-center gap-2 px-4 py-2 bg-base-primary-600 text-white rounded-xl text-[13px] font-bold

@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useState, useMemo, CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -195,9 +196,9 @@ export default function KullaniciDuzenlePage() {
         <FlexHeader
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön" onClick={() => router.push("/flexos/kullanicilar")}>
+              <Link href="/flexos/kullanicilar" className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
                   <span>Kullanıcılar</span>
@@ -226,7 +227,7 @@ export default function KullaniciDuzenlePage() {
               {TABS.map((t) => {
                 const active = activeTab === t.key;
                 return (
-                  <button key={t.key} onClick={() => setActiveTab(t.key)} style={tabStyle(active)}>
+                  <button type="button" key={t.key} onClick={() => setActiveTab(t.key)} style={tabStyle(active)}>
                     <span style={tabNumStyle(active)}>{t.num}</span>
                     <span>{t.label}</span>
                     {t.key === "bilgiler" && tab1Valid && (
@@ -255,9 +256,9 @@ export default function KullaniciDuzenlePage() {
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 24 }}>
                       <div style={S.fieldWrap}>
-                        <label style={S.label}>Cinsiyet *</label>
+                        <label htmlFor="gender" style={S.label}>Cinsiyet *</label>
                         <div style={{ position: "relative" }}>
-                          <select className="ku-select" value={gender} onChange={(e) => setGender(e.target.value as "male" | "female")} style={S.select}>
+                          <select id="gender" className="ku-select" value={gender} onChange={(e) => setGender(e.target.value as "male" | "female")} style={S.select}>
                             <option value="" disabled>Seçin</option>
                             <option value="male">Erkek</option>
                             <option value="female">Kadın</option>
@@ -267,9 +268,9 @@ export default function KullaniciDuzenlePage() {
                       </div>
                       <FormField label="Doğum Tarihi" value={birthDate} onChange={setBirthDate} placeholder="" type="date" />
                       <div style={S.fieldWrap}>
-                        <label style={S.label}>Şube</label>
+                        <label htmlFor="officeId" style={S.label}>Şube</label>
                         <div style={{ position: "relative" }}>
-                          <select className="ku-select" value={officeId} onChange={(e) => setOfficeId(e.target.value)} style={S.select}>
+                          <select id="officeId" className="ku-select" value={officeId} onChange={(e) => setOfficeId(e.target.value)} style={S.select}>
                             <option value="">Seçin</option>
                             {officeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                           </select>
@@ -294,9 +295,8 @@ export default function KullaniciDuzenlePage() {
                     )}
 
                     <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 12 }}>
-                      <button onClick={() => setActiveTab("yetkiler")} style={S.nextBtn}>
-                        İleri — Yetkiler
-                        <span dangerouslySetInnerHTML={{ __html: IC.arrowRight }} />
+                      <button type="button" onClick={() => setActiveTab("yetkiler")} style={S.nextBtn}>
+                        İleri — Yetkiler<span dangerouslySetInnerHTML={{ __html: IC.arrowRight }} />
                       </button>
                     </div>
                   </div>
@@ -363,13 +363,12 @@ export default function KullaniciDuzenlePage() {
                     )}
 
                     <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 16, borderTop: "1px solid #EEF0F3" }}>
-                      <button onClick={() => setActiveTab("bilgiler")} style={S.backTabBtn}>
-                        <span dangerouslySetInnerHTML={{ __html: IC.arrowLeft }} />
-                        Geri — Genel Bilgiler
+                      <button type="button" onClick={() => setActiveTab("bilgiler")} style={S.backTabBtn}>
+                        <span dangerouslySetInnerHTML={{ __html: IC.arrowLeft }} />Geri — Genel Bilgiler
                       </button>
                       <div style={{ display: "flex", gap: 12 }}>
-                        <button onClick={() => router.push("/flexos/kullanicilar")} style={S.cancelBtn}>Vazgeç</button>
-                        <button onClick={handleSave} disabled={saving} style={{ ...S.saveBtn, background: saving ? "#D1D5DB" : "linear-gradient(135deg,#FF8D28,#D66500)", cursor: saving ? "not-allowed" : "pointer", boxShadow: saving ? "none" : "0 4px 12px -4px rgba(214,101,0,.5)" }}>
+                        <button type="button" onClick={() => router.push("/flexos/kullanicilar")} style={S.cancelBtn}>Vazgeç</button>
+                        <button type="button" onClick={handleSave} disabled={saving} style={{ ...S.saveBtn, background: saving ? "#D1D5DB" : "linear-gradient(135deg,#FF8D28,#D66500)", cursor: saving ? "not-allowed" : "pointer", boxShadow: saving ? "none" : "0 4px 12px -4px rgba(214,101,0,.5)" }}>
                           {saving ? (
                             <><span style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "ku-spin .6s linear infinite", display: "inline-block" }} />Kaydediliyor…</>
                           ) : (
@@ -394,8 +393,8 @@ export default function KullaniciDuzenlePage() {
 function FormField({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; type?: string }) {
   return (
     <div style={S.fieldWrap}>
-      <label style={S.label}>{label}</label>
-      <input className="ku-input" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type={type} style={S.input} />
+      <label htmlFor="value" style={S.label}>{label}</label>
+      <input id="value" className="ku-input" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type={type} style={S.input} />
     </div>
   );
 }

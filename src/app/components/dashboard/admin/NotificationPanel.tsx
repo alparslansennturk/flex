@@ -160,7 +160,7 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
                 <p className="text-[10px] font-bold text-[#AEB4C0] uppercase tracking-wider">Sistem Bildirimi</p>
                 <div className="grid grid-cols-3 gap-2">
                   {ADMIN_BROADCAST_OPTIONS.map(opt => (
-                    <button
+                    <button type="button"
                       key={opt.value}
                       onClick={() => setAudience(opt.value)}
                       className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border-2 transition-all cursor-pointer text-left
@@ -183,7 +183,7 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
             {/* Hem admin hem eğitmen: grup bazlı seçenekler */}
             <div className="grid grid-cols-2 gap-2">
               {GROUP_OPTIONS.map(opt => (
-                <button
+                <button type="button"
                   key={opt.value}
                   onClick={() => { setAudience(opt.value); if (opt.value !== "group") setSelectedGroup(""); }}
                   className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border-2 transition-all cursor-pointer text-left
@@ -204,9 +204,9 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
           {/* Grup Seçici — sadece "Belirli Grup" seçilince */}
           {needsGroupSelect && (
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-[#5C6370]">Sınıf Seç</label>
+              <label htmlFor="selectedGroup" className="text-[13px] font-semibold text-[#5C6370]">Sınıf Seç</label>
               <div className="relative">
-                <select
+                <select id="selectedGroup"
                   value={selectedGroup}
                   onChange={e => setSelectedGroup(e.target.value)}
                   disabled={groupsLoading}
@@ -226,10 +226,10 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <div className="flex justify-between">
-                <label className="text-[13px] font-semibold text-[#5C6370]">Başlık</label>
+                <label htmlFor="title" className="text-[13px] font-semibold text-[#5C6370]">Başlık</label>
                 <span className={`text-[11px] ${title.length > 180 ? "text-red-500" : "text-[#AEB4C0]"}`}>{title.length}/200</span>
               </div>
-              <input
+              <input id="title"
                 type="text"
                 value={title}
                 maxLength={200}
@@ -241,10 +241,10 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
 
             <div className="space-y-1.5">
               <div className="flex justify-between">
-                <label className="text-[13px] font-semibold text-[#5C6370]">Mesaj</label>
+                <label htmlFor="preview" className="text-[13px] font-semibold text-[#5C6370]">Mesaj</label>
                 <span className={`text-[11px] ${preview.length > 90 ? "text-red-500" : "text-[#AEB4C0]"}`}>{preview.length}/100</span>
               </div>
-              <textarea
+              <textarea id="preview"
                 value={preview}
                 maxLength={100}
                 onChange={e => setPreview(e.target.value)}
@@ -257,10 +257,10 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
 
           {/* Yönlendirme URL */}
           <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-[#5C6370]">
+            <label htmlFor="actionUrl" className="text-[13px] font-semibold text-[#5C6370]">
               Tıklandığında Git <span className="text-[#AEB4C0] font-normal">(isteğe bağlı)</span>
             </label>
-            <input
+            <input id="actionUrl"
               type="text"
               value={actionUrl}
               onChange={e => setActionUrl(e.target.value)}
@@ -281,7 +281,7 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
 
           {/* Gönder */}
           {!showConfirm ? (
-            <button
+            <button type="button"
               disabled={!canSend || loading}
               onClick={() => setShowConfirm(true)}
               className="w-full h-12 bg-[#10294C] text-white rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 hover:bg-[#0d2140] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
@@ -294,13 +294,13 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
                 "{audienceLabel}" hedefine bildirim gönderilecek. Emin misin?
               </p>
               <div className="flex gap-3">
-                <button
+                <button type="button"
                   onClick={() => setShowConfirm(false)}
                   className="flex-1 h-10 border border-[#EEF0F3] rounded-xl text-[13px] font-bold text-[#5C6370] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
-                <button
+                <button type="button"
                   onClick={handleSend}
                   disabled={loading}
                   className="flex-1 h-10 bg-[#10294C] text-white rounded-xl text-[13px] font-bold hover:bg-[#0d2140] transition-colors disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
@@ -333,7 +333,7 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
                   <p className="text-[11px] text-[#8E95A3]">Yeni bildirimde çalacak ses</p>
                 </div>
               </div>
-              <button
+              <button type="button"
                 onClick={handleSoundToggle}
                 className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${soundEnabled ? "bg-[#3A7BD5]" : "bg-[#D1D5DB]"}`}
               >
@@ -346,7 +346,7 @@ export default function NotificationPanel({ userRole = "admin", instructorUid }:
                 <p className="text-[12px] font-semibold text-[#5C6370]">Ton</p>
                 <div className="grid grid-cols-4 gap-2">
                   {SOUND_TONES.map(t => (
-                    <button
+                    <button type="button"
                       key={t.value}
                       onClick={() => handleToneChange(t.value)}
                       className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all cursor-pointer

@@ -12,8 +12,8 @@ const initializeAdmin = () => {
             const cleanedKey = rawKey
                 .trim()
                 .replace(/^c/, '')
-                .replace(/^"|"$/g, '')
-                .replace(/\\n/g, '\n');
+                .replaceAll(/^"|"$/g, '')
+                .replaceAll(/\\n/g, '\n');
 
             admin.initializeApp({
                 credential: admin.credential.cert({

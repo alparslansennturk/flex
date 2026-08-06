@@ -512,11 +512,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           module: groupModule || null,
           type: groupType,
           moduleId: null,
-          customHours: customHours ? parseInt(customHours, 10) : null,
+          customHours: customHours ? Number.parseInt(customHours, 10) : null,
           companyName: groupType === "kurumsal" && companyName ? companyName : null,
           startDate: groupStartDate || null,
-          sessionHours: lessonHours ? parseInt(lessonHours, 10) : null,
-          totalHours: customHours ? parseInt(customHours, 10) : null,
+          sessionHours: lessonHours ? Number.parseInt(lessonHours, 10) : null,
+          totalHours: customHours ? Number.parseInt(customHours, 10) : null,
         });
 
         // Grup kodu değiştiyse VEYA modül GRAFIK_1→GRAFIK_2 geçişi varsa öğrencileri güncelle
@@ -600,11 +600,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           module: groupModule || null,
           type: groupType,
           moduleId: null,
-          customHours: customHours ? parseInt(customHours, 10) : null,
+          customHours: customHours ? Number.parseInt(customHours, 10) : null,
           companyName: groupType === "kurumsal" && companyName ? companyName : null,
           startDate: groupStartDate || null,
-          sessionHours: lessonHours ? parseInt(lessonHours, 10) : null,
-          totalHours: customHours ? parseInt(customHours, 10) : null,
+          sessionHours: lessonHours ? Number.parseInt(lessonHours, 10) : null,
+          totalHours: customHours ? Number.parseInt(customHours, 10) : null,
           createdAt: serverTimestamp()
         });
         pendingSelectIdRef.current = docRef.id;

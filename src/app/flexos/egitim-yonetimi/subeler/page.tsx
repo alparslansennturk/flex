@@ -11,6 +11,7 @@
  */
 
 import React, { useEffect, useState, CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -193,9 +194,9 @@ export default function SubeHavuzuPage() {
         <FlexHeader
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="sh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
+              <Link href="/flexos/egitim-yonetimi/ayarlar" className="sh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
                   <span>Eğitim Yönetimi</span>
@@ -228,7 +229,7 @@ export default function SubeHavuzuPage() {
                 placeholder="Şube adı — örn: Kadıköy"
                 style={{ ...S.input, flex: 1, minWidth: 220 }}
               />
-              <button onClick={addOffice} disabled={!canAdd} style={addBtnStyle(canAdd)}>
+              <button type="button" onClick={addOffice} disabled={!canAdd} style={addBtnStyle(canAdd)}>
                 <span dangerouslySetInnerHTML={{ __html: IC.plus }} />
                 {saving ? "Ekleniyor…" : "Şube Ekle"}
               </button>
@@ -276,19 +277,19 @@ export default function SubeHavuzuPage() {
                       )}
                       {isEditing ? (
                         <>
-                          <button className="sh-iconbtn" style={S.smallBtn} title="Kaydet" onClick={() => saveEdit(o.id)} disabled={saving}>
+                          <button type="button" className="sh-iconbtn" style={S.smallBtn} title="Kaydet" onClick={() => saveEdit(o.id)} disabled={saving}>
                             <span dangerouslySetInnerHTML={{ __html: IC.check }} />
                           </button>
-                          <button className="sh-iconbtn" style={S.smallBtn} title="Vazgeç" onClick={cancelEdit}>
+                          <button type="button" className="sh-iconbtn" style={S.smallBtn} title="Vazgeç" onClick={cancelEdit}>
                             <span dangerouslySetInnerHTML={{ __html: IC.x }} />
                           </button>
                         </>
                       ) : (
                         <>
-                          <button className="sh-iconbtn" style={S.smallBtn} title="Düzenle" onClick={() => startEdit(o)}>
+                          <button type="button" className="sh-iconbtn" style={S.smallBtn} title="Düzenle" onClick={() => startEdit(o)}>
                             <span dangerouslySetInnerHTML={{ __html: IC.edit }} />
                           </button>
-                          <button className="sh-iconbtn" style={{ ...S.smallBtn, color: "#dc2626" }} title="Sil" onClick={() => { setDeleteTarget(o); setDeleteError(""); }}>
+                          <button type="button" className="sh-iconbtn" style={{ ...S.smallBtn, color: "#dc2626" }} title="Sil" onClick={() => { setDeleteTarget(o); setDeleteError(""); }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                           </button>
                         </>
@@ -305,8 +306,8 @@ export default function SubeHavuzuPage() {
 
       {/* Silme onay modalı */}
       {deleteTarget && (
-        <div style={S.modalBackdrop} onClick={() => !deleting && setDeleteTarget(null)}>
-          <div style={S.modalCard} onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modalBackdrop} onClick={() => !deleting && setDeleteTarget(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
               <span style={{ ...S.rowIcon, color: "#dc2626", background: "#fee2e2", width: 44, height: 44 }} dangerouslySetInnerHTML={{ __html: IC.trashBig }} />
               <div>
@@ -320,8 +321,8 @@ export default function SubeHavuzuPage() {
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button onClick={() => setDeleteTarget(null)} disabled={deleting} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={confirmDelete} disabled={deleting} style={S.dangerBtn}>{deleting ? "Siliniyor…" : "Sil"}</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleting} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={confirmDelete} disabled={deleting} style={S.dangerBtn}>{deleting ? "Siliniyor…" : "Sil"}</button>
             </div>
           </div>
         </div>

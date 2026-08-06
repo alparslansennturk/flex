@@ -142,7 +142,7 @@ export default function SertifikaAyarlariPage() {
               const Icon = t.icon;
               const active = t.key === activeTab;
               return (
-                <button
+                <button type="button"
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
                   className="inline-flex items-center gap-2 py-2.5 px-4 rounded-[11px] text-[13px] font-bold cursor-pointer transition-all"
@@ -173,7 +173,7 @@ export default function SertifikaAyarlariPage() {
                   </div>
                 </div>
               </div>
-              <button
+              <button type="button"
                 onClick={() => setCurrent({ ...current, odevAktif: !current.odevAktif })}
                 className="relative rounded-full cursor-pointer border-none p-0 shrink-0 transition-colors"
                 style={{ width: 50, height: 28, background: current.odevAktif ? "#1F9D57" : "#CDD2DA" }}
@@ -266,7 +266,7 @@ export default function SertifikaAyarlariPage() {
                     {PRESETS.map((p) => {
                       const active = p.pct === current.sertifikaPct;
                       return (
-                        <button
+                        <button type="button"
                           key={p.label}
                           onClick={() => setCurrent({ ...current, sertifikaPct: p.pct })}
                           className="py-[9px] px-[15px] rounded-[10px] text-[12.5px] font-bold cursor-pointer transition-all"
@@ -317,13 +317,13 @@ export default function SertifikaAyarlariPage() {
 
           {/* kaydet barı */}
           <div className="flex items-center justify-end gap-3 pt-1">
-            <button
+            <button type="button"
               onClick={() => { setCurrent(DEFAULTS[activeTab]); toast.success("Varsayılana dönüldü."); }}
               className="py-3 px-5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[13.5px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors"
             >
               Varsayılana Dön
             </button>
-            <button
+            <button type="button"
               onClick={saveSettings}
               disabled={saving || loading}
               className="inline-flex items-center gap-2 py-3 px-6 rounded-xl border-none text-white text-[13.5px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"

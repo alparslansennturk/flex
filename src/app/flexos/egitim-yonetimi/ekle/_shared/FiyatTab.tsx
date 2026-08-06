@@ -48,9 +48,8 @@ export function FiyatTab({ s, onChange, isGun, poolOptions, canAddPrice, addPric
             <span style={S.selChev} dangerouslySetInnerHTML={{ __html: IC.selChev }} />
           </div>
         </div>
-        <button onClick={addPriceRow} disabled={!canAddPrice} style={addBtn(canAddPrice, "#4f46e5")}>
-          <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />
-          Listeye Ekle
+        <button type="button" onClick={addPriceRow} disabled={!canAddPrice} style={addBtn(canAddPrice, "#4f46e5")}>
+          <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />Listeye Ekle
         </button>
       </div>
 
@@ -83,7 +82,7 @@ export function FiyatTab({ s, onChange, isGun, poolOptions, canAddPrice, addPric
                     <td style={S.priceCell}><span style={{ fontSize: 13, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "4px 10px", borderRadius: 8 }}>%{kdv}</span></td>
                     <td style={S.priceCell}><span style={{ fontSize: 14.5, fontWeight: 800, color: "#0f1f3d" }}>{fmtCurrency(net)}</span></td>
                     <td style={{ ...S.priceCell, textAlign: "right" }}>
-                      <button className="ee-del" style={S.smDelBtn} onClick={() => removePriceRow(r.id)}>
+                      <button type="button" className="ee-del" style={S.smDelBtn} onClick={() => removePriceRow(r.id)}>
                         <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
                       </button>
                     </td>

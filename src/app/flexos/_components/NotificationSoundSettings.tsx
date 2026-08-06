@@ -56,7 +56,7 @@ export default function NotificationSoundSettings() {
             <p className="text-[12px] text-text-tertiary">Yeni bildirim gelince bu cihazda ses çalsın</p>
           </div>
         </div>
-        <button
+        <button type="button"
           onClick={handleSoundToggle}
           className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${soundEnabled ? "bg-base-primary-600" : "bg-[#D1D5DB]"}`}
         >
@@ -69,7 +69,7 @@ export default function NotificationSoundSettings() {
           <p className="text-[12px] font-semibold text-[#5C6370]">Ton</p>
           <div className="grid grid-cols-4 gap-2">
             {SOUND_TONES.map(t => (
-              <button
+              <button type="button"
                 key={t.value}
                 onClick={() => handleToneChange(t.value)}
                 className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all cursor-pointer

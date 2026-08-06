@@ -13,9 +13,9 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
 
     const slugify = (t: string) =>
         t.toLowerCase()
-            .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
-            .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
-            .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            .replaceAll(/ğ/g, 'g').replaceAll(/ü/g, 'u').replaceAll(/ş/g, 's')
+            .replaceAll(/ı/g, 'i').replaceAll(/ö/g, 'o').replaceAll(/ç/g, 'c')
+            .replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, '');
 
     const instructorCount = (id: string) =>
         users.filter(u => Array.isArray(u.branches) && u.branches.includes(id)).length;
@@ -34,7 +34,7 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
     };
 
     const handleUpdateHours = async (b: Branch, hours: number) => {
-        if (isNaN(hours) || hours < 1) return;
+        if (Number.isNaN(hours) || hours < 1) return;
         await updateDoc(doc(db, "branches", b.id), { sessionHours: hours });
     };
 
@@ -51,8 +51,8 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
             {/* Add branch row */}
             <div className="flex gap-3 items-end">
                 <div className="space-y-1.5 flex-1 max-w-sm">
-                    <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wide ml-0.5">Yeni Branş</label>
-                    <input
+                    <label htmlFor="name" className="text-[11px] font-bold text-neutral-500 uppercase tracking-wide ml-0.5">Yeni Branş</label>
+                    <input id="name"
                         value={name}
                         onChange={e => { setName(e.target.value); setError(""); }}
                         onKeyDown={e => e.key === "Enter" && handleAdd()}
@@ -60,7 +60,7 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
                         className="h-11 w-full border border-neutral-200 bg-white rounded-xl px-4 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/10 font-semibold text-[14px] text-[#10294C] placeholder:font-normal placeholder:text-neutral-400 transition-all"
                     />
                 </div>
-                <button
+                <button type="button"
                     onClick={handleAdd}
                     disabled={loading || !name.trim()}
                     className="h-11 px-5 bg-orange-500 text-white rounded-xl font-bold text-[13px] flex items-center gap-2 hover:bg-orange-600 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
@@ -96,7 +96,7 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
                                             </span>
                                         </div>
                                     </div>
-                                    <button
+                                    <button type="button"
                                         onClick={() => handleDelete(b)}
                                         className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0 mt-0.5"
                                     >
@@ -115,7 +115,7 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
                                             type="number" min={1} max={12}
                                             defaultValue={b.sessionHours ?? ""}
                                             placeholder="—"
-                                            onBlur={e => handleUpdateHours(b, parseInt(e.target.value, 10))}
+                                            onBlur={e => handleUpdateHours(b, Number.parseInt(e.target.value, 10))}
                                             onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                                             className="w-16 h-9 text-center text-[14px] font-bold text-[#10294C] border border-neutral-200 rounded-lg outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/10 transition-all bg-neutral-50 focus:bg-white"
                                         />

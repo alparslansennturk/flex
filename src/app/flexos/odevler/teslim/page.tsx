@@ -111,7 +111,7 @@ export default function OdevTeslimiPage() {
               { key: "archived", label: "Arşiv" },
               { key: "all", label: "Tüm Sınıflar" },
             ] as const).map((tab) => (
-              <button
+              <button type="button"
                 key={tab.key}
                 onClick={() => setFilter(tab.key)}
                 className={`px-5 py-1.5 rounded-[10px] text-[13px] font-semibold transition-all cursor-pointer outline-none select-none ${
@@ -164,7 +164,7 @@ export default function OdevTeslimiPage() {
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
-      <button
+      <button type="button"
         onClick={() => toast.info("Ödev Yönetimi sayfası yakında.")}
         title="Yeni Ödev"
         className="fixed bottom-8 right-8 w-14 h-14 rounded-full bg-base-primary-600 text-white shadow-lg shadow-base-primary-600/30

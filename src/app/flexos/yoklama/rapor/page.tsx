@@ -198,7 +198,7 @@ function GroupHistoryPanel({ group, onSelectSession }: { group: GroupItem; onSel
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
             className="text-[12px] border border-surface-200 rounded-xl px-3 py-1.5 bg-white outline-none hover:border-base-primary-400 transition-colors text-base-primary-900 cursor-pointer" />
           {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-[11px] text-surface-400 hover:text-surface-600 cursor-pointer">Temizle</button>
+            <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-[11px] text-surface-400 hover:text-surface-600 cursor-pointer">Temizle</button>
           )}
           <span className="ml-auto text-[11px] text-surface-400">{filtered.length} kayıt</span>
         </div>
@@ -221,14 +221,14 @@ function GroupHistoryPanel({ group, onSelectSession }: { group: GroupItem; onSel
                 <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${s.attendanceClosed ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
                   {s.attendanceClosed ? "Kapatıldı" : "Devam Ediyor"}
                 </span>
-                <button onClick={() => onSelectSession(s)} className="text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer shrink-0">
+                <button type="button" onClick={() => onSelectSession(s)} className="text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer shrink-0">
                   Detay →
                 </button>
               </div>
             ))}
             {!showAll && filtered.length > 10 && (
               <div className="px-6 py-4">
-                <button onClick={() => setShowAll(true)} className="text-[13px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer">
+                <button type="button" onClick={() => setShowAll(true)} className="text-[13px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer">
                   Tümünü göster ({filtered.length} kayıt)
                 </button>
               </div>
@@ -388,8 +388,14 @@ function ReportContent() {
 
       const sessionHours = g.schedule.sessionHours ?? 3;
       const weekDays = g.schedule.days ?? [];
-      const effectiveStart = [searchFrom, g.schedule.startDate].filter(Boolean).reduce((a, b) => (a! > b! ? a : b))!;
-      const effectiveEnd = [searchTo, g.schedule.endDate].filter(Boolean).reduce((a, b) => (a! < b! ? a : b))!;
+      // searchFrom/searchTo tarih filtresi kullanıcı tarafından boşaltılabilir (date input);
+      // schedule.startDate/endDate de bazı eski gruplarda boş olabilir (bkz. yukarıdaki not).
+      // İkisi de boşsa geçerli bir aralık yok — reduce() boş dizide çökeceğinden bu grubu atla.
+      const startCandidates = [searchFrom, g.schedule.startDate].filter(Boolean);
+      const endCandidates = [searchTo, g.schedule.endDate].filter(Boolean);
+      if (startCandidates.length === 0 || endCandidates.length === 0) continue;
+      const effectiveStart = startCandidates.reduce((a, b) => (a! > b! ? a : b))!;
+      const effectiveEnd = endCandidates.reduce((a, b) => (a! < b! ? a : b))!;
       const planned = effectiveStart <= effectiveEnd ? countWeekdaysInRange(effectiveStart, effectiveEnd, weekDays, holidayDates) : 0;
 
       const groupRecords = records.filter((r) => r.groupId === g.id);
@@ -577,7 +583,7 @@ function ReportContent() {
             <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
                 <span className="text-[15px] font-bold text-base-primary-900">Arama Sonuçları</span>
-                <button onClick={() => setSearchQuery("")} className="text-[12px] font-medium text-surface-400 hover:text-base-primary-600 transition-colors">Temizle</button>
+                <button type="button" onClick={() => setSearchQuery("")} className="text-[12px] font-medium text-surface-400 hover:text-base-primary-600 transition-colors">Temizle</button>
               </div>
               {searchLoading ? (
                 <div className="flex items-center justify-center py-14"><div className="w-6 h-6 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" /></div>
@@ -657,7 +663,7 @@ function ReportContent() {
                         </div>
                         <div className="w-24 shrink-0 text-center">
                           {ins.missingCount > 0 ? (
-                            <button onClick={() => setMissingModalInstructorId(ins.instructorId)} className="cursor-pointer group">
+                            <button type="button" onClick={() => setMissingModalInstructorId(ins.instructorId)} className="cursor-pointer group">
                               <span className="text-[16px] font-bold text-amber-600 group-hover:underline">{ins.missingHours} saat</span>
                               <p className="text-[10px] text-amber-500">({ins.missingCount} ders) →</p>
                             </button>
@@ -667,7 +673,7 @@ function ReportContent() {
                         </div>
                         <div className="w-36 shrink-0 hidden lg:block"><ProgressBar value={ins.actualDone} max={ins.planned} /></div>
                         <div className="w-16 shrink-0 flex justify-end">
-                          <button
+                          <button type="button"
                             onClick={() => {
                               setSelectedInstructorId(ins.instructorId);
                               setSelectedGroupHistory(null);
@@ -696,7 +702,7 @@ function ReportContent() {
                       (tipik olarak owner) görür. Varsayılan bulanık. */}
                   {canSeeEarnings && earnings && (
                     <div className="flex items-center gap-2.5 shrink-0">
-                      <button
+                      <button type="button"
                         onClick={() => setEarningsBlurred((v) => !v)}
                         title={earningsBlurred ? "Hak edişi göster" : "Hak edişi gizle"}
                         className="p-1.5 rounded-lg text-base-primary-400 hover:text-base-primary-700 hover:bg-white/60 transition-colors cursor-pointer outline-none shrink-0"
@@ -721,7 +727,7 @@ function ReportContent() {
       <motion.div animate={{ x: selectedInstructorId && !selectedSession ? 0 : selectedSession ? "-100%" : "100%" }} transition={T} className="absolute inset-0 flex bg-white">
         <div className="w-[280px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50">
           <div className="px-5 py-4 border-b border-surface-100 shrink-0 flex items-center gap-2">
-            <button onClick={() => setSelectedInstructorId(null)} className="text-surface-400 hover:text-surface-600 cursor-pointer">←</button>
+            <button type="button" onClick={() => setSelectedInstructorId(null)} className="text-surface-400 hover:text-surface-600 cursor-pointer">←</button>
             <div className="min-w-0">
               <p className="text-[15px] font-bold text-base-primary-900 truncate">{selectedInstructorName}</p>
               <p className="text-[11px] text-surface-400 mt-0.5">{instructorGroups.length} grup</p>
@@ -731,7 +737,7 @@ function ReportContent() {
             {instructorGroups.map((g) => {
               const isActive = selectedGroupHistory?.id === g.id;
               return (
-                <button key={g.id} onClick={() => setSelectedGroupHistory(g)}
+                <button type="button" key={g.id} onClick={() => setSelectedGroupHistory(g)}
                   className={`w-full text-left px-5 py-3.5 border-b border-surface-100 transition-colors cursor-pointer ${isActive ? "bg-base-primary-50 border-l-2 border-l-base-primary-500" : "hover:bg-white"}`}>
                   <p className={`text-[13px] font-bold truncate ${isActive ? "text-base-primary-700" : "text-base-primary-900"}`}>{g.code}</p>
                   <p className="text-[11px] text-surface-400 mt-0.5 flex items-center gap-1.5">
@@ -757,7 +763,7 @@ function ReportContent() {
         {selectedSession && selectedGroupHistory && (
           <>
             <div className="px-6 pt-4">
-              <button onClick={() => setSelectedSession(null)} className="text-[13px] text-surface-400 hover:text-base-primary-700 transition-colors cursor-pointer">← Geçmiş</button>
+              <button type="button" onClick={() => setSelectedSession(null)} className="text-[13px] text-surface-400 hover:text-base-primary-700 transition-colors cursor-pointer">← Geçmiş</button>
             </div>
             <AttendanceCore
               mode="detail"
@@ -774,18 +780,18 @@ function ReportContent() {
       {/* ── "Girilmedi" modal — eğitmen bazlı, hangi ders/tarih olduğu + tıklayınca
           AttendanceCore detayına atlama (2026-07-26 kullanıcı kararı). ── */}
       {missingModalInstructorId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setMissingModalInstructorId(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-[420px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setMissingModalInstructorId(null)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="bg-white rounded-2xl shadow-xl w-[420px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-[15px] font-bold text-base-primary-900">Girilmeyen Dersler</h3>
                 <p className="text-[12px] text-surface-400 mt-0.5">{rows.find((r) => r.instructorId === missingModalInstructorId)?.name}</p>
               </div>
-              <button onClick={() => setMissingModalInstructorId(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
+              <button type="button" onClick={() => setMissingModalInstructorId(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
             </div>
             <div className="overflow-y-auto [scrollbar-gutter:stable]">
               {(missingByInstructor[missingModalInstructorId] ?? []).map((m) => (
-                <button
+                <button type="button"
                   key={`${m.groupId}-${m.date}`}
                   onClick={() => {
                     const g = groups.find((x) => x.id === m.groupId);

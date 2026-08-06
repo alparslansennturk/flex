@@ -96,7 +96,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
         {/* ── YOKLAMALAR (Accordion) ── */}
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
           <div>
-            <button
+            <button type="button"
               onClick={() => { setYoklamaOpen(o => !o); setAssignmentTestOpen(false); }}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                 ${compact ? "py-3.25" : "py-3.5"}
@@ -119,7 +119,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
               }}
             >
               <div style={{ overflow: "hidden" }}>
-                <button
+                <button type="button"
                   onClick={() => router.push("/attend")}
                   className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                     ${compact ? "py-2" : "py-2.5"}
@@ -140,7 +140,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
         {/* ── ÖDEVLER (Accordion) ── */}
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
           <div>
-            <button
+            <button type="button"
               onClick={() => { setAssignmentTestOpen(o => !o); setYoklamaOpen(false); }}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                 ${compact ? "py-3.25" : "py-3.5"}
@@ -192,7 +192,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
           </>
         )}
 
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
           onClick={handleLogout}
           className={`flex items-center gap-4 px-6 text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl outline-none ${compact ? "py-3.25" : "py-3.5"}`}
         >

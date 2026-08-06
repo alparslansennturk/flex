@@ -126,7 +126,7 @@ export default function StudentLeagueWidget({
     auth.authStateReady()
       .then(() => auth.currentUser?.getIdToken() ?? "")
       .then(token => fetch("/api/league", { headers: { Authorization: `Bearer ${token}` } }))
-      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(res => res.ok ? res.json() : Promise.reject(new Error(`league fetch failed: ${res.status}`)))
       .then((data: { students: RawStudent[]; tasks: { id: string; endDate?: string; classId?: string; status?: string }[]; scoringSettings?: ScoringSettings }) => {
         const settings = data.scoringSettings ?? DEFAULT_SCORING;
         const tasksMap: Record<string, { endDate?: string; classId?: string; status?: string }> = {};

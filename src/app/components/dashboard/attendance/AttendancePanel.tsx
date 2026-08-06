@@ -127,7 +127,7 @@ const TR_DAYS: Record<string, number> = {
 
 function parseWeekDays(label: string): number[] {
   if (!label) return [];
-  const lower = label.toLowerCase().replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o");
+  const lower = label.toLowerCase().replaceAll(/ı/g, "i").replaceAll(/ş/g, "s").replaceAll(/ğ/g, "g").replaceAll(/ü/g, "u").replaceAll(/ö/g, "o");
   const found: number[] = [];
   for (const [key, day] of Object.entries(TR_DAYS)) {
     if (lower.includes(key) && !found.includes(day)) found.push(day);
@@ -195,8 +195,8 @@ function parseSessionTime(session: string): { start: number; end: number } | nul
   const match = session.match(/(\d{1,2})[.:](\d{2})\s*[-–]\s*(\d{1,2})[.:](\d{2})/);
   if (!match) return null;
   return {
-    start: parseInt(match[1]) * 60 + parseInt(match[2]),
-    end:   parseInt(match[3]) * 60 + parseInt(match[4]),
+    start: Number.parseInt(match[1]) * 60 + Number.parseInt(match[2]),
+    end:   Number.parseInt(match[3]) * 60 + Number.parseInt(match[4]),
   };
 }
 
@@ -246,8 +246,8 @@ function EditableCount({ value, onSave }: { value: number; onSave: (n: number) =
   useEffect(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
   useEffect(() => { if (editing) ref.current?.select(); }, [editing]);
   const commit = () => {
-    const n = parseInt(draft, 10);
-    if (!isNaN(n) && n >= 0) onSave(n); else setDraft(String(value));
+    const n = Number.parseInt(draft, 10);
+    if (!Number.isNaN(n) && n >= 0) onSave(n); else setDraft(String(value));
     setEditing(false);
   };
   if (editing) return (
@@ -256,12 +256,12 @@ function EditableCount({ value, onSave }: { value: number; onSave: (n: number) =
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
         className="w-12 text-center text-[22px] font-bold border-b-2 border-base-primary-400 outline-none bg-transparent" />
-      <button onClick={commit} className="w-5 h-5 rounded-full bg-status-success-100 text-status-success-600 flex items-center justify-center cursor-pointer"><Check size={11} /></button>
-      <button onClick={() => { setDraft(String(value)); setEditing(false); }} className="w-5 h-5 rounded-full bg-red-100 text-red-500 flex items-center justify-center cursor-pointer"><X size={11} /></button>
+      <button type="button" onClick={commit} className="w-5 h-5 rounded-full bg-status-success-100 text-status-success-600 flex items-center justify-center cursor-pointer"><Check size={11} /></button>
+      <button type="button" onClick={() => { setDraft(String(value)); setEditing(false); }} className="w-5 h-5 rounded-full bg-red-100 text-red-500 flex items-center justify-center cursor-pointer"><X size={11} /></button>
     </div>
   );
   return (
-    <button onClick={() => setEditing(true)} className="flex items-center gap-1 group cursor-pointer outline-none">
+    <button type="button" onClick={() => setEditing(true)} className="flex items-center gap-1 group cursor-pointer outline-none">
       <span className="text-[26px] font-bold text-base-primary-900 leading-none">{value}</span>
       <Pencil size={10} className="text-text-placeholder opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
     </button>
@@ -286,14 +286,14 @@ function ExceptionModal({
       <div className="bg-white rounded-2xl shadow-xl w-[420px] overflow-hidden">
         <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between">
           <h3 className="text-[15px] font-bold text-text-primary">Ders İstisnası</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer"><X size={16} /></button>
+          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer"><X size={16} /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
             <p className="text-[11px] font-bold text-text-placeholder uppercase tracking-wide mb-2">Sebep</p>
             <div className="grid grid-cols-2 gap-2">
               {(Object.entries(EXCEPTION_LABELS) as [ExceptionReason, string][]).map(([k, v]) => (
-                <button key={k} onClick={() => setReason(k)}
+                <button type="button" key={k} onClick={() => setReason(k)}
                   className={`px-3 py-2.5 rounded-xl text-[12px] font-bold border text-left transition-all cursor-pointer
                     ${reason === k ? "bg-base-primary-900 text-white border-base-primary-900" : "bg-white text-text-primary border-surface-200 hover:border-surface-300"}`}>
                   {v}
@@ -316,7 +316,7 @@ function ExceptionModal({
               <p className="text-[11px] font-bold text-text-placeholder uppercase tracking-wide mb-2">Kapsam</p>
               <div className="flex gap-2">
                 {(["group", "system"] as const).map(s => (
-                  <button key={s} onClick={() => setScope(s)}
+                  <button type="button" key={s} onClick={() => setScope(s)}
                     className={`flex-1 py-2 rounded-xl text-[12px] font-bold border transition-all cursor-pointer
                       ${scope === s ? "bg-base-primary-900 text-white border-base-primary-900" : "bg-white text-text-primary border-surface-200"}`}>
                     {s === "group" ? "Sadece Bu Grup" : "Tüm Sistem"}
@@ -334,13 +334,13 @@ function ExceptionModal({
         </div>
         <div className="px-6 py-4 border-t border-surface-100 flex items-center justify-between gap-3">
           {existing && (
-            <button onClick={onDelete} className="flex items-center gap-1.5 text-[12px] font-bold text-red-500 hover:text-red-700 transition-colors cursor-pointer">
+            <button type="button" onClick={onDelete} className="flex items-center gap-1.5 text-[12px] font-bold text-red-500 hover:text-red-700 transition-colors cursor-pointer">
               <Trash2 size={13} /> İstisnayı Sil
             </button>
           )}
           <div className="flex gap-2 ml-auto">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl text-[13px] font-bold text-text-primary border border-surface-200 hover:bg-surface-50 cursor-pointer">İptal</button>
-            <button onClick={() => onSave({ groupId: scope === "system" ? null : groupId, date, month, scope, reason, note, instructorId, countsAsLesson: EXCEPTION_COUNTS_AS_LESSON[reason] })}
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-[13px] font-bold text-text-primary border border-surface-200 hover:bg-surface-50 cursor-pointer">İptal</button>
+            <button type="button" onClick={() => onSave({ groupId: scope === "system" ? null : groupId, date, month, scope, reason, note, instructorId, countsAsLesson: EXCEPTION_COUNTS_AS_LESSON[reason] })}
               className="px-4 py-2 rounded-xl text-[13px] font-bold bg-base-primary-900 text-white hover:bg-base-primary-800 cursor-pointer">
               Kaydet
             </button>
@@ -915,7 +915,7 @@ export default function AttendancePanel({
       const groupCode = selectedGroup?.code ?? selectedGroupId;
       const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
       const [sy, sm, sd] = dateKey.split("-");
-      const trDate = `${parseInt(sd)} ${TR_MONTHS[parseInt(sm) - 1]} ${sy}`;
+      const trDate = `${Number.parseInt(sd)} ${TR_MONTHS[Number.parseInt(sm) - 1]} ${sy}`;
       if (!hasPersistedEntries) {
         await logActivity("yoklama", "Yoklama Başlatıldı", `${groupCode} ${trDate} yoklaması başlatıldı.`);
         setMonthlyDone(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] ?? 0) + 1 }));
@@ -951,7 +951,7 @@ export default function AttendancePanel({
     const groupCode = selectedGroup?.code ?? selectedGroupId;
     const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
     const [y, m, d] = dateKey.split("-");
-    const trDate = `${parseInt(d)} ${TR_MONTHS[parseInt(m) - 1]} ${y}`;
+    const trDate = `${Number.parseInt(d)} ${TR_MONTHS[Number.parseInt(m) - 1]} ${y}`;
     await logActivity("yoklama", "Yoklama Bitirildi", `${groupCode} ${trDate} yoklaması bitirildi.`);
   };
 
@@ -1143,12 +1143,12 @@ export default function AttendancePanel({
               )}
             </div>
             <div className="px-6 pb-5 flex gap-2 justify-end">
-              <button
+              <button type="button"
                 onClick={() => setShowEndConfirm(false)}
                 className="px-4 py-2 rounded-xl text-[13px] font-bold text-text-primary border border-surface-200 hover:bg-surface-50 cursor-pointer">
                 İptal
               </button>
-              <button
+              <button type="button"
                 onClick={() => { setShowEndConfirm(false); (attendanceClosed && canEdit) ? handleSave() : handleCloseLesson(); }}
                 className="px-4 py-2 rounded-xl text-[13px] font-bold bg-base-primary-900 text-white hover:bg-base-primary-800 cursor-pointer">
                 {(attendanceClosed && canEdit) ? "Evet, Kaydet" : "Evet, Bitir"}
@@ -1179,7 +1179,7 @@ export default function AttendancePanel({
           {/* Geri dön butonu */}
           {onBack && (
             <div className="px-4 pt-6 pb-0">
-              <button
+              <button type="button"
                 onClick={onBack}
                 className="w-10 h-10 rounded-xl hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0"
               >
@@ -1269,7 +1269,7 @@ export default function AttendancePanel({
               const hasClass     = !isHoliday && !isFridayItem && (gDays.length === 0 ? true : gDays.includes(selectedDate.getDay()));
               const flexible  = gDays.length === 0;
               return (
-                <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
+                <button type="button" key={g.id} onClick={() => setSelectedGroupId(g.id)}
                   className={`w-full flex flex-col text-left border-b border-surface-100 outline-none cursor-pointer transition-all border-l-[3px]
                     ${active
                       ? "border-l-designstudio-primary-500 bg-neutral-50"
@@ -1322,7 +1322,7 @@ export default function AttendancePanel({
                 <div className="px-8 pt-5 pb-5 border-b border-surface-100 shrink-0">
                     {onBackToAttend && (
                       <div className="flex justify-end pb-3">
-                        <button
+                        <button type="button"
                           onClick={onBackToAttend}
                           className="flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
                         >
@@ -1547,14 +1547,14 @@ export default function AttendancePanel({
                     </span>
                     {selectedGroupId && (
                       onBackToAttend ? (
-                        <button
+                        <button type="button"
                           onClick={onBackToAttend}
                           className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
                         >
                           <ChevronLeft size={12} /> Yoklama Al
                         </button>
                       ) : (
-                        <button
+                        <button type="button"
                           onClick={() => {
                             if (onViewDetail) {
                               onViewDetail(selectedGroupId, toMonthKey(selectedMonth));
@@ -1615,7 +1615,7 @@ export default function AttendancePanel({
                   {/* Date header */}
                   <div className="px-5 py-3 border-b border-surface-100 flex items-center justify-between gap-4 shrink-0">
                 <div className="flex items-center gap-2">
-                  <button
+                  <button type="button"
                     onClick={() => setSelectedDate(d => shiftDate(d, -1))}
                     disabled={!!selectedGroup?.startDate && toDateKey(shiftDate(selectedDate, -1)) < selectedGroup.startDate}
                     className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
@@ -1644,12 +1644,12 @@ export default function AttendancePanel({
                             </span>
                           </div>
                         </DayCalendarPopover>
-                        <button onClick={() => setSelectedDate(d => shiftDate(d, 1))} disabled={atMax}
+                        <button type="button" onClick={() => setSelectedDate(d => shiftDate(d, 1))} disabled={atMax}
                           className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
                           <ChevronRight size={13} />
                         </button>
                         {!atMax && (
-                          <button onClick={() => { setSelectedDate(maxSelectable); setSelectedMonth(maxSelectable); }}
+                          <button type="button" onClick={() => { setSelectedDate(maxSelectable); setSelectedMonth(maxSelectable); }}
                             className="text-[11px] font-bold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer ml-1">
                             {estimatedEndDate && estimatedEndDate < today ? "Son derse git" : "Bugüne dön"}
                           </button>
@@ -1662,7 +1662,7 @@ export default function AttendancePanel({
                 <div className="flex items-center shrink-0">
                   {/* Düzenle: detail panelinde kapalı yoklamayı manuel aç */}
                   {allowEdit && attendanceClosed && !editUnlocked && mode !== "simple" && (
-                    <button
+                    <button type="button"
                       onClick={() => { if (!canEdit) return; setEditUnlocked(true); setSaved(false); }}
                       disabled={!canEdit}
                       className={`flex items-center gap-1 text-[11px] font-semibold transition-colors mr-8 ${
@@ -1677,13 +1677,13 @@ export default function AttendancePanel({
                   )}
                   {/* Temizle: entries sıfırla */}
                   {!(exception && !exception.countsAsLesson) && lessonStarted && !hasPersistedEntries ? (
-                    <button
+                    <button type="button"
                       onClick={async () => { await handleClear(); setLessonStarted(false); }}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-base-primary-600 transition-colors cursor-pointer mr-8">
                       İptal
                     </button>
                   ) : !(exception && !exception.countsAsLesson) && Object.keys(entries).length > 0 && !isReadonlyView ? (
-                    <button
+                    <button type="button"
                       onClick={handleClear}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-red-500 transition-colors cursor-pointer mr-8">
                       Temizle
@@ -1692,21 +1692,21 @@ export default function AttendancePanel({
                   {/* Exception badge / button */}
                   {mode === "simple" && selectedGroupId && attendanceClosed && !exception &&
                     (Date.now() - new Date(dateKey + "T23:59:59").getTime()) < 3 * 24 * 60 * 60 * 1000 && (
-                    <button
+                    <button type="button"
                       onClick={() => router.push(`/dashboard/attendance?groupId=${selectedGroupId}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-orange-50 border border-orange-200 text-orange-600 cursor-pointer hover:bg-orange-100 transition-colors mr-2">
                       <BarChart2 size={12} /> Yoklama Detay
                     </button>
                   )}
                   {exception ? (
-                    <button
+                    <button type="button"
                       onClick={() => { if (isReadonlyView) return; setShowExModal(true); }}
                       disabled={isReadonlyView}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${isReadonlyView ? "bg-surface-50 border-surface-200 text-surface-400 cursor-not-allowed opacity-50" : "bg-red-50 border-red-200 text-red-600 cursor-pointer hover:bg-red-100"}`}>
                       <AlertCircle size={12} /> {EXCEPTION_LABELS[exception.reason]}
                     </button>
                   ) : (
-                    <button
+                    <button type="button"
                       onClick={() => { if (isReadonlyView) return; setShowExModal(true); }}
                       disabled={isReadonlyView}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${isReadonlyView ? "bg-surface-50 border-surface-200 text-surface-400 cursor-not-allowed opacity-50" : "bg-surface-50 border-surface-200 text-text-placeholder cursor-pointer hover:bg-surface-100"}`}>
@@ -1784,7 +1784,7 @@ export default function AttendancePanel({
                     <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView || isPastExpired || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed) ? "pointer-events-none opacity-40" : ""}`}>
                       <span className="text-[11px] text-text-placeholder font-medium shrink-0">Sınıf Geneli:</span>
                       {[sessionHours, 0].map(h => (
-                        <button key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
+                        <button type="button" key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
                           className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer
                             ${h === sessionHours
                               ? "bg-status-success-50 border-status-success-200 text-status-success-700 hover:bg-status-success-100"
@@ -1831,7 +1831,7 @@ export default function AttendancePanel({
                                     {(student.name?.[0] ?? "").toUpperCase()}{(student.lastName?.[0] ?? "").toUpperCase()}
                                   </div>
                                 )}
-                                <p
+                                <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                                   onMouseEnter={() => {
                                     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
                                     hoverTimerRef.current = setTimeout(() => setPrefetchStudentId(student.id), 100);
@@ -1846,7 +1846,7 @@ export default function AttendancePanel({
                                   {student.isOnlineStudent && (
                                     <span className="ml-1.5 text-[10px] font-bold text-blue-500 no-underline">(O)</span>
                                   )}
-                                </p>
+                                </span>
                               </div>
 
                               {/* Saat butonları */}
@@ -1854,7 +1854,7 @@ export default function AttendancePanel({
                                 {!isMarked ? (
                                   /* İşaretsiz: 0…sessionHours sayısal butonlar */
                                   Array.from({ length: sessionHours + 1 }, (_, i) => i).map(h => (
-                                    <button key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
+                                    <button type="button" key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
                                       className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full text-[11px] xl:text-[13px] font-semibold border border-surface-300 text-text-secondary bg-white transition-all outline-none ${(attendanceClosed && !canEdit) ? "cursor-default" : "hover:border-base-primary-300 hover:text-base-primary-600 cursor-pointer"}`}>
                                       {h}
                                     </button>
@@ -1864,7 +1864,7 @@ export default function AttendancePanel({
                                   Array.from({ length: sessionHours }, (_, i) => i + 1).map(slot => {
                                     const isChecked = slot <= curHours;
                                     return (
-                                      <button key={slot}
+                                      <button type="button" key={slot}
                                         onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
                                         className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full font-bold transition-all outline-none ${isReadonlyView ? "cursor-default" : "cursor-pointer"}
                                           ${isChecked
@@ -1880,7 +1880,7 @@ export default function AttendancePanel({
                               </div>
 
                               {/* Online toggle */}
-                              <button onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
+                              <button type="button" onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
                                 title="Online katıldı"
                                 className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all outline-none shrink-0 ${isReadonlyView ? "cursor-default" : "cursor-pointer"}
                                   ${online
@@ -1911,7 +1911,7 @@ export default function AttendancePanel({
                   {/* Alt buton alanı: tatil/ders günü değil veya iptal durumunda disabled buton */}
                   {(exception || overlayMessage) && !(showAttendanceUI && students.length > 0 && !exception) && (
                     <div className={`px-5 py-4 border-t border-surface-100 flex items-center justify-end shrink-0 ${exception ? "opacity-60" : ""}`}>
-                      <button disabled
+                      <button type="button" disabled
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
                         <Play size={13} /> Dersi Başlat
                       </button>
@@ -1940,18 +1940,18 @@ export default function AttendancePanel({
                       {/* Tek akıllı buton */}
                       <div className="flex items-center">
                         {isReadonlyView ? (
-                          <button disabled
+                          <button type="button" disabled
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
                             <Lock size={13} /> Düzenleme Kapalı
                           </button>
                         ) : attendanceClosed ? (
                           canEdit ? (
                             saved ? (
-                              <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-status-success-100 text-status-success-700 opacity-80 cursor-default outline-none">
+                              <button type="button" disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-status-success-100 text-status-success-700 opacity-80 cursor-default outline-none">
                                 <CheckCheck size={13} /> Kaydedildi
                               </button>
                             ) : (
-                              <button onClick={() => setShowEndConfirm(true)} disabled={saving}
+                              <button type="button" onClick={() => setShowEndConfirm(true)} disabled={saving}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
                                 <RefreshCw size={13} /> Güncelle
                               </button>
@@ -1959,22 +1959,22 @@ export default function AttendancePanel({
                           ) : null
                         ) : (!lessonStarted || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed)) ? (
                           (!isToday && !allowEdit) ? (
-                            <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
+                            <button type="button" disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
                               <CalendarCheck size={13} /> Bu tarih için kayıt yok
                             </button>
                           ) : (
-                            <button onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow}
+                            <button type="button" onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow}
                               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
                               {!isWithinTimeWindow ? <Lock size={13} /> : <Play size={13} />} Dersi Başlat
                             </button>
                           )
                         ) : !saved ? (
-                          <button onClick={handleSave} disabled={saving}
+                          <button type="button" onClick={handleSave} disabled={saving}
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
                             <CheckCircle2 size={13} /> {saving ? "Kaydediliyor…" : "Kaydet"}
                           </button>
                         ) : (
-                          <button onClick={() => setShowEndConfirm(true)}
+                          <button type="button" onClick={() => setShowEndConfirm(true)}
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors cursor-pointer outline-none">
                             <Square size={13} /> Dersi Bitir
                           </button>

@@ -30,7 +30,7 @@ export function groupColor(id: string): string {
 
 function GroupListButton({ group, active, onSelect }: { group: GroupPanelItem; active: boolean; onSelect: () => void }) {
   return (
-    <button
+    <button type="button"
       onClick={onSelect}
       className="w-full flex items-center gap-[11px] py-[11px] px-3 rounded-[13px] cursor-pointer transition-all"
       style={{
@@ -58,7 +58,7 @@ function GroupSection({
   if (groups.length === 0) return null;
   return (
     <div className="flex flex-col">
-      <button onClick={onToggle} className="w-full flex items-center justify-between px-1 py-1.5 cursor-pointer">
+      <button type="button" onClick={onToggle} className="w-full flex items-center justify-between px-1 py-1.5 cursor-pointer">
         <p className="text-[13px] font-bold text-[#5B6472] tracking-wide">{title}</p>
         <motion.span animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }} className="flex shrink-0">
           <ChevronDown size={15} className="text-[#8E95A3]" />

@@ -49,7 +49,7 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
         </div>
         {/* 3-dot menü */}
         <div className="relative shrink-0" ref={menuRef}>
-          <button
+          <button type="button"
             onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
           >
@@ -57,13 +57,13 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[155px]">
-              <button
+              <button type="button"
                 onClick={e => { e.stopPropagation(); onStartAssignment(task); setMenuOpen(false); }}
                 className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
               >
                 Ödevi Başlat
               </button>
-              <button
+              <button type="button"
                 onClick={e => { e.stopPropagation(); onRemove(task); setMenuOpen(false); }}
                 className="w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer border-t border-[#EEF0F3]"
               >
@@ -82,7 +82,7 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
         ) : (
           <span className="text-[10px] text-[#AEB4C0] italic font-semibold opacity-60">Global</span>
         )}
-        <button
+        <button type="button"
           onClick={() => onStartAssignment(task)}
           className="px-4 py-1.5 bg-[#F7F8FA] text-[#10294C] rounded-xl text-[11px] font-bold flex items-center gap-2 hover:bg-[#10294C] hover:text-white transition-all cursor-pointer"
         >
@@ -181,7 +181,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: { scrollR
           )}
           <div className="flex items-center bg-[#F7F8FA] p-1 rounded-xl border border-[#EEF0F3] gap-0.5">
             {TAB_CONFIG.map(tab => (
-              <button
+              <button type="button"
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[10px] text-[12px] font-bold transition-all cursor-pointer outline-none select-none ${
@@ -207,8 +207,8 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: { scrollR
         <div className="relative overflow-visible">
           {hasOverflow && (
             <>
-              <button onClick={() => handleScroll?.('left')}  className="absolute -left-5  top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft  size={24} /></button>
-              <button onClick={() => handleScroll?.('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
+              <button type="button" onClick={() => handleScroll?.('left')}  className="absolute -left-5  top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft  size={24} /></button>
+              <button type="button" onClick={() => handleScroll?.('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
             </>
           )}
           <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">

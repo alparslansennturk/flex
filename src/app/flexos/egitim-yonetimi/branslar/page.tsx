@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useState, CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -128,9 +129,9 @@ export default function BransHavuzuPage() {
         <FlexHeader
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="bh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
+              <Link href="/flexos/egitim-yonetimi/ayarlar" className="bh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
                   <span>Eğitim Yönetimi</span>
@@ -163,7 +164,7 @@ export default function BransHavuzuPage() {
                 placeholder="Branş adı — örn: Grafik Tasarım"
                 style={{ ...S.input, flex: 1, minWidth: 220 }}
               />
-              <button onClick={addBranch} disabled={!canAdd} style={addBtnStyle(canAdd)}>
+              <button type="button" onClick={addBranch} disabled={!canAdd} style={addBtnStyle(canAdd)}>
                 <span dangerouslySetInnerHTML={{ __html: IC.plus }} />
                 {saving ? "Ekleniyor…" : "Branş Ekle"}
               </button>

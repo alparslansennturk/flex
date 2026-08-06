@@ -288,7 +288,7 @@ export default function EgitmenlerPage() {
     const email = form.email.trim();
     if (!name) { toast.error("Eğitmen adı zorunlu."); return; }
     if (!email) { toast.error("E-posta zorunlu."); return; }
-    const digits = form.ucret.replace(/[^\d]/g, "");
+    const digits = form.ucret.replaceAll(/[^\d]/g, "");
     const hourlyRate = digits ? Number(digits) : null; // null = ücreti temizle/boş
     const payload = {
       name, email,
@@ -349,7 +349,7 @@ export default function EgitmenlerPage() {
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Eğitmen Havuzu</h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{trainers.length} eğitmen</span>
             </div>
-            <button className="sg-add-btn" style={S.addBtn} onClick={openAddForm}>
+            <button type="button" className="sg-add-btn" style={S.addBtn} onClick={openAddForm}>
               <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Eğitmen Ekle
             </button>
           </div>
@@ -419,7 +419,7 @@ export default function EgitmenlerPage() {
         )}
 
         {/* click-away for filter dropdowns */}
-        {openDD && <div onClick={() => setOpenDD(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+        {openDD && <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setOpenDD(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
       </main>
     </div>
   );

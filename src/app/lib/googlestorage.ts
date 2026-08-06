@@ -45,7 +45,7 @@ export function validateStorageFile(mimeType: string, size: number): UploadError
  * İsim uyumluluğu için korunuyor, çağıran kod aynı kalabiliyor.
  */
 export function buildObjectPath(pathSegments: string[], fileName: string): string {
-  const clean = (raw: string) => raw.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "Genel";
+  const clean = (raw: string) => raw.replaceAll(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "Genel";
   return [...pathSegments.map(clean), fileName].join("/");
 }
 

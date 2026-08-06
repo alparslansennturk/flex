@@ -94,7 +94,7 @@ export const StudentQuickEditModal: React.FC<Props> = ({ isOpen, student, onClos
 
   return (
     <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 transition-all duration-300 ${isVisible ? "visible" : "invisible pointer-events-none"}`}>
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
         className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isVisible ? "opacity-100" : "opacity-0"}`}
         onClick={onClose}
       />
@@ -152,15 +152,15 @@ export const StudentQuickEditModal: React.FC<Props> = ({ isOpen, student, onClos
             {/* Ad & Soyad */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Ad</label>
-                <input
+                <label htmlFor="fld1" className="text-[12px] font-bold text-neutral-500 ml-1">Ad</label>
+                <input id="fld1"
                   name="name" defaultValue={student?.name} placeholder="Örn: Ali"
                   className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.name ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Soyad</label>
-                <input
+                <label htmlFor="fld2" className="text-[12px] font-bold text-neutral-500 ml-1">Soyad</label>
+                <input id="fld2"
                   name="lastName" defaultValue={student?.lastName} placeholder="Örn: Yılmaz"
                   className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.lastName ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}
                 />
@@ -169,8 +169,8 @@ export const StudentQuickEditModal: React.FC<Props> = ({ isOpen, student, onClos
 
             {/* Email */}
             <div className="space-y-1">
-              <label className="text-[12px] font-bold text-neutral-500 ml-1">E-Posta</label>
-              <input
+              <label htmlFor="fld3" className="text-[12px] font-bold text-neutral-500 ml-1">E-Posta</label>
+              <input id="fld3"
                 name="email" type="email" defaultValue={student?.email} placeholder="ornek@email.com"
                 className="h-12 w-full border border-neutral-200 bg-neutral-50 rounded-xl px-4 outline-none focus:border-orange-500 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal"
               />
@@ -179,9 +179,9 @@ export const StudentQuickEditModal: React.FC<Props> = ({ isOpen, student, onClos
             {/* Şube & Cinsiyet */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Şube</label>
+                <label htmlFor="fld4" className="text-[12px] font-bold text-neutral-500 ml-1">Şube</label>
                 <div className="relative">
-                  <select
+                  <select id="fld4"
                     name="branch" defaultValue={student?.branch || ""}
                     className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold text-neutral-800 transition-all ${errors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}
                   >
@@ -194,9 +194,9 @@ export const StudentQuickEditModal: React.FC<Props> = ({ isOpen, student, onClos
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[12px] font-bold text-neutral-500 ml-1">Cinsiyet</label>
+                <label htmlFor="localGender" className="text-[12px] font-bold text-neutral-500 ml-1">Cinsiyet</label>
                 <div className="relative">
-                  <select
+                  <select id="localGender"
                     value={localGender}
                     onChange={(e) => setLocalGender(e.target.value)}
                     className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold transition-all ${!localGender ? 'text-neutral-600' : 'text-[#10294C] font-bold'} ${errors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-200 bg-neutral-50'}`}

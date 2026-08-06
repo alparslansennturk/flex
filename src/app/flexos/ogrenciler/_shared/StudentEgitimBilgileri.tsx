@@ -215,7 +215,7 @@ export function StudentEgitimBilgileri({
           düşürüp alt hizayı bozuyordu. Artık HER ZAMAN aynı kutu render ediliyor — tek
           fark: tek eğitimde tıklanamaz/chevron'suz, sadece bilgi etiketi. */}
       <div className="relative self-end">
-        <button
+        <button type="button"
           onClick={() => trainings.length > 1 && setDdOpen((v) => !v)}
           className={`inline-flex items-center justify-between gap-3 rounded-[11px] border border-[#E2E5EA] bg-white font-bold text-[#1E222B] ${trainings.length > 1 ? "cursor-pointer" : "cursor-default"} ${compact ? "min-w-[230px] px-3.5 py-2.5 text-[13px]" : "min-w-[260px] px-4 py-3 text-[14px]"}`}
         >
@@ -229,13 +229,13 @@ export function StudentEgitimBilgileri({
         </button>
         {trainings.length > 1 && ddOpen && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setDdOpen(false)} />
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-10" onClick={() => setDdOpen(false)} />
             <div className="absolute top-[calc(100%+8px)] right-0 w-[290px] bg-white border border-[#E2E5EA] rounded-[14px] shadow-[0_18px_40px_-12px_rgba(15,31,61,.22)] p-2 z-20">
               {trainings.map((t, i) => {
                 const [tc1] = avatarGradient(t.groupId);
                 const active = i === idx;
                 return (
-                  <div
+                  <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                     key={t.enrollmentId}
                     onClick={() => { if (controlled) onSelectEnrollment?.(t.enrollmentId); else setSelIdxState(i); setDdOpen(false); }}
                     className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-[10px] cursor-pointer text-[13.5px] ${active ? "bg-[#E2EAF3] text-[#205297] font-bold" : "text-[#414B59] font-medium hover:bg-[#F7F8FA]"}`}

@@ -10,13 +10,24 @@ function nowISO(): ISODateTime {
   return new Date().toISOString();
 }
 
+// `/^_+|_+$/g` alternatifi yerine doğrudan tarama: aynı sonucu (baştaki/sondaki
+// alt çizgi bloklarını kırp) uzun alt çizgi dizilerinde ikinci dereceden
+// backtracking olmadan üretir (Sonar S8786).
+function trimUnderscoreEdges(s: string): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && s[start] === "_") start++;
+  while (end > start && s[end - 1] === "_") end--;
+  return s.slice(start, end);
+}
+
 function slugify(label: string): string {
-  return label
+  const normalized = label
     .trim()
     .toLocaleLowerCase("tr")
-    .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replaceAll(/ğ/g, "g").replaceAll(/ü/g, "u").replaceAll(/ş/g, "s").replaceAll(/ı/g, "i").replaceAll(/ö/g, "o").replaceAll(/ç/g, "c")
+    .replaceAll(/[^a-z0-9]+/g, "_");
+  return trimUnderscoreEdges(normalized);
 }
 
 /**

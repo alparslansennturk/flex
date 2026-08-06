@@ -31,7 +31,7 @@ export default function InstallBannerSettings() {
           <p className="text-[14px] font-bold text-text-primary">Kurulum Bannerı</p>
           <p className="text-[12px] text-text-tertiary">FlexOS&apos;u Dock&apos;a ekleme önerisini kapattıysan, buradan tekrar gösterebilirsin.</p>
         </div>
-        <button
+        <button type="button"
           onClick={resetBannerDismissed}
           disabled={!hasSomethingToReset}
           className="shrink-0 px-4 py-2 rounded-xl border border-[#E2E5EA] text-[13px] font-semibold text-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:border-base-primary-300"

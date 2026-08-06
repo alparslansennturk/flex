@@ -152,9 +152,9 @@ export default function GroupBranchPanel() {
 
   const slugify = (t: string) =>
     t.toLowerCase()
-      .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
-      .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      .replaceAll(/ğ/g, "g").replaceAll(/ü/g, "u").replaceAll(/ş/g, "s")
+      .replaceAll(/ı/g, "i").replaceAll(/ö/g, "o").replaceAll(/ç/g, "c")
+      .replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
 
   // ── Category handlers ──────────────────────────────────────────────────────
 
@@ -239,7 +239,7 @@ export default function GroupBranchPanel() {
   };
 
   const handleUpdateBranchHours = async (b: Branch, hours: number) => {
-    if (isNaN(hours) || hours < 1) return;
+    if (Number.isNaN(hours) || hours < 1) return;
     await updateDoc(doc(db, "branches", b.id), { sessionHours: hours });
   };
 
@@ -248,10 +248,10 @@ export default function GroupBranchPanel() {
   const handleAddModule = async () => {
     if (!selectedBranchId) return;
     const name = newModName.trim();
-    const totalHours = parseInt(newModHours, 10);
-    const sessionHours = parseInt(newModSessionHours, 10);
-    if (!name || isNaN(totalHours) || totalHours < 1) { setModuleError("Eğitim adı ve toplam saat zorunludur."); return; }
-    if (isNaN(sessionHours) || sessionHours < 1) { setModuleError("Seans süresi zorunludur."); return; }
+    const totalHours = Number.parseInt(newModHours, 10);
+    const sessionHours = Number.parseInt(newModSessionHours, 10);
+    if (!name || Number.isNaN(totalHours) || totalHours < 1) { setModuleError("Eğitim adı ve toplam saat zorunludur."); return; }
+    if (Number.isNaN(sessionHours) || sessionHours < 1) { setModuleError("Seans süresi zorunludur."); return; }
     setModuleLoading(true);
     try {
       await addDoc(collection(db, "branches", selectedBranchId, "modules"), {
@@ -315,7 +315,7 @@ export default function GroupBranchPanel() {
     setDisplay: (v: string) => void,
     setIso: (v: string) => void,
   ) => (raw: string) => {
-    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    const digits = raw.replaceAll(/\D/g, "").slice(0, 8);
     let fmt = digits;
     if (digits.length > 2) fmt = digits.slice(0, 2) + "/" + digits.slice(2);
     if (digits.length > 4) fmt = fmt.slice(0, 5) + "/" + digits.slice(4);
@@ -323,7 +323,7 @@ export default function GroupBranchPanel() {
     if (digits.length === 8) {
       const dd = digits.slice(0, 2), mm = digits.slice(2, 4), yyyy = digits.slice(4, 8);
       const d = new Date(`${yyyy}-${mm}-${dd}`);
-      if (!isNaN(d.getTime())) setIso(`${yyyy}-${mm}-${dd}`);
+      if (!Number.isNaN(d.getTime())) setIso(`${yyyy}-${mm}-${dd}`);
     } else {
       setIso("");
     }
@@ -401,7 +401,7 @@ export default function GroupBranchPanel() {
           { id: "holidays" as Section, label: "Tatiller & İptaller", icon: <CalendarOff size={13} /> },
           { id: "special"  as Section, label: "Özel Tanımlar",    icon: <Layers size={13} /> },
         ]).map(s => (
-          <button
+          <button type="button"
             key={s.id}
             onClick={() => setSection(s.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-[10px] text-[13px] xl:text-[14px] font-bold transition-all cursor-pointer ${
@@ -430,7 +430,7 @@ export default function GroupBranchPanel() {
                 placeholder="Yeni branş"
                 className="flex-1 h-9 border border-surface-300 bg-neutral-50 rounded-lg px-3 outline-none focus:border-base-primary-400 text-[12px] font-bold text-base-primary-900 placeholder:font-normal placeholder:text-neutral-400 min-w-0"
               />
-              <button
+              <button type="button"
                 onClick={handleAddCategory}
                 disabled={categoryLoading || !newCategoryName.trim()}
                 className="h-9 px-2.5 bg-base-primary-600 text-white rounded-lg font-bold flex items-center gap-1 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
@@ -445,7 +445,7 @@ export default function GroupBranchPanel() {
                 const count = branches.filter(b => b.categoryId === c.id).length;
                 const isSelected = selectedCategoryId === c.id;
                 return (
-                  <div
+                  <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                     key={c.id}
                     onClick={() => { if (editingCategoryId !== c.id) handleSelectCategory(c.id); }}
                     className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all group ${
@@ -474,10 +474,10 @@ export default function GroupBranchPanel() {
                     <div className="flex items-center gap-1 shrink-0">
                       {editingCategoryId === c.id ? (
                         <>
-                          <button onClick={e => { e.stopPropagation(); handleRenameCategory(c.id); }} className="w-5 h-5 flex items-center justify-center rounded-md text-green-500 hover:bg-green-50 transition-all cursor-pointer">
+                          <button type="button" onClick={e => { e.stopPropagation(); handleRenameCategory(c.id); }} className="w-5 h-5 flex items-center justify-center rounded-md text-green-500 hover:bg-green-50 transition-all cursor-pointer">
                             <Check size={11} />
                           </button>
-                          <button onClick={e => { e.stopPropagation(); setEditingCategoryId(null); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 transition-all cursor-pointer">
+                          <button type="button" onClick={e => { e.stopPropagation(); setEditingCategoryId(null); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 transition-all cursor-pointer">
                             <X size={11} />
                           </button>
                         </>
@@ -486,13 +486,13 @@ export default function GroupBranchPanel() {
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isSelected ? "bg-base-primary-100 text-base-primary-600" : "bg-neutral-100 text-neutral-400"}`}>
                             {count}
                           </span>
-                          <button
+                          <button type="button"
                             onClick={e => { e.stopPropagation(); setEditingCategoryId(c.id); setEditingCategoryName(c.name); }}
                             className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-base-primary-500 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
                           >
                             <Pencil size={10} />
                           </button>
-                          <button
+                          <button type="button"
                             onClick={e => { e.stopPropagation(); handleDeleteCategory(c); }}
                             className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
                           >
@@ -534,7 +534,7 @@ export default function GroupBranchPanel() {
                     placeholder="Yeni eğitim"
                     className="flex-1 h-9 border border-surface-300 bg-neutral-50 rounded-lg px-3 outline-none focus:border-base-primary-400 text-[12px] font-bold text-base-primary-900 placeholder:font-normal placeholder:text-neutral-400 min-w-0"
                   />
-                  <button
+                  <button type="button"
                     onClick={handleAddBranch}
                     disabled={branchLoading || !newBranchName.trim()}
                     className="h-9 px-2.5 bg-base-primary-600 text-white rounded-lg font-bold flex items-center gap-1 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
@@ -548,7 +548,7 @@ export default function GroupBranchPanel() {
                   {filteredBranches.map(b => {
                     const isSelected = selectedBranchId === b.id;
                     return (
-                      <div
+                      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                         key={b.id}
                         onClick={() => { if (editingBranchId !== b.id) setSelectedBranchId(b.id); }}
                         className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all group ${
@@ -579,19 +579,19 @@ export default function GroupBranchPanel() {
                         <div className="flex items-center gap-1 shrink-0">
                           {editingBranchId === b.id ? (
                             <>
-                              <button onClick={e => { e.stopPropagation(); handleRenameBranch(b.id); }} className="w-5 h-5 flex items-center justify-center rounded-md text-green-500 hover:bg-green-50 transition-all cursor-pointer">
+                              <button type="button" onClick={e => { e.stopPropagation(); handleRenameBranch(b.id); }} className="w-5 h-5 flex items-center justify-center rounded-md text-green-500 hover:bg-green-50 transition-all cursor-pointer">
                                 <Check size={11} />
                               </button>
-                              <button onClick={e => { e.stopPropagation(); setEditingBranchId(null); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 transition-all cursor-pointer">
+                              <button type="button" onClick={e => { e.stopPropagation(); setEditingBranchId(null); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 transition-all cursor-pointer">
                                 <X size={11} />
                               </button>
                             </>
                           ) : (
                             <>
-                              <button onClick={e => { e.stopPropagation(); setEditingBranchId(b.id); setEditingBranchName(b.name); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-base-primary-500 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
+                              <button type="button" onClick={e => { e.stopPropagation(); setEditingBranchId(b.id); setEditingBranchName(b.name); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-base-primary-500 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
                                 <Pencil size={10} />
                               </button>
-                              <button onClick={e => { e.stopPropagation(); handleDeleteBranch(b); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
+                              <button type="button" onClick={e => { e.stopPropagation(); handleDeleteBranch(b); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
                                 <Trash2 size={11} />
                               </button>
                             </>
@@ -637,7 +637,7 @@ export default function GroupBranchPanel() {
                       type="number" min={1} max={12}
                       defaultValue={selectedBranch?.sessionHours ?? ""}
                       placeholder="—"
-                      onBlur={e => selectedBranch && handleUpdateBranchHours(selectedBranch, parseInt(e.target.value, 10))}
+                      onBlur={e => selectedBranch && handleUpdateBranchHours(selectedBranch, Number.parseInt(e.target.value, 10))}
                       onKeyDown={e => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
                       className="w-10 text-center text-[13px] xl:text-[14px] font-bold text-base-primary-900 border border-surface-300 rounded-lg py-0.5 outline-none focus:border-base-primary-400 bg-white"
                     />
@@ -664,10 +664,10 @@ export default function GroupBranchPanel() {
                           <tr key={m.id} className="border-b border-surface-200 last:border-0 hover:bg-neutral-50/40 group">
                             <td className="px-3 py-3">
                               <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleMoveModule(i, -1)} disabled={i === 0} className="w-5 h-5 flex items-center justify-center rounded hover:bg-neutral-100 disabled:opacity-30 cursor-pointer">
+                                <button type="button" onClick={() => handleMoveModule(i, -1)} disabled={i === 0} className="w-5 h-5 flex items-center justify-center rounded hover:bg-neutral-100 disabled:opacity-30 cursor-pointer">
                                   <ChevronUp size={12} className="text-neutral-400" />
                                 </button>
-                                <button onClick={() => handleMoveModule(i, 1)} disabled={i === modules.length - 1} className="w-5 h-5 flex items-center justify-center rounded hover:bg-neutral-100 disabled:opacity-30 cursor-pointer">
+                                <button type="button" onClick={() => handleMoveModule(i, 1)} disabled={i === modules.length - 1} className="w-5 h-5 flex items-center justify-center rounded hover:bg-neutral-100 disabled:opacity-30 cursor-pointer">
                                   <ChevronDown size={12} className="text-neutral-400" />
                                 </button>
                               </div>
@@ -687,7 +687,7 @@ export default function GroupBranchPanel() {
                                   type="number" min={1}
                                   key={`hours-${m.id}`}
                                   defaultValue={m.totalHours}
-                                  onBlur={e => { const v = parseInt(e.target.value, 10); if (!isNaN(v) && v > 0) handleUpdateModuleField(m.id, "totalHours", v); }}
+                                  onBlur={e => { const v = Number.parseInt(e.target.value, 10); if (!Number.isNaN(v) && v > 0) handleUpdateModuleField(m.id, "totalHours", v); }}
                                   onKeyDown={e => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
                                   className="w-16 text-center text-[13px] xl:text-[14px] font-bold text-base-primary-900 border border-surface-300 rounded-lg py-1 outline-none focus:border-base-primary-400 bg-neutral-50"
                                 />
@@ -702,8 +702,8 @@ export default function GroupBranchPanel() {
                                   defaultValue={m.sessionHours ?? ""}
                                   placeholder={`${selectedBranch?.sessionHours ?? "—"}`}
                                   onBlur={e => {
-                                    const v = parseInt(e.target.value, 10);
-                                    handleUpdateModuleField(m.id, "sessionHours", isNaN(v) ? null : v);
+                                    const v = Number.parseInt(e.target.value, 10);
+                                    handleUpdateModuleField(m.id, "sessionHours", Number.isNaN(v) ? null : v);
                                   }}
                                   onKeyDown={e => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
                                   className="w-16 text-center text-[13px] xl:text-[14px] font-bold text-base-primary-900 border border-surface-300 rounded-lg py-1 outline-none focus:border-base-primary-400 bg-neutral-50 placeholder:text-neutral-300"
@@ -712,12 +712,12 @@ export default function GroupBranchPanel() {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button onClick={() => handleUpdateModuleField(m.id, "isActive", !m.isActive)} className={`transition-colors cursor-pointer ${m.isActive ? "text-emerald-500" : "text-neutral-300"}`}>
+                              <button type="button" onClick={() => handleUpdateModuleField(m.id, "isActive", !m.isActive)} className={`transition-colors cursor-pointer ${m.isActive ? "text-emerald-500" : "text-neutral-300"}`}>
                                 {m.isActive ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                               </button>
                             </td>
                             <td className="px-4 py-3">
-                              <button
+                              <button type="button"
                                 onClick={() => handleDeleteModule(m.id)}
                                 className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ml-auto"
                               >
@@ -743,8 +743,8 @@ export default function GroupBranchPanel() {
                   <h4 className="text-[11px] xl:text-[12px] font-bold text-neutral-400 mb-3">Yeni Eğitim Ekle</h4>
                   <div className="flex gap-3 items-end flex-wrap">
                     <div className="flex-1 min-w-[160px]">
-                      <label className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Eğitim Adı</label>
-                      <input
+                      <label htmlFor="newModName" className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Eğitim Adı</label>
+                      <input id="newModName"
                         value={newModName}
                         onChange={e => { setNewModName(e.target.value); setModuleError(""); }}
                         onKeyDown={e => e.key === "Enter" && handleAddModule()}
@@ -753,8 +753,8 @@ export default function GroupBranchPanel() {
                       />
                     </div>
                     <div className="w-28">
-                      <label className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Toplam Saat</label>
-                      <input
+                      <label htmlFor="newModHours" className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Toplam Saat</label>
+                      <input id="newModHours"
                         type="number" min={1}
                         value={newModHours}
                         onChange={e => { setNewModHours(e.target.value); setModuleError(""); }}
@@ -763,8 +763,8 @@ export default function GroupBranchPanel() {
                       />
                     </div>
                     <div className="w-40">
-                      <label className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Seans Süresi (saat)</label>
-                      <input
+                      <label htmlFor="newModSessionHours" className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Seans Süresi (saat)</label>
+                      <input id="newModSessionHours"
                         type="number" min={1} max={12}
                         value={newModSessionHours}
                         onChange={e => { setNewModSessionHours(e.target.value); setModuleError(""); }}
@@ -772,7 +772,7 @@ export default function GroupBranchPanel() {
                         className="w-full h-10 border border-surface-300 bg-white rounded-lg px-3 outline-none focus:border-base-primary-400 text-[13px] xl:text-[14px] font-bold text-base-primary-900 placeholder:font-normal placeholder:text-neutral-400"
                       />
                     </div>
-                    <button
+                    <button type="button"
                       onClick={handleAddModule}
                       disabled={moduleLoading || !newModName.trim() || !newModHours || !newModSessionHours}
                       className="h-10 px-5 bg-base-primary-600 text-white rounded-lg font-bold text-[13px] flex items-center gap-2 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer whitespace-nowrap"
@@ -803,7 +803,7 @@ export default function GroupBranchPanel() {
               placeholder="Örn: Pts - Çar | 19.00 - 21.30"
               className="flex-1 h-10 border border-surface-300 bg-neutral-50 rounded-lg px-4 outline-none focus:border-base-primary-400 text-[13px] xl:text-[14px] font-bold text-base-primary-900 placeholder:font-normal placeholder:text-neutral-400"
             />
-            <button
+            <button type="button"
               onClick={handleAddSession}
               disabled={sessionLoading || !newSessionLabel.trim()}
               className="h-10 px-5 bg-base-primary-600 text-white rounded-lg font-bold text-[13px] flex items-center gap-2 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
@@ -817,10 +817,10 @@ export default function GroupBranchPanel() {
                 <span className={`flex-1 text-[13px] xl:text-[14px] font-bold ${s.isActive ? "text-base-primary-900" : "text-neutral-300 line-through"}`}>
                   {s.label}
                 </span>
-                <button onClick={() => handleToggleSession(s.id, s.isActive)} className={`transition-colors cursor-pointer shrink-0 ${s.isActive ? "text-emerald-500" : "text-neutral-300"}`}>
+                <button type="button" onClick={() => handleToggleSession(s.id, s.isActive)} className={`transition-colors cursor-pointer shrink-0 ${s.isActive ? "text-emerald-500" : "text-neutral-300"}`}>
                   {s.isActive ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
                 </button>
-                <button
+                <button type="button"
                   onClick={() => handleDeleteSession(s.id)}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                 >
@@ -854,8 +854,8 @@ export default function GroupBranchPanel() {
             <div className="space-y-3">
               <div className="flex gap-3 flex-wrap items-end">
                 <div className="flex-1 min-w-[180px] space-y-1">
-                  <label className="text-[11px] xl:text-[12px] font-bold text-text-secondary ml-1">Tatil Adı</label>
-                  <input
+                  <label htmlFor="newHolidayName" className="text-[11px] xl:text-[12px] font-bold text-text-secondary ml-1">Tatil Adı</label>
+                  <input id="newHolidayName"
                     value={newHolidayName}
                     onChange={e => { setNewHolidayName(e.target.value); setHolidayError(""); }}
                     onKeyDown={e => e.key === "Enter" && handleAddHoliday()}
@@ -864,7 +864,7 @@ export default function GroupBranchPanel() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] xl:text-[12px] font-bold text-text-secondary ml-1">Başlangıç</label>
+                  <label htmlFor="holidayStartDisplay" className="text-[11px] xl:text-[12px] font-bold text-text-secondary ml-1">Başlangıç</label>
                   <DayCalendarPopover
                     value={newHolidayStart ? new Date(newHolidayStart + "T12:00:00") : new Date()}
                     onChange={d => {
@@ -876,7 +876,7 @@ export default function GroupBranchPanel() {
                     }}
                   >
                     <div className="relative">
-                      <input
+                      <input id="holidayStartDisplay"
                         type="text"
                         value={holidayStartDisplay}
                         onChange={e => makeDateInputHandler(setHolidayStartDisplay, v => { setNewHolidayStart(v); setHolidayError(""); })(e.target.value)}
@@ -892,7 +892,7 @@ export default function GroupBranchPanel() {
                   </DayCalendarPopover>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] xl:text-[12px] font-bold text-text-secondary ml-1">Bitiş (tek günse boş bırak)</label>
+                  <label htmlFor="holidayEndDisplay" className="text-[11px] xl:text-[12px] font-bold text-text-secondary ml-1">Bitiş (tek günse boş bırak)</label>
                   <DayCalendarPopover
                     value={newHolidayEnd ? new Date(newHolidayEnd + "T12:00:00") : (newHolidayStart ? new Date(newHolidayStart + "T12:00:00") : new Date())}
                     onChange={d => {
@@ -903,7 +903,7 @@ export default function GroupBranchPanel() {
                     }}
                   >
                     <div className="relative">
-                      <input
+                      <input id="holidayEndDisplay"
                         type="text"
                         value={holidayEndDisplay}
                         onChange={e => makeDateInputHandler(setHolidayEndDisplay, setNewHolidayEnd)(e.target.value)}
@@ -919,7 +919,7 @@ export default function GroupBranchPanel() {
                   </DayCalendarPopover>
                 </div>
               </div>
-              <button
+              <button type="button"
                 onClick={handleAddHoliday}
                 disabled={holidayLoading || !newHolidayName.trim() || !newHolidayStart}
                 className="w-full h-10 mt-3 bg-base-primary-600 text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
@@ -947,8 +947,8 @@ export default function GroupBranchPanel() {
                       <div className="space-y-3">
                         <div className="flex gap-3 flex-wrap items-end">
                           <div className="flex-1 min-w-[160px] space-y-1">
-                            <label className="text-[11px] font-bold text-text-secondary ml-1">Tatil Adı</label>
-                            <input
+                            <label htmlFor="editHolidayName" className="text-[11px] font-bold text-text-secondary ml-1">Tatil Adı</label>
+                            <input id="editHolidayName"
                               value={editHolidayName}
                               onChange={e => { setEditHolidayName(e.target.value); setEditHolidayError(""); }}
                               onKeyDown={e => e.key === "Enter" && handleUpdateHoliday()}
@@ -956,7 +956,7 @@ export default function GroupBranchPanel() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[11px] font-bold text-text-secondary ml-1">Başlangıç</label>
+                            <label htmlFor="editHolidayStartDisplay" className="text-[11px] font-bold text-text-secondary ml-1">Başlangıç</label>
                             <DayCalendarPopover
                               value={editHolidayStart ? new Date(editHolidayStart + "T12:00:00") : new Date()}
                               onChange={d => {
@@ -968,7 +968,7 @@ export default function GroupBranchPanel() {
                               }}
                             >
                               <div className="relative">
-                                <input
+                                <input id="editHolidayStartDisplay"
                                   type="text"
                                   value={editHolidayStartDisplay}
                                   onChange={e => makeDateInputHandler(setEditHolidayStartDisplay, v => { setEditHolidayStart(v); setEditHolidayError(""); })(e.target.value)}
@@ -984,7 +984,7 @@ export default function GroupBranchPanel() {
                             </DayCalendarPopover>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[11px] font-bold text-text-secondary ml-1">Bitiş</label>
+                            <label htmlFor="editHolidayEndDisplay" className="text-[11px] font-bold text-text-secondary ml-1">Bitiş</label>
                             <DayCalendarPopover
                               value={editHolidayEnd ? new Date(editHolidayEnd + "T12:00:00") : (editHolidayStart ? new Date(editHolidayStart + "T12:00:00") : new Date())}
                               onChange={d => {
@@ -995,7 +995,7 @@ export default function GroupBranchPanel() {
                               }}
                             >
                               <div className="relative">
-                                <input
+                                <input id="editHolidayEndDisplay"
                                   type="text"
                                   value={editHolidayEndDisplay}
                                   onChange={e => makeDateInputHandler(setEditHolidayEndDisplay, setEditHolidayEnd)(e.target.value)}
@@ -1011,14 +1011,14 @@ export default function GroupBranchPanel() {
                             </DayCalendarPopover>
                           </div>
                           <div className="flex gap-2">
-                            <button
+                            <button type="button"
                               onClick={handleUpdateHoliday}
                               disabled={editHolidayLoading}
                               className="h-9 px-4 bg-base-primary-600 text-white rounded-lg font-bold text-[13px] flex items-center gap-1.5 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
                             >
                               <Check size={14} /> Kaydet
                             </button>
-                            <button
+                            <button type="button"
                               onClick={() => { setEditingHolidayId(null); setEditHolidayError(""); }}
                               className="h-9 px-3 border border-surface-300 text-text-secondary rounded-lg text-[13px] flex items-center gap-1.5 hover:bg-neutral-50 transition-all cursor-pointer"
                             >
@@ -1048,13 +1048,13 @@ export default function GroupBranchPanel() {
                         {isPast && !isActive && (
                           <span className="text-[10px] font-bold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-full shrink-0">Geçmiş</span>
                         )}
-                        <button
+                        <button type="button"
                           onClick={() => handleStartEditHoliday(h)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-text-placeholder hover:text-base-primary-600 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                         >
                           <Pencil size={13} />
                         </button>
-                        <button
+                        <button type="button"
                           onClick={() => handleDeleteHoliday(h.id)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-text-placeholder hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                         >

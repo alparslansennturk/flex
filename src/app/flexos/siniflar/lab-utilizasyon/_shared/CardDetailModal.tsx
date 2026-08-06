@@ -36,7 +36,7 @@ export function CardDetailModal({ detail, onClose }: CardDetailModalProps) {
                   <div style={{ fontSize: 17, fontWeight: 800, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{detail.group}</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.mutedC, marginTop: 3 }}>{detail.labName} · {detail.timeText}</div>
                 </div>
-                <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid " + T.border, background: T.panel, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}>
+                <button type="button" onClick={onClose} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid " + T.border, background: T.panel, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg>
                 </button>
               </div>

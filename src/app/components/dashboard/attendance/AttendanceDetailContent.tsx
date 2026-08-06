@@ -46,8 +46,8 @@ const TR_DAYS: Record<string, number> = {
 function parseWeekDays(label: string): number[] {
   if (!label) return [];
   const lower = label.toLowerCase()
-    .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g")
-    .replace(/ü/g, "u").replace(/ö/g, "o");
+    .replaceAll(/ı/g, "i").replaceAll(/ş/g, "s").replaceAll(/ğ/g, "g")
+    .replaceAll(/ü/g, "u").replaceAll(/ö/g, "o");
   const found: number[] = [];
   for (const [key, day] of Object.entries(TR_DAYS)) {
     if (lower.includes(key) && !found.includes(day)) found.push(day);
@@ -311,7 +311,7 @@ export default function AttendanceDetailContent({
     if (filteredGroups.length === 0) { setStats([]); setLoading(false); return; }
     setLoading(true);
     const [yearStr, monthStr] = selectedMonth.split("-");
-    const year = parseInt(yearStr), month = parseInt(monthStr) - 1;
+    const year = Number.parseInt(yearStr), month = Number.parseInt(monthStr) - 1;
 
     Promise.all([
       getDocs(query(collection(db, "design_attendance"), where("month", "==", selectedMonth))),
@@ -426,7 +426,7 @@ export default function AttendanceDetailContent({
 
       {/* ── Geri Butonu ── */}
       {onBack && (
-        <button
+        <button type="button"
           onClick={onBack}
           className="flex items-center gap-1.5 text-[13px] font-semibold text-neutral-400 hover:text-base-primary-700 transition-colors cursor-pointer -mt-2"
         >
@@ -460,7 +460,7 @@ export default function AttendanceDetailContent({
       {/* ── Grup Sekmeleri ── */}
       <div className="flex border-b border-surface-100">
         {([["active", "Aktif Gruplar"], ["closed", "Tamamlanan Gruplar"]] as const).map(([tab, label]) => (
-          <button
+          <button type="button"
             key={tab}
             onClick={() => setGroupTab(tab)}
             className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-colors ${
@@ -519,7 +519,7 @@ export default function AttendanceDetailContent({
                 </span>
               )}
             </div>
-            <button onClick={() => setSearchCode("")}
+            <button type="button" onClick={() => setSearchCode("")}
               className="text-[12px] font-medium text-surface-400 hover:text-base-primary-600 transition-colors shrink-0 ml-3">
               Temizle
             </button>
@@ -669,7 +669,7 @@ export default function AttendanceDetailContent({
                         )}
                       </div>
                       <div className="w-20 shrink-0 flex justify-end">
-                        <button
+                        <button type="button"
                           onClick={() => onGroupDetail
                             ? onGroupDetail(s.group.id, selectedMonth, !!s.group.attendanceClosed)
                             : router.push(`/dashboard/attendance?groupId=${s.group.id}&month=${selectedMonth}`)

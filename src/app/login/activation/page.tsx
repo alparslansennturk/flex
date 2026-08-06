@@ -98,7 +98,7 @@ function ActivationContent() {
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-end h-5">
-              <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola</label>
+              <label htmlFor="password" className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola</label>
               {error && (
                 <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold text-nowrap" style={{ color: 'var(--color-status-danger-500)' }}>
                   {error}
@@ -106,7 +106,7 @@ function ActivationContent() {
               )}
             </div>
             <div className="relative w-full">
-              <input
+              <input id="password"
                 autoFocus
                 autoComplete="off"
                 name={`p_${randomName}`}
@@ -148,8 +148,8 @@ function ActivationContent() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola (Tekrar)</label>
-            <input
+            <label htmlFor="confirmPassword" className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola (Tekrar)</label>
+            <input id="confirmPassword"
               autoComplete="off"
               name={`pc_${randomName}`}
               type={showPassword ? "text" : confirmType}

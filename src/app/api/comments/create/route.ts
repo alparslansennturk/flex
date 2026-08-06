@@ -7,12 +7,12 @@ import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 
 function sanitize(str: string): string {
   return str
-    .replace(/<[^>]*>/g, "")          // HTML tag strip
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
+    .replaceAll(/<[^>]*>/g, "")          // HTML tag strip
+    .replaceAll(/&/g, "&amp;")
+    .replaceAll(/</g, "&lt;")
+    .replaceAll(/>/g, "&gt;")
+    .replaceAll(/"/g, "&quot;")
+    .replaceAll(/'/g, "&#x27;")
     .trim();
 }
 

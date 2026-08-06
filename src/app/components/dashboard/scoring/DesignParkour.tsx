@@ -150,7 +150,7 @@ function PlaceholderParkourCard({ compact = false }: { compact?: boolean }) {
       </div>
       <div className={`flex items-center justify-between border-t border-[#F7F8FA] ${pt}`}>
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Ödev Atölyesi</span>
-        <button disabled className={`${btnH} flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
+        <button type="button" disabled className={`${btnH} flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
           Ödev ver <ChevronRight size={compact ? 13 : 16} />
 </button>
       </div>
@@ -198,7 +198,7 @@ function GhostParkourCard({ task, canManage, onActivate, compact = false }: {
           <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold ${style.tagBg} ${style.tagText}`}>{style.label}</span>
           {canManage && (
             <div className="relative" ref={menuRef}>
-              <button
+              <button type="button"
                 onClick={() => setMenuOpen(v => !v)}
                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
               >
@@ -206,7 +206,7 @@ function GhostParkourCard({ task, canManage, onActivate, compact = false }: {
               </button>
               {menuOpen && (
                 <div className="absolute right-0 top-9 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[175px]">
-                  <button
+                  <button type="button"
                     onClick={() => { onActivate(task); setMenuOpen(false); }}
                     className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
                   >
@@ -230,7 +230,7 @@ function GhostParkourCard({ task, canManage, onActivate, compact = false }: {
       </div>
       <div className={`flex items-center justify-between border-t border-[#F7F8FA] ${pt}`}>
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Ödev Atölyesi</span>
-        <button disabled className={`${btnH} flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
+        <button type="button" disabled className={`${btnH} flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
           Ödev ver <ChevronRight size={compact ? 13 : 16} />
 </button>
       </div>
@@ -333,7 +333,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
           </span>
           {canManage && (
             <div className="relative" ref={menuRef}>
-              <button
+              <button type="button"
                 onClick={() => setMenuOpen(v => !v)}
                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
               >
@@ -342,7 +342,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               {menuOpen && (
                 <div className="absolute right-0 top-9 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[175px]">
                   {isBorrowed ? (
-                    <button
+                    <button type="button"
                       onClick={() => { onActivateBorrowed(task); setMenuOpen(false); }}
                       className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
                     >
@@ -351,21 +351,21 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
                   ) : (
                     <>
                       {!isCompleted && (
-                        <button
+                        <button type="button"
                           onClick={() => { onComplete(task); setMenuOpen(false); }}
                           className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#009F3E] hover:bg-green-50 transition-colors cursor-pointer"
                         >
                           Ödevi Bitir
                         </button>
                       )}
-                      <button
+                      <button type="button"
                         onClick={() => { onCancel(task); setMenuOpen(false); }}
                         className={`w-full px-4 py-2 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer ${!isCompleted ? "border-t border-[#EEF0F3]" : ""}`}
                       >
                         Ödevi İptal Et
                       </button>
                       {!isCompleted && (
-                        <button
+                        <button type="button"
                           onClick={() => { onEdit(task); setMenuOpen(false); }}
                           className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
                         >
@@ -435,7 +435,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             )}
             {task.isGraded ? (
-              <button
+              <button type="button"
                 disabled
                 className={`px-4 ${compact ? "h-8" : "h-9"} flex items-center gap-2 rounded-full text-[12px] font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}
               >
@@ -443,13 +443,13 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               </button>
             ) : (
               <>
-                <button
+                <button type="button"
                   onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
                   className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
                 >
                   {compact ? "Detay" : "Ödev Detay"} <ChevronRight size={compact ? 13 : 16} />
                 </button>
-                <button
+                <button type="button"
                   onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
                   className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer`}
                 >
@@ -461,13 +461,13 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
         ) : isExpired ? (
           <div className="relative flex items-center gap-1.5 ml-auto">
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
-            <button
+            <button type="button"
               onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
               className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
             >
               {compact ? "Detay" : "Ödev Detay"} <ChevronRight size={compact ? 13 : 16} />
             </button>
-            <button
+            <button type="button"
               onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
               className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer`}
             >
@@ -475,7 +475,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
 </button>
           </div>
         ) : (
-          <button
+          <button type="button"
             onClick={() => onDetail(task)}
             className={`${compact ? "pl-4 pr-3 h-8" : "px-5 h-10"} flex items-center gap-1 rounded-full text-[13px] font-semibold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer ml-auto`}
           >
@@ -499,7 +499,7 @@ function CompleteConfirmModal({ task, onCancel, onConfirm }: {
 
   return (
     <div className={`fixed inset-0 z-[700] flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
       <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
           <CheckCircle2 size={26} className="text-orange-500" />
@@ -511,8 +511,8 @@ function CompleteConfirmModal({ task, onCancel, onConfirm }: {
           </p>
         </div>
         <div className="flex gap-3 w-full">
-          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
-          <button onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-orange-500 text-white text-[13px] font-bold hover:bg-orange-600 active:scale-95 transition-all cursor-pointer">Bitir</button>
+          <button type="button" onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button type="button" onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-orange-500 text-white text-[13px] font-bold hover:bg-orange-600 active:scale-95 transition-all cursor-pointer">Bitir</button>
         </div>
       </div>
     </div>
@@ -530,7 +530,7 @@ function CancelConfirmModal({ task, onCancel, onConfirm }: {
 
   return (
     <div className={`fixed inset-0 z-[700] flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
       <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         <div className="w-14 h-14 rounded-full bg-status-danger-50 flex items-center justify-center">
           <AlertTriangle size={26} className="text-status-danger-500" />
@@ -542,8 +542,8 @@ function CancelConfirmModal({ task, onCancel, onConfirm }: {
           </p>
         </div>
         <div className="flex gap-3 w-full">
-          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
-          <button onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer">İptal Et</button>
+          <button type="button" onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button type="button" onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer">İptal Et</button>
         </div>
       </div>
     </div>
@@ -613,7 +613,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
 
   return (
     <div className={`fixed inset-0 z-800 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
-      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
       <div className={`relative bg-white rounded-16 shadow-2xl w-full max-w-md p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         <div>
           <p className="text-[17px] font-bold text-base-primary-900 mb-1">Ödevi Düzenle</p>
@@ -640,7 +640,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
                 const isSelected = selectedGroupId === g.id;
                 const isBusy    = busyGroupIds.includes(g.id);
                 return (
-                  <button
+                  <button type="button"
                     key={g.id}
                     onClick={() => { if (!isBusy) setSelectedGroupId(g.id); }}
                     disabled={isBusy}
@@ -673,7 +673,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
           <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Seviye</p>
           <div className="grid grid-cols-3 gap-2">
             {LEVELS.map(l => (
-              <button key={l} onClick={() => setLevel(l)}
+              <button type="button" key={l} onClick={() => setLevel(l)}
                 className={`py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
                   level === l
                     ? "bg-base-primary-900 text-white border-base-primary-900"
@@ -697,8 +697,8 @@ function TaskEditModal({ task, onSave, onCancel }: {
         </div>
 
         <div className="flex gap-3">
-          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
-          <button onClick={handleSave} disabled={!canSubmit || loading} className="flex-1 h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center">
+          <button type="button" onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button type="button" onClick={handleSave} disabled={!canSubmit || loading} className="flex-1 h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center">
             {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Kaydet"}
           </button>
         </div>
@@ -973,7 +973,7 @@ export default function DesignParkour({
           <h3 className="text-[22px] font-bold cursor-default">Ödev Parkuru</h3>
         </div>
         {canManage && (
-          <button
+          <button type="button"
             onClick={() => setQuickAssignOpen(true)}
             className="flex items-center gap-1 h-10 px-5 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-semibold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer shadow-md shadow-designstudio-secondary-500/20"
           >

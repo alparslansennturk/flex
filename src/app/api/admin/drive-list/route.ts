@@ -10,13 +10,13 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 function getRootId(): string {
   return (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "")
-    .replace(/^["']|["']$/g, "")
+    .replaceAll(/^["']|["']$/g, "")
     .trim();
 }
 
 async function findFolder(name: string, parentId: string, token: string): Promise<string | null> {
   const q = encodeURIComponent(
-    `name = '${name.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
+    `name = '${name.replaceAll(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
   );
   const res  = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,
@@ -37,7 +37,7 @@ async function listChildren(parentId: string, token: string) {
     name: f.name,
     type: f.mimeType === FOLDER_MIME ? "folder" : "file",
     id:   f.id,
-    size: f.size ? `${(parseInt(f.size) / 1024).toFixed(0)} KB` : undefined,
+    size: f.size ? `${(Number.parseInt(f.size) / 1024).toFixed(0)} KB` : undefined,
   }));
 }
 

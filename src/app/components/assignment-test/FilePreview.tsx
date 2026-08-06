@@ -77,7 +77,7 @@ export default function FilePreview({ versions, currentVersionId, onVersionChang
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[12px] font-bold text-surface-500">Versiyon:</span>
           {versions.map(v => (
-            <button
+            <button type="button"
               key={v.id}
               onClick={() => onVersionChange?.(v.id)}
               className={`px-3 py-1 rounded-lg text-[12px] font-bold transition-all cursor-pointer ${

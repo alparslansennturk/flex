@@ -206,14 +206,14 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
               {canEdit && person && (
                 editing ? (
                   <>
-                    <button
+                    <button type="button"
                       onClick={cancelEdit}
                       disabled={saving}
                       className="h-9 px-3.5 rounded-[10px] border border-[#DCE3EC] bg-white/85 flex items-center text-[12.5px] font-bold text-[#6F7B87] cursor-pointer disabled:opacity-50"
                     >
                       Vazgeç
                     </button>
-                    <button
+                    <button type="button"
                       onClick={handleSave}
                       disabled={saving}
                       className="h-9 px-3.5 rounded-[10px] border-none text-white text-[12.5px] font-bold cursor-pointer disabled:opacity-60"
@@ -223,7 +223,7 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
                     </button>
                   </>
                 ) : (
-                  <button
+                  <button type="button"
                     onClick={startEdit}
                     className="h-9 px-3.5 rounded-[10px] border border-[#DCE3EC] bg-white/85 flex items-center gap-1.5 text-[12.5px] font-bold text-[#6F7B87] cursor-pointer hover:text-[#205297] hover:bg-white transition-colors"
                   >
@@ -232,7 +232,7 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
                   </button>
                 )
               )}
-              <button
+              <button type="button"
                 onClick={onClose}
                 className="w-9 h-9 rounded-[10px] border border-[#DCE3EC] flex items-center justify-center cursor-pointer text-[#6F7B87] hover:text-[#1E222B] hover:bg-white transition-colors shrink-0"
                 style={{ background: "rgba(255,255,255,.85)" }}

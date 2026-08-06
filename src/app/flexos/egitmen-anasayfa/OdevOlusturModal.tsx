@@ -457,7 +457,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               <div className="text-[12px] text-[#8E95A3] font-medium mt-0.5">{prefill ? "Şablondan grup ve tarih seçip başlatın" : "Ödev bilgilerini girin ve gruba başlatın"}</div>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={handleCancel}
             className="w-9 h-9 rounded-[10px] border border-[#E2E5EA] bg-white flex items-center justify-center text-[#8E95A3] hover:bg-[#F7F8FA] hover:text-[#414B59] transition-colors cursor-pointer shrink-0"
           >
@@ -476,15 +476,15 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           <div className="flex gap-2.5 items-stretch shrink-0">
             <div className="flex-1 flex flex-col gap-2 min-w-0">
               <div>
-                <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Adı</label>
-                <input
+                <label htmlFor="odevAdi" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Adı</label>
+                <input id="odevAdi"
                   className="w-full py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none"
                   type="text" value={odevAdi} onChange={(e) => setOdevAdi(e.target.value)} placeholder="Örn. Poster Tasarım Ödevi"
                 />
               </div>
               <div>
-                <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Alt Başlık</label>
-                <input
+                <label htmlFor="altBaslik" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Alt Başlık</label>
+                <input id="altBaslik"
                   className="w-full py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none"
                   type="text" value={altBaslik} onChange={(e) => setAltBaslik(e.target.value)} placeholder="Kısa bir alt başlık (opsiyonel)"
                 />
@@ -560,9 +560,9 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               </div>
             </div>
             <div className="flex-1 min-w-[170px]">
-              <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Grup</label>
+              <label htmlFor="groupId" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Grup</label>
               <div className="relative">
-                <select
+                <select id="groupId"
                   className="w-full py-2 pr-8 pl-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none cursor-pointer appearance-none disabled:cursor-not-allowed disabled:opacity-60"
                   value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={loadingGroups || !!draftId}
                   title={draftId ? "Dosya yüklendi — grup artık değiştirilemez (yeni bir ödev için modalı kapatıp tekrar açın)." : undefined}
@@ -574,8 +574,8 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               </div>
             </div>
             <div className="flex-1 min-w-[140px]">
-              <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Bitiş Tarihi</label>
-              <input
+              <label htmlFor="bitisTarihi" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Bitiş Tarihi</label>
+              <input id="bitisTarihi"
                 className="w-full py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none"
                 type="date" value={bitisTarihi} onChange={(e) => setBitisTarihi(e.target.value)}
               />
@@ -586,7 +586,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               (bkz. submission-service.ts::computeOdevYuzdeleri), puan bu türde anlamsız —
               proje seçiliyken tamamen devre dışı, sertifika notu ayrı sayfadan elle girilir. */}
           <div className="shrink-0">
-            <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
+            <label htmlFor="puan" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
             {tur === "proje" ? (
               <p className="text-[11.5px] font-medium text-[#8E95A3] italic">
                 Proje ödevlerinde puan kullanılmaz — not Sertifika Notu&apos;ndan elle girilir.
@@ -594,9 +594,9 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
             ) : (
               <div className="flex items-center gap-2.5 flex-wrap">
                 <div className="relative shrink-0">
-                  <input
+                  <input id="puan"
                     className="w-[120px] py-2 pl-3 pr-[42px] rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-extrabold text-[#1E222B] outline-none"
-                    type="number" min={0} value={puan} onChange={(e) => setPuan(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="100"
+                    type="number" min={0} value={puan} onChange={(e) => setPuan(Math.max(0, Number.parseInt(e.target.value, 10) || 0))} placeholder="100"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#8E95A3] pointer-events-none">puan</span>
                 </div>
@@ -623,8 +623,8 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
 
           {/* açıklama — sağ sütunda kalan yüksekliği doldurur (flex-1) */}
           <div className="flex-1 min-h-[110px] flex flex-col">
-            <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Açıklama</label>
-            <textarea
+            <label htmlFor="aciklama" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Açıklama</label>
+            <textarea id="aciklama"
               className="w-full flex-1 py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-medium text-[#1E222B] outline-none resize-none"
               value={aciklama} onChange={(e) => setAciklama(e.target.value)}
               placeholder="Ödevin detaylarını, beklentileri ve teslim koşullarını yazın..."
@@ -634,8 +634,8 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           {/* Ödev Dosyası Yükle (sol — seçilir, ödev kaydedilince yüklenir) + Şablon olarak kaydet (sağda) */}
           <div className="flex gap-2.5 items-stretch shrink-0">
             <div className="flex-1 min-w-0">
-              <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Dosyası Yükle</label>
-              <input
+              <label htmlFor="fld1" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Dosyası Yükle</label>
+              <input id="fld1"
                 ref={dosyaInputRef}
                 type="file" multiple className="hidden"
                 onChange={(e) => { if (e.target.files?.length) { pickFiles(e.target.files); setDosyaPanelAcik(false); } e.target.value = ""; }}
@@ -677,10 +677,10 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
                             style={{ height: 44 }}
                             className="flex-1 min-w-0 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[12px] outline-none focus:border-[#6F74D8] transition-colors"
                           />
-                          <button onClick={addDriveLink} disabled={!driveLink.trim()} style={{ height: 44, flexShrink: 0 }} className="px-3 bg-[#205297] text-white text-[12px] font-bold rounded-[10px] disabled:opacity-40 cursor-pointer hover:bg-[#183F78] transition-colors whitespace-nowrap">
+                          <button type="button" onClick={addDriveLink} disabled={!driveLink.trim()} style={{ height: 44, flexShrink: 0 }} className="px-3 bg-[#205297] text-white text-[12px] font-bold rounded-[10px] disabled:opacity-40 cursor-pointer hover:bg-[#183F78] transition-colors whitespace-nowrap">
                             Ekle
                           </button>
-                          <button onClick={() => { setDriveMode(false); setDriveLink(""); }} style={{ height: 44, width: 44, flexShrink: 0 }} className="flex items-center justify-center bg-[#F2F4F7] text-[#6F7B87] rounded-[10px] cursor-pointer hover:bg-[#E8EBEF] transition-colors">
+                          <button type="button" onClick={() => { setDriveMode(false); setDriveLink(""); }} style={{ height: 44, width: 44, flexShrink: 0 }} className="flex items-center justify-center bg-[#F2F4F7] text-[#6F7B87] rounded-[10px] cursor-pointer hover:bg-[#E8EBEF] transition-colors">
                             <X size={14} />
                           </button>
                         </div>
@@ -693,8 +693,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
                           <div className="w-px h-5 bg-[#E2E5EA] shrink-0" />
                           <button type="button" onClick={() => setDriveMode(true)} className="h-full flex items-center gap-2 px-3 rounded-[8px] text-[12px] font-semibold text-[#414B59] hover:bg-white transition-colors cursor-pointer">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />
-                            Google Drive
+                            <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />Google Drive
                           </button>
                         </div>
                       )}
@@ -756,8 +755,8 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
 
           {!prefill && sablonAktif && (
             <div className="shrink-0">
-              <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon Adı</label>
-              <input
+              <label htmlFor="sablonAdi" className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon Adı</label>
+              <input id="sablonAdi"
                 className="w-full py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none"
                 type="text" value={sablonAdi} onChange={(e) => setSablonAdi(e.target.value)} placeholder="Örn. Grafik Tasarım — Poster Şablonu"
               />

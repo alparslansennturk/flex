@@ -50,7 +50,7 @@ export function AssignmentsTab({ assignments, submissions, totalStudents, groupI
 
       <div className="flex items-center gap-2 mb-7">
         {FILTERS.map((f) => (
-          <button
+          <button type="button"
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
@@ -160,14 +160,14 @@ function ArchivedAssignmentCard({ assignment, onDeleted, onStatusChanged }: { as
         {assignment.dueDate && <p className="text-[12px] text-surface-400 mt-0.5">{fmtEndDate(assignment.dueDate)}</p>}
       </div>
       <div className="shrink-0 flex items-center gap-2">
-      <button
+      <button type="button"
         onClick={handleRestore}
         disabled={restoring || deleting}
         className="h-8 px-4 rounded-full text-[12px] font-semibold border border-status-success-200 text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {restoring ? "Geri Alınıyor…" : "Geri Al"}
       </button>
-      <button
+      <button type="button"
         onClick={handleDelete}
         disabled={deleting || restoring}
         className="h-8 px-4 rounded-full text-[12px] font-semibold border border-status-danger-200 text-status-danger-500 hover:bg-status-danger-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

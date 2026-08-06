@@ -53,8 +53,8 @@ export default function FlexModal({ open, title, message, confirmLabel, cancelLa
             <div style={{ fontSize: 18, fontWeight: 800, color: "#0f1f3d", marginBottom: 8 }}>{title}</div>
             <div style={{ fontSize: 14, color: "#475569", lineHeight: 1.6, marginBottom: 22 }}>{message}</div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button onClick={onCancel} disabled={busy} style={S.cancel}>{cancelLabel}</button>
-              <button
+              <button type="button" onClick={onCancel} disabled={busy} style={S.cancel}>{cancelLabel}</button>
+              <button type="button"
                 onClick={onConfirm}
                 disabled={busy}
                 style={{ ...S.confirm, background: t.bg, color: t.color, boxShadow: `0 8px 18px -8px ${t.ring}`, opacity: busy ? 0.7 : 1, cursor: busy ? "wait" : "pointer" }}

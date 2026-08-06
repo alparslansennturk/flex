@@ -507,7 +507,7 @@ function seedConversation({ id, realm, type, name, members, messageTarget, sourc
 
   const messageCount = randInt(Math.max(1, Math.floor(messageTarget * 0.6)), messageTarget);
   let lastMessage = null;
-  const timestamps = Array.from({ length: messageCount }, () => pastIso(45)).sort();
+  const timestamps = Array.from({ length: messageCount }, () => pastIso(45)).sort((a, b) => a.localeCompare(b));
   for (let i = 0; i < messageCount; i++) {
     const author = pick(members);
     const text = pick(MESSAGE_SNIPPETS);

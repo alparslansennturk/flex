@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -48,9 +49,9 @@ export default function KullaniciAyarlariPage() {
         <FlexHeader
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <a className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön" onClick={() => router.push("/flexos/kullanicilar")}>
+              <Link href="/flexos/kullanicilar" className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön">
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-              </a>
+              </Link>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
                   <span>Kullanıcılar</span>
@@ -71,9 +72,8 @@ export default function KullaniciAyarlariPage() {
                 Sabit rol modeli — her rolün hangi yetki modüllerine varsayılan sahip olduğunu burada ayarlayın.
               </div>
             </div>
-            <button onClick={() => { setCreating((v) => !v); setExpandedId(null); }} style={S.addBtn}>
-              <span dangerouslySetInnerHTML={{ __html: IC.plus }} />
-              Rol Ekle
+            <button type="button" onClick={() => { setCreating((v) => !v); setExpandedId(null); }} style={S.addBtn}>
+              <span dangerouslySetInnerHTML={{ __html: IC.plus }} />Rol Ekle
             </button>
           </div>
 
@@ -93,7 +93,7 @@ export default function KullaniciAyarlariPage() {
                 const isExpanded = expandedId === r.id;
                 return (
                   <div key={r.id} style={S.roleCard}>
-                    <button
+                    <button type="button"
                       onClick={() => setExpandedId(isExpanded ? null : r.id)}
                       style={S.roleRowBtn}
                     >
@@ -182,19 +182,19 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
       {(mode === "create" || !roleDef?.isBuiltIn) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 18 }}>
           <div style={S.fieldWrap}>
-            <label style={S.label}>Rol Adı {mode === "create" && "*"}</label>
-            <input className="ku-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Örn: Şube Sorumlusu" style={S.input} />
+            <label htmlFor="label" style={S.label}>Rol Adı {mode === "create" && "*"}</label>
+            <input id="label" className="ku-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Örn: Şube Sorumlusu" style={S.input} />
           </div>
           <div style={S.fieldWrap}>
-            <label style={S.label}>Açıklama</label>
-            <input className="ku-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bu rolün kısa tanımı" style={S.input} />
+            <label htmlFor="description" style={S.label}>Açıklama</label>
+            <input id="description" className="ku-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bu rolün kısa tanımı" style={S.input} />
           </div>
         </div>
       )}
       {mode === "edit" && roleDef?.isBuiltIn && (
         <div style={{ marginBottom: 18 }}>
-          <label style={S.label}>Açıklama</label>
-          <input className="ku-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bu rolün kısa tanımı" style={{ ...S.input, marginTop: 7 }} />
+          <label htmlFor="description2" style={S.label}>Açıklama</label>
+          <input id="description2" className="ku-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bu rolün kısa tanımı" style={{ ...S.input, marginTop: 7 }} />
         </div>
       )}
 
@@ -202,7 +202,7 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
         <label style={{ ...S.label, marginBottom: 8, display: "block" }}>Renk</label>
         <div style={{ display: "flex", gap: 8 }}>
           {COLOR_PRESETS.map((c) => (
-            <button key={c} onClick={() => setColor(c)} style={{
+            <button type="button" key={c} onClick={() => setColor(c)} style={{
               width: 26, height: 26, borderRadius: "50%", background: c, border: color === c ? "2.5px solid #1E222B" : "2.5px solid transparent",
               cursor: "pointer", padding: 0, boxShadow: "0 0 0 1px rgba(0,0,0,.06)",
             }} />
@@ -250,8 +250,8 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-        <button onClick={onCancel} style={S.cancelBtn}>Vazgeç</button>
-        <button onClick={handleSave} disabled={saving} style={{ ...S.saveBtn, background: saving ? "#D1D5DB" : "linear-gradient(135deg,#7C3AED,#5B21B6)", cursor: saving ? "not-allowed" : "pointer" }}>
+        <button type="button" onClick={onCancel} style={S.cancelBtn}>Vazgeç</button>
+        <button type="button" onClick={handleSave} disabled={saving} style={{ ...S.saveBtn, background: saving ? "#D1D5DB" : "linear-gradient(135deg,#7C3AED,#5B21B6)", cursor: saving ? "not-allowed" : "pointer" }}>
           {saving ? "Kaydediliyor…" : "Kaydet"}
         </button>
       </div>

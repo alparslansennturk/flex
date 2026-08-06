@@ -391,7 +391,7 @@ export default function RandevuTakvimiPage() {
               </div>
               <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#6F7B87", fontWeight: 500 }}>Haftalık ve günlük randevuları takip edin, düzenleyin veya iptal edin.</p>
             </div>
-            <button
+            <button type="button"
               onClick={openCreate}
               style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "12px 18px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}
             >
@@ -404,15 +404,15 @@ export default function RandevuTakvimiPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#E4E7EC", gap: 3 }}>
-                <button onClick={() => setView("week")} style={{ padding: "8px 18px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: view === "week" ? "#fff" : "transparent", color: view === "week" ? "#1E222B" : "#6F7B87", boxShadow: view === "week" ? "0 1px 3px rgba(15,31,61,.12)" : "none" }}>Hafta</button>
-                <button onClick={() => setView("day")} style={{ padding: "8px 18px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: view === "day" ? "#fff" : "transparent", color: view === "day" ? "#1E222B" : "#6F7B87", boxShadow: view === "day" ? "0 1px 3px rgba(15,31,61,.12)" : "none" }}>Gün</button>
+                <button type="button" onClick={() => setView("week")} style={{ padding: "8px 18px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: view === "week" ? "#fff" : "transparent", color: view === "week" ? "#1E222B" : "#6F7B87", boxShadow: view === "week" ? "0 1px 3px rgba(15,31,61,.12)" : "none" }}>Hafta</button>
+                <button type="button" onClick={() => setView("day")} style={{ padding: "8px 18px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: view === "day" ? "#fff" : "transparent", color: view === "day" ? "#1E222B" : "#6F7B87", boxShadow: view === "day" ? "0 1px 3px rgba(15,31,61,.12)" : "none" }}>Gün</button>
               </div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <button onClick={goPrev} style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" }}>
+                <button type="button" onClick={goPrev} style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                 </button>
-                <button onClick={goToday} style={{ padding: "0 15px", height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Bugün</button>
-                <button onClick={goNext} style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" }}>
+                <button type="button" onClick={goToday} style={{ padding: "0 15px", height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Bugün</button>
+                <button type="button" onClick={goNext} style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
                 </button>
               </div>
@@ -459,7 +459,7 @@ export default function RandevuTakvimiPage() {
                           const top = (startMin - DAY_START * 60);
                           const widthPct = 100 / apCols;
                           return (
-                            <div
+                            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                               key={a.id}
                               className="appt-card"
                               onClick={() => setDetailId(a.id)}
@@ -474,10 +474,10 @@ export default function RandevuTakvimiPage() {
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
                                 <span style={{ fontSize: 10.5, fontWeight: 700, color: c.accent, whiteSpace: "nowrap" }}>{fmtTime(startMin)}</span>
                                 <div className="appt-actions" style={{ display: "flex", gap: 3, flex: "0 0 auto" }}>
-                                  <button onClick={(e) => { e.stopPropagation(); openEdit(a); }} title="Düzenle" style={{ width: 19, height: 19, borderRadius: 6, border: "none", background: "rgba(255,255,255,.75)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59", padding: 0 }}>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(a); }} title="Düzenle" style={{ width: 19, height: 19, borderRadius: 6, border: "none", background: "rgba(255,255,255,.75)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59", padding: 0 }}>
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                                   </button>
-                                  <button onClick={(e) => { e.stopPropagation(); setCancelId(a.id); }} title="İptal et" style={{ width: 19, height: 19, borderRadius: 6, border: "none", background: "rgba(255,255,255,.75)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#D93636", padding: 0 }}>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setCancelId(a.id); }} title="İptal et" style={{ width: 19, height: 19, borderRadius: 6, border: "none", background: "rgba(255,255,255,.75)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#D93636", padding: 0 }}>
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                                   </button>
                                 </div>
@@ -552,11 +552,11 @@ export default function RandevuTakvimiPage() {
                               </div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto", alignSelf: "center" }}>
-                              <button onClick={() => openEdit(a)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+                              <button type="button" onClick={() => openEdit(a)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                                 Düzenle
                               </button>
-                              <button onClick={() => setCancelId(a.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid #F3D0D0", background: "#fff", color: "#D93636", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+                              <button type="button" onClick={() => setCancelId(a.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid #F3D0D0", background: "#fff", color: "#D93636", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                                 İptal
                               </button>
@@ -583,8 +583,8 @@ export default function RandevuTakvimiPage() {
       </main>
 
       {/* ── oluştur/düzenle modalı ── */}
-      <div onClick={closeModal} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: modalOpen ? 1 : 0, visibility: modalOpen ? "visible" : "hidden", transition: "opacity .26s ease, visibility .26s ease" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 860, background: "#fff", borderRadius: 20, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden", transform: modalOpen ? "translateY(0) scale(1)" : "translateY(18px) scale(.97)", opacity: modalOpen ? 1 : 0, transition: "transform .32s cubic-bezier(.2,.8,.3,1), opacity .28s ease" }}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={closeModal} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: modalOpen ? 1 : 0, visibility: modalOpen ? "visible" : "hidden", transition: "opacity .26s ease, visibility .26s ease" }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 860, background: "#fff", borderRadius: 20, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden", transform: modalOpen ? "translateY(0) scale(1)" : "translateY(18px) scale(.97)", opacity: modalOpen ? 1 : 0, transition: "transform .32s cubic-bezier(.2,.8,.3,1), opacity .28s ease" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "22px 28px", borderBottom: "1px solid #EEF0F3" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: "#EAF1FB", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
@@ -595,49 +595,49 @@ export default function RandevuTakvimiPage() {
                 <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{editing ? "Randevu bilgilerini güncelleyin." : "Aday ile satış danışmanı arasında randevu ayarlayın."}</p>
               </div>
             </div>
-            <button onClick={closeModal} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+            <button type="button" onClick={closeModal} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
             </button>
           </div>
 
           <div style={{ padding: "24px 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 22px" }}>
             <div>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Müşteri Adı</label>
-              <input value={form.customer} onChange={(e) => setForm((f) => ({ ...f, customer: e.target.value }))} disabled={!!editing} placeholder="Örn. Ahmet Yıldız" style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: editing ? "#F2F4F7" : "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
+              <label htmlFor="customer" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Müşteri Adı</label>
+              <input id="customer" value={form.customer} onChange={(e) => setForm((f) => ({ ...f, customer: e.target.value }))} disabled={!!editing} placeholder="Örn. Ahmet Yıldız" style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: editing ? "#F2F4F7" : "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Telefon</label>
-              <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: formatTrPhone(e.target.value) }))} disabled={!!editing} placeholder="0 (532) 000 00 00" style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: editing ? "#F2F4F7" : "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
+              <label htmlFor="phone" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Telefon</label>
+              <input id="phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: formatTrPhone(e.target.value) }))} disabled={!!editing} placeholder="0 (532) 000 00 00" style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: editing ? "#F2F4F7" : "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Satış Danışmanı</label>
-              <select value={form.consultant} onChange={(e) => setForm((f) => ({ ...f, consultant: e.target.value }))} style={{ width: "100%", padding: "12px 38px 12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 600, outline: "none", cursor: "pointer", boxSizing: "border-box" }}>
+              <label htmlFor="consultant" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Satış Danışmanı</label>
+              <select id="consultant" value={form.consultant} onChange={(e) => setForm((f) => ({ ...f, consultant: e.target.value }))} style={{ width: "100%", padding: "12px 38px 12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 600, outline: "none", cursor: "pointer", boxSizing: "border-box" }}>
                 {sorumluList.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>İletişim Kanalı</label>
-              <select value={form.meetingType} onChange={(e) => setForm((f) => ({ ...f, meetingType: e.target.value as AppointmentMeetingType }))} style={{ width: "100%", padding: "12px 38px 12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 600, outline: "none", cursor: "pointer", boxSizing: "border-box" }}>
+              <label htmlFor="meetingType" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>İletişim Kanalı</label>
+              <select id="meetingType" value={form.meetingType} onChange={(e) => setForm((f) => ({ ...f, meetingType: e.target.value as AppointmentMeetingType }))} style={{ width: "100%", padding: "12px 38px 12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 600, outline: "none", cursor: "pointer", boxSizing: "border-box" }}>
                 {MEETING_TYPES.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Tarih</label>
-              <input type="date" min={todayISO} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
+              <label htmlFor="date" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Tarih</label>
+              <input id="date" type="date" min={todayISO} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Başlangıç Saati</label>
-              <input type="time" min={`${String(DAY_START).padStart(2, "0")}:00`} max={`${String(DAY_END - 1).padStart(2, "0")}:00`} value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} step={900} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
+              <label htmlFor="time" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Başlangıç Saati</label>
+              <input id="time" type="time" min={`${String(DAY_START).padStart(2, "0")}:00`} max={`${String(DAY_END - 1).padStart(2, "0")}:00`} value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} step={900} style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Not <span style={{ color: "#AEB4C0", fontWeight: 500 }}>(opsiyonel)</span></label>
-              <textarea value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Görüşme konusu, aday hakkında notlar…" style={{ width: "100%", minHeight: 70, resize: "vertical", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, lineHeight: 1.55, outline: "none", boxSizing: "border-box" }} />
+              <label htmlFor="note" style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 8 }}>Not <span style={{ color: "#AEB4C0", fontWeight: 500 }}>(opsiyonel)</span></label>
+              <textarea id="note" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Görüşme konusu, aday hakkında notlar…" style={{ width: "100%", minHeight: 70, resize: "vertical", padding: "12px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#FBFCFD", color: "#1E222B", fontSize: 14, fontWeight: 500, lineHeight: 1.55, outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 11, padding: "16px 28px 22px", justifyContent: "flex-end", borderTop: "1px solid #EEF0F3" }}>
-            <button onClick={closeModal} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
-            <button
+            <button type="button" onClick={closeModal} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
+            <button type="button"
               onClick={saveModal}
               disabled={!form.customer.trim() || !form.date || !form.time || saving}
               style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 11, border: "none", background: (form.customer.trim() && form.date && form.time) ? "linear-gradient(135deg,#FF8D28,#D66500)" : "#CDD2DA", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: (form.customer.trim() && form.date && form.time) ? "pointer" : "not-allowed", boxShadow: (form.customer.trim() && form.date && form.time) ? "0 8px 18px -8px rgba(214,101,0,.55)" : "none" }}
@@ -650,21 +650,21 @@ export default function RandevuTakvimiPage() {
       </div>
 
       {/* ── detay popup ── */}
-      <div onClick={() => setDetailId(null)} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: detailAppt ? 1 : 0, visibility: detailAppt ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setDetailId(null)} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, opacity: detailAppt ? 1 : 0, visibility: detailAppt ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}>
         {detailAppt && (() => {
           const c = consultantStyle(sorumluList, detailAppt.assignedToName || meName);
           const d = new Date(detailAppt.scheduledAt);
           const startMin = d.getHours() * 60 + d.getMinutes();
           const when = `${DOW[(d.getDay() + 6) % 7]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
           return (
-            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, background: "#fff", borderRadius: 20, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" }}>
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, background: "#fff", borderRadius: 20, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "22px 26px", background: c.bg, borderBottom: "1px solid #EEF0F3" }}>
                 <div style={{ width: 50, height: 50, borderRadius: 13, flex: "0 0 auto", background: `linear-gradient(135deg,${c.av[0]},${c.av[1]})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800 }}>{initials(detailAppt.personName)}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "#8E95A3" }}>Randevu Detayı</div>
                   <div style={{ fontSize: 19, fontWeight: 800, color: "#1E222B", letterSpacing: -0.3, marginTop: 2 }}>{detailAppt.personName}</div>
                 </div>
-                <button onClick={() => setDetailId(null)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(15,31,61,.1)", background: "rgba(255,255,255,.7)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+                <button type="button" onClick={() => setDetailId(null)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(15,31,61,.1)", background: "rgba(255,255,255,.7)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                 </button>
               </div>
@@ -707,11 +707,11 @@ export default function RandevuTakvimiPage() {
                 )}
               </div>
               <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end", borderTop: "1px solid #EEF0F3" }}>
-                <button onClick={() => { setDetailId(null); setCancelId(detailAppt.id); }} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 18px", borderRadius: 11, border: "1px solid #F3D0D0", background: "#fff", color: "#D93636", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+                <button type="button" onClick={() => { setDetailId(null); setCancelId(detailAppt.id); }} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 18px", borderRadius: 11, border: "1px solid #F3D0D0", background: "#fff", color: "#D93636", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                   İptal Et
                 </button>
-                <button onClick={() => openEdit(detailAppt)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.55)" }}>
+                <button type="button" onClick={() => openEdit(detailAppt)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.55)" }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   Düzenle
                 </button>
@@ -723,8 +723,8 @@ export default function RandevuTakvimiPage() {
 
       {/* ── iptal onay ── */}
       {cancelAppt && (
-        <div onClick={() => setCancelId(null)} style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" }}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setCancelId(null)} style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" }}>
             <div style={{ padding: "26px 26px 20px" }}>
               <div style={{ width: 48, height: 48, borderRadius: 13, background: "#FFECEC", display: "flex", alignItems: "center", justifyContent: "center", color: "#D93636", marginBottom: 16 }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></svg>
@@ -735,8 +735,8 @@ export default function RandevuTakvimiPage() {
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button onClick={() => setCancelId(null)} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
-              <button onClick={confirmCancel} disabled={cancelling} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#D93636", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
+              <button type="button" onClick={() => setCancelId(null)} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
+              <button type="button" onClick={confirmCancel} disabled={cancelling} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#D93636", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                 {cancelling ? "İptal ediliyor…" : "Evet, iptal et"}
               </button>

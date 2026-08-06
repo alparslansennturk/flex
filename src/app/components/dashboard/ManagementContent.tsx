@@ -137,7 +137,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           <div className="bg-white border border-neutral-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-[20px] p-5 flex items-center gap-4 min-w-[320px]">
             <div className="w-10 h-10 rounded-full bg-status-success-50 flex items-center justify-center text-status-success-500"><CheckCircle2 size={24} /></div>
             <div><p className="text-[14px] font-bold text-base-primary-900 leading-none mb-1">İşlem başarılı</p><p className="text-[13px] font-medium text-neutral-500 leading-none">{toast.message}</p></div>
-            <button onClick={() => setToast({ show: false, message: "" })} className="ml-auto p-1.5 text-neutral-300 hover:text-neutral-500 transition-colors cursor-pointer"><X size={16} /></button>
+            <button type="button" onClick={() => setToast({ show: false, message: "" })} className="ml-auto p-1.5 text-neutral-300 hover:text-neutral-500 transition-colors cursor-pointer"><X size={16} /></button>
           </div>
         </div>
       )}
@@ -152,7 +152,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               <LayoutGrid size={17} className="text-base-primary-900" />
               <h2 className="text-[16px] font-bold text-base-primary-900 tracking-tight">Grup Yönetimi</h2>
             </div>
-            <button
+            <button type="button"
               onClick={handleOpenForm}
               disabled={currentView !== "Aktif Sınıflar" || isFormOpen || !!editingGroupId}
               className={`w-36 h-10 text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" && !isFormOpen && !editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}
@@ -169,7 +169,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               <p className="text-[11px] font-semibold text-neutral-400 leading-none mb-1.5 tracking-wider uppercase">Sistem durumu</p>
               <p className="text-[14px] font-bold text-neutral-700 leading-none">{groups.filter(g => g.status === 'active').length} Sınıf / {groups.filter(g => g.status === 'active').reduce((acc, curr) => acc + curr.students, 0)} Öğrenci</p>
             </div>
-            <button className="w-10 h-10 rounded-lg bg-surface-50 border border-surface-100 flex items-center justify-center text-neutral-400 hover:text-base-primary-500 transition-colors cursor-pointer outline-none"><Info size={18} /></button>
+            <button type="button" className="w-10 h-10 rounded-lg bg-surface-50 border border-surface-100 flex items-center justify-center text-neutral-400 hover:text-base-primary-500 transition-colors cursor-pointer outline-none"><Info size={18} /></button>
           </div>
         </div>
 
@@ -242,7 +242,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {/* Modül değişiklik engel modalı */}
           {moduleBlockModal?.isOpen && (
             <div className="fixed inset-0 z-600 flex items-center justify-center p-6">
-              <div className="absolute inset-0 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setModuleBlockModal(null)} />
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="absolute inset-0 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setModuleBlockModal(null)} />
               <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
                 <div className="w-12 h-12 rounded-2xl bg-status-warning-50 border border-status-warning-200 flex items-center justify-center mb-5">
                   <Info size={22} className="text-status-warning-500" />
@@ -255,7 +255,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   Modülü değiştirebilmek için önce{" "}
                   <strong>Not Girişi → Sertifikasyon</strong> sekmesine giderek ilgili grubu seçin ve <strong>&quot;{moduleBlockModal.currentModule === "GRAFIK_1" ? "Grafik 1" : "Grafik 2"} Bitir&quot;</strong> butonuna basın.
                 </p>
-                <button
+                <button type="button"
                   onClick={() => setModuleBlockModal(null)}
                   className="w-full h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer"
                 >
@@ -271,7 +271,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             {/* Aktif/Tüm/Arşiv */}
             <div className="flex items-center bg-surface-50 w-fit p-1 rounded-xl border border-neutral-100 shadow-sm">
               {(["Aktif Sınıflar", "Tüm Sınıflar", "Arşiv"] as string[]).map((t) => (
-                <button
+                <button type="button"
                   key={t as string}
                   onClick={() => setCurrentView(t as string)}
                   className={`px-5 py-1.5 rounded-[10px] text-[13px] font-semibold transition-all cursor-pointer outline-none select-none ${currentView === t ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100" : "text-neutral-400 hover:text-neutral-600 border border-transparent"}`}
@@ -328,13 +328,13 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   <span className="text-[12px] font-medium text-neutral-400">({disciplineFilteredStudents.length} Kayıt)</span>
                 </div>
                 <div className="flex items-center bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm shrink-0">
-                  <button
+                  <button type="button"
                     onClick={() => setStudentPanel('active')}
                     className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${studentPanel === 'active' ? 'bg-white text-base-primary-900 shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
                   >
                     Aktif Öğrenciler
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => setStudentPanel('passive')}
                     className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${studentPanel === 'passive' ? 'bg-white text-base-primary-900 shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
                   >
@@ -360,7 +360,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
                   </div>
                 )}
-                <button
+                <button type="button"
                   onClick={() => { if (!isStudentFormOpen) resetStudentForm(); setIsStudentFormOpen(!isStudentFormOpen); }}
                   disabled={studentPanel === 'passive'}
                   className={`flex items-center gap-2 px-6 py-3 rounded-lg text-[13px] font-semibold transition-all outline-none shadow-sm ${studentPanel === 'passive' ? 'bg-neutral-100 text-neutral-300 cursor-not-allowed' : isStudentFormOpen ? 'bg-neutral-600 text-white cursor-pointer' : 'bg-designstudio-secondary-500 text-white cursor-pointer'}`}
@@ -375,14 +375,14 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             <div className="flex items-center justify-between mt-6 mb-5">
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm shrink-0">
-                  <button
+                  <button type="button"
                     onClick={() => hasOwnGroupsInDiscipline && setViewMode("group-list")}
                     disabled={!hasOwnGroupsInDiscipline}
                     className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all whitespace-nowrap ${!hasOwnGroupsInDiscipline ? "text-neutral-300 cursor-not-allowed" : viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm cursor-pointer" : "text-neutral-400 hover:text-neutral-600 cursor-pointer"}`}
                   >
                     Mevcut Sınıf
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => hasOwnGroupsInDiscipline && setViewMode("all-groups")}
                     disabled={!hasOwnGroupsInDiscipline}
                     className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all whitespace-nowrap ${!hasOwnGroupsInDiscipline ? "text-neutral-300 cursor-not-allowed" : viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm cursor-pointer" : "text-neutral-400 hover:text-neutral-600 cursor-pointer"}`}
@@ -390,7 +390,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     Sınıflarım
                   </button>
                   {isAdmin && (
-                    <button onClick={() => { setViewMode("all-branches"); setStudentBranch("Tümü"); }} className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-branches" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>
+                    <button type="button" onClick={() => { setViewMode("all-branches"); setStudentBranch("Tümü"); }} className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-branches" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>
                       Tüm Şubeler
                     </button>
                   )}
@@ -490,7 +490,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   {filteredStudents.length} kayıttan {(currentPage - 1) * 20 + 1}–{Math.min(currentPage * 20, filteredStudents.length)} gösteriliyor
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
+                  <button type="button"
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                     className="w-8 h-8 flex items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
@@ -505,7 +505,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     typeof p === 'string' ? (
                       <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-[12px] text-neutral-400">…</span>
                     ) : (
-                      <button
+                      <button type="button"
                         key={p}
                         onClick={() => setCurrentPage(p)}
                         className={`w-8 h-8 flex items-center justify-center rounded-lg text-[12px] font-semibold transition-all cursor-pointer ${currentPage === p ? 'bg-base-primary-700 text-white shadow-sm' : 'border border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}
@@ -514,7 +514,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       </button>
                     )
                   ))}
-                  <button
+                  <button type="button"
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
                     className="w-8 h-8 flex items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"

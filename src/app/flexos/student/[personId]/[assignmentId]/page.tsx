@@ -403,7 +403,7 @@ export default function FlexosStudentAssignmentDetail() {
         transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
         className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="shrink-0 h-14 bg-white border-b border-surface-200 flex items-center gap-3 px-6">
-          <button
+          <button type="button"
             onClick={() => router.push(`/flexos/student/${personId}`)}
             className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all cursor-pointer shrink-0"
             title="Geri"
@@ -488,7 +488,7 @@ export default function FlexosStudentAssignmentDetail() {
                       </span>
                     </div>
 
-                    <div
+                    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                       onDragOver={(e) => { e.preventDefault(); if (!isUploading) setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
                       onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!isUploading) pickFiles(e.dataTransfer.files); }}
@@ -519,7 +519,7 @@ export default function FlexosStudentAssignmentDetail() {
                       )}
 
                       {(pickedFiles.length > 0 || isUploading) && (
-                        <div className="p-4 space-y-2 flex-1" onClick={(e) => e.stopPropagation()}>
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="p-4 space-y-2 flex-1" onClick={(e) => e.stopPropagation()}>
                           {(isUploading ? uploadJobs : pickedFiles.map((f) => ({ file: f, status: "pending" as JobStatus, progress: 0, error: undefined }))).map((job, i) => (
                             <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-surface-100">
                               <div className="w-9 h-9 rounded-xl bg-base-primary-50 flex items-center justify-center shrink-0">
@@ -543,7 +543,7 @@ export default function FlexosStudentAssignmentDetail() {
                                 ) : <p className="text-[11px] text-surface-400">{formatBytes(job.file.size)}</p>}
                               </div>
                               {!isUploading && (
-                                <button onClick={() => removeFile(i)} className="text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer shrink-0">
+                                <button type="button" onClick={() => removeFile(i)} className="text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer shrink-0">
                                   <X size={15} />
                                 </button>
                               )}
@@ -551,7 +551,7 @@ export default function FlexosStudentAssignmentDetail() {
                             </div>
                           ))}
                           {!isUploading && (
-                            <button
+                            <button type="button"
                               onClick={() => fileInputRef.current?.click()}
                               className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-surface-200 text-[12px] font-medium text-surface-400 hover:border-base-primary-300 hover:text-base-primary-500 transition-colors cursor-pointer"
                             >
@@ -568,7 +568,7 @@ export default function FlexosStudentAssignmentDetail() {
                       className="w-full resize-none rounded-xl border border-surface-200 px-4 py-3 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white disabled:opacity-40 disabled:cursor-not-allowed"
                     />
 
-                    <button
+                    <button type="button"
                       onClick={handleSubmit}
                       disabled={pickedFiles.length === 0 || isUploading}
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-base-primary-600 text-white text-[14px] font-bold hover:bg-base-primary-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -604,7 +604,7 @@ export default function FlexosStudentAssignmentDetail() {
                               )}
                               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-status-success-100 text-status-success-700">Teslim Edildi</span>
                               {canDelete && (
-                                <button onClick={() => handleDeleteFile(f.id)} title="Dosyayı sil" className="p-1.5 rounded-lg hover:bg-status-danger-50 transition-colors text-surface-300 hover:text-status-danger-500 cursor-pointer">
+                                <button type="button" onClick={() => handleDeleteFile(f.id)} title="Dosyayı sil" className="p-1.5 rounded-lg hover:bg-status-danger-50 transition-colors text-surface-300 hover:text-status-danger-500 cursor-pointer">
                                   <Trash2 size={13} />
                                 </button>
                               )}
@@ -615,7 +615,7 @@ export default function FlexosStudentAssignmentDetail() {
                     </div>
 
                     {submission && (submission.status === "submitted" || submission.status === "revision") && !isDueDatePassed && !hasGrade && (
-                      <button
+                      <button type="button"
                         onClick={handleRetract}
                         className="mt-4 w-full py-2.5 rounded-xl border border-status-danger-200 text-[13px] font-semibold text-status-danger-500 hover:bg-status-danger-50 transition-colors cursor-pointer"
                       >
@@ -656,7 +656,7 @@ export default function FlexosStudentAssignmentDetail() {
                   placeholder="Eğitmene yorum yaz..." rows={2}
                   className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2.5 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white"
                 />
-                <button
+                <button type="button"
                   onClick={sendComment}
                   disabled={!commentText.trim()}
                   className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
@@ -713,15 +713,15 @@ function ThreadBubble({ comment, myUid, onEdit, onDelete }: {
           <span className="text-[11px] font-semibold text-surface-400">{isStudent ? "Sen" : comment.authorName}</span>
           {canAct && !editing && (
             <div className="relative" ref={menuRef}>
-              <button onMouseDown={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} className="p-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-500 hover:text-surface-800 transition-colors cursor-pointer">
+              <button type="button" onMouseDown={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} className="p-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-500 hover:text-surface-800 transition-colors cursor-pointer">
                 <MoreHorizontal size={13} />
               </button>
               {menuOpen && (
                 <div className={`absolute z-20 top-5 ${isStudent ? "right-0" : "left-0"} bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]`}>
-                  <button onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }} className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer">
+                  <button type="button" onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }} className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer">
                     <Pencil size={11} /> Düzenle
                   </button>
-                  <button onClick={() => { setMenuOpen(false); onDelete(comment.id); }} className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-status-danger-600 hover:bg-status-danger-50 transition-colors cursor-pointer">
+                  <button type="button" onClick={() => { setMenuOpen(false); onDelete(comment.id); }} className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-status-danger-600 hover:bg-status-danger-50 transition-colors cursor-pointer">
                     <Trash2 size={11} /> Sil
                   </button>
                 </div>
@@ -739,8 +739,8 @@ function ThreadBubble({ comment, myUid, onEdit, onDelete }: {
               className="w-full resize-none rounded-xl border border-base-primary-300 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-500 bg-white"
             />
             <div className="flex gap-1">
-              <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
-              <button onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
+              <button type="button" onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
+              <button type="button" onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
             </div>
           </div>
         ) : (

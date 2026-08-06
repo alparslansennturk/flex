@@ -33,9 +33,9 @@ export function SertifikasyonTab({ isKurumsal, isBireysel, sertTipi, onSertTipiC
             <span style={S.pillIndigo}>bireysel</span>
           </div>
           <div style={{ marginBottom: 22 }}>
-            <label style={S.label}>Sertifikasyon Tipi</label>
+            <label htmlFor="sertTipi" style={S.label}>Sertifikasyon Tipi</label>
             <div style={{ position: "relative" }}>
-              <select className="ee-select" value={sertTipi} onChange={onSertTipiChange} style={S.select}>
+              <select id="sertTipi" className="ee-select" value={sertTipi} onChange={onSertTipiChange} style={S.select}>
                 <option value="Sınav Bazlı">Sınav Bazlı</option>
                 <option value="Proje Bazlı">Proje Bazlı</option>
               </select>

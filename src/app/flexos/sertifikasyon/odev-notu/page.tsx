@@ -80,7 +80,7 @@ function initials(name: string): string {
 function fmtDate(iso?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
@@ -492,7 +492,7 @@ export default function OdevNotuPage() {
                     assignments.map((a, i) => {
                       const meta = assignmentStatusMeta(a.id);
                       return (
-                        <button
+                        <button type="button"
                           key={a.id}
                           onClick={() => openAssignment(a.id)}
                           className="w-full text-left grid gap-3.5 items-center py-3.5 px-[22px] cursor-pointer bg-white hover:bg-[#FBFCFD] transition-colors"
@@ -537,7 +537,7 @@ export default function OdevNotuPage() {
           /* ===== VIEW 2: Ödev Puanlama ===== */
           <motion.div key="view2" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }} className="flex-1 flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <button
+              <button type="button"
                 onClick={() => setActiveAssignmentId(null)}
                 className="inline-flex items-center gap-[7px] py-2.5 px-[15px] rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors"
               >
@@ -642,7 +642,7 @@ export default function OdevNotuPage() {
                       bir toggle (bkz. `toggleActiveAssignmentStatus` yorumu); demo ödevde
                       gösterilmez ama "closed"ken GİZLENMEZ — ters işlemi (geri alma) sunar. */}
                   {!activeAssignmentId?.startsWith("dummy-") && (
-                    <button
+                    <button type="button"
                       onClick={toggleActiveAssignmentStatus}
                       disabled={finishing || reactivateLocked}
                       title={reactivateLocked ? "Teslim tarihinden 1 gün sonra kilitlendi, artık aktife alınamaz." : undefined}
@@ -658,7 +658,7 @@ export default function OdevNotuPage() {
                         : (activeAssignment?.status === "closed" ? "Ödevi Aktife Al" : "Ödevi Tamamla")}
                     </button>
                   )}
-                  <button
+                  <button type="button"
                     onClick={saveGrades}
                     disabled={savingGrades || activeAssignmentId?.startsWith("dummy-")}
                     className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border-none text-white text-[13px] font-extrabold cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"

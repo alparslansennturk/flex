@@ -58,7 +58,7 @@ function BranchCell({ names }: { names: string[] }) {
       {names.length > 1 && (
         <HoverPopover
           trigger={
-            <button className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-neutral-100 text-neutral-500 border border-neutral-200 cursor-default hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-colors">
+            <button type="button" className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-neutral-100 text-neutral-500 border border-neutral-200 cursor-default hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-colors">
               +{names.length - 1}
             </button>
           }
@@ -90,7 +90,7 @@ function RoleCell({ roles }: { roles: string[] }) {
       {roles.length > 1 && (
         <HoverPopover
           trigger={
-            <button className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-neutral-100 text-neutral-500 border border-neutral-200 cursor-default hover:bg-neutral-200 transition-colors">
+            <button type="button" className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-neutral-100 text-neutral-500 border border-neutral-200 cursor-default hover:bg-neutral-200 transition-colors">
               +{roles.length - 1}
             </button>
           }
@@ -211,10 +211,10 @@ export const UserTable = ({ users, branches = [], onEdit, onDelete }: UserTableP
 
                 <td className="p-3 xl:p-5 text-center sticky right-0 bg-white group-hover:bg-neutral-50/50 transition-colors">
                   <div className="flex justify-center gap-1 xl:gap-2">
-                    <button onClick={() => onEdit(user)} className="p-1 xl:p-1.5 text-neutral-400 hover:text-orange-500 transition-colors cursor-pointer">
+                    <button type="button" onClick={() => onEdit(user)} className="p-1 xl:p-1.5 text-neutral-400 hover:text-orange-500 transition-colors cursor-pointer">
                       <PenLine size={15} />
                     </button>
-                    <button
+                    <button type="button"
                       disabled={isMe}
                       onClick={() => onDelete(user.id)}
                       className={`p-1 xl:p-1.5 transition-colors ${isMe ? "text-neutral-200 cursor-not-allowed opacity-50" : "text-neutral-400 hover:text-red-500 cursor-pointer"}`}

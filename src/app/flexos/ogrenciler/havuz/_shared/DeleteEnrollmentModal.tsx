@@ -15,8 +15,8 @@ interface DeleteEnrollmentModalProps {
 /** "Tamamen Sil" onay modalı — hard-delete, geri alınamaz (asıl güvenlik sunucu tarafında). */
 export function DeleteEnrollmentModal({ deleteTarget, deleting, onClose, onConfirm }: DeleteEnrollmentModalProps) {
   return (
-    <div style={S.modalOverlay} onClick={onClose}>
-      <div style={{ ...S.modal, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.modalOverlay} onClick={onClose}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={{ ...S.modal, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
         {/* head */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
@@ -29,7 +29,7 @@ export function DeleteEnrollmentModal({ deleteTarget, deleting, onClose, onConfi
               </p>
             </div>
           </div>
-          <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={onClose} disabled={deleting}>
+          <button type="button" className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={onClose} disabled={deleting}>
             <span dangerouslySetInnerHTML={{ __html: IC.x }} />
           </button>
         </div>
@@ -48,8 +48,8 @@ export function DeleteEnrollmentModal({ deleteTarget, deleting, onClose, onConfi
 
         {/* footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "4px 24px 20px" }}>
-          <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={onClose} disabled={deleting}>Vazgeç</button>
-          <button
+          <button type="button" className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={onClose} disabled={deleting}>Vazgeç</button>
+          <button type="button"
             style={{ ...S.filterBtn, background: "linear-gradient(135deg,#EF4444,#D93636)", boxShadow: "0 8px 18px -8px rgba(217,54,54,.5)", opacity: deleting ? 0.6 : 1, pointerEvents: deleting ? "none" : "auto" }}
             onClick={onConfirm}
           >

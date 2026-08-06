@@ -56,21 +56,21 @@ function SectorAccordion({ sector, onRename, onDelete, onAddSub, onRenameSub, on
   return (
     <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden mb-3">
       <div className="flex items-center gap-2 px-4 py-3">
-        <button onClick={() => setOpen((v) => !v)} className="p-1 rounded-lg hover:bg-surface-100 cursor-pointer text-surface-400 shrink-0">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="p-1 rounded-lg hover:bg-surface-100 cursor-pointer text-surface-400 shrink-0">
           {open ? <ChevronDown size={15} /> : <ChevronRightIcon size={15} />}
         </button>
         {editingName ? (
           <div className="flex-1 flex items-center gap-2">
             <input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} className={INPUT_CLS} autoFocus />
-            <button onClick={() => { if (nameDraft.trim()) { onRename(nameDraft.trim()); setEditingName(false); } }} className="p-1.5 rounded-lg hover:bg-surface-100 text-status-success-600 cursor-pointer"><Check size={14} /></button>
-            <button onClick={() => { setNameDraft(sector.name); setEditingName(false); }} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={14} /></button>
+            <button type="button" onClick={() => { if (nameDraft.trim()) { onRename(nameDraft.trim()); setEditingName(false); } }} className="p-1.5 rounded-lg hover:bg-surface-100 text-status-success-600 cursor-pointer"><Check size={14} /></button>
+            <button type="button" onClick={() => { setNameDraft(sector.name); setEditingName(false); }} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={14} /></button>
           </div>
         ) : (
           <>
             <span className="flex-1 text-[14px] font-bold text-text-primary">{sector.name}</span>
             <span className="text-[11px] text-surface-400 mr-1">{sector.subSectors.length} alt sektör</span>
-            <button onClick={() => setEditingName(true)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><Edit2 size={13} /></button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer"><Trash2 size={13} /></button>
+            <button type="button" onClick={() => setEditingName(true)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><Edit2 size={13} /></button>
+            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer"><Trash2 size={13} /></button>
           </>
         )}
       </div>
@@ -82,14 +82,14 @@ function SectorAccordion({ sector, onRename, onDelete, onAddSub, onRenameSub, on
               editingSub === sub ? (
                 <div key={sub} className="flex items-center gap-1 bg-white border border-surface-200 rounded-lg px-2 py-1">
                   <input value={subEditDraft} onChange={(e) => setSubEditDraft(e.target.value)} className="text-[12px] font-semibold outline-none w-28" autoFocus />
-                  <button onClick={() => { if (subEditDraft.trim()) { onRenameSub(sub, subEditDraft.trim()); setEditingSub(null); } }} className="text-status-success-600 cursor-pointer"><Check size={12} /></button>
-                  <button onClick={() => setEditingSub(null)} className="text-surface-400 cursor-pointer"><X size={12} /></button>
+                  <button type="button" onClick={() => { if (subEditDraft.trim()) { onRenameSub(sub, subEditDraft.trim()); setEditingSub(null); } }} className="text-status-success-600 cursor-pointer"><Check size={12} /></button>
+                  <button type="button" onClick={() => setEditingSub(null)} className="text-surface-400 cursor-pointer"><X size={12} /></button>
                 </div>
               ) : (
-                <button key={sub} onClick={() => { setEditingSub(sub); setSubEditDraft(sub); }}
+                <button type="button" key={sub} onClick={() => { setEditingSub(sub); setSubEditDraft(sub); }}
                   className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-semibold bg-white border border-surface-200 text-surface-600 hover:border-base-primary-300 cursor-pointer transition-colors">
                   {sub}
-                  <span onClick={(e) => { e.stopPropagation(); onDeleteSub(sub); }} className="opacity-0 group-hover:opacity-100 text-surface-300 hover:text-status-danger-500">
+                  <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => { e.stopPropagation(); onDeleteSub(sub); }} className="opacity-0 group-hover:opacity-100 text-surface-300 hover:text-status-danger-500">
                     <X size={11} />
                   </span>
                 </button>
@@ -99,7 +99,7 @@ function SectorAccordion({ sector, onRename, onDelete, onAddSub, onRenameSub, on
           <div className="flex items-center gap-2">
             <input value={subDraft} onChange={(e) => setSubDraft(e.target.value)} placeholder="Yeni alt sektör" className={INPUT_CLS + " max-w-[220px]"}
               onKeyDown={(e) => { if (e.key === "Enter" && subDraft.trim()) { onAddSub(subDraft.trim()); setSubDraft(""); } }} />
-            <button onClick={() => { if (subDraft.trim()) { onAddSub(subDraft.trim()); setSubDraft(""); } }}
+            <button type="button" onClick={() => { if (subDraft.trim()) { onAddSub(subDraft.trim()); setSubDraft(""); } }}
               className="flex items-center gap-1 px-3 py-2 rounded-xl bg-base-primary-900 text-white text-[12px] font-bold hover:bg-base-primary-800 cursor-pointer">
               <Plus size={12} /> Ekle
             </button>
@@ -129,7 +129,7 @@ function SectorsTab({ pool, onSave }: { pool: SocialPool; onSave: (sectors: SMSe
       <div className="flex items-center gap-2 bg-white rounded-2xl border border-surface-100 shadow-sm p-3">
         <input value={newSectorName} onChange={(e) => setNewSectorName(e.target.value)} placeholder="Yeni ana sektör adı" className={INPUT_CLS}
           onKeyDown={(e) => { if (e.key === "Enter") addSector(); }} />
-        <button onClick={addSector} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shrink-0">
+        <button type="button" onClick={addSector} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shrink-0">
           <Plus size={14} /> Sektör Ekle
         </button>
       </div>
@@ -198,26 +198,26 @@ function BrandForm({ initial, sectors, globalPurposes, onSave, onCancel }: {
     <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden mb-5">
       <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 bg-surface-50/60">
         <p className="text-[15px] font-extrabold text-text-primary">{initial ? "Markayı Düzenle" : "Yeni Marka Ekle"}</p>
-        <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><X size={15} /></button>
+        <button type="button" onClick={onCancel} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><X size={15} /></button>
       </div>
 
       <div className="px-5 py-5 space-y-4">
         <div>
-          <label className={LABEL_CLS}>Marka Adı <span className="text-status-danger-500">*</span></label>
-          <input value={fields.brandName} onChange={(e) => setFields((f) => ({ ...f, brandName: e.target.value }))} placeholder="Lassa" className={INPUT_CLS} autoFocus />
+          <label htmlFor="brandName" className={LABEL_CLS}>Marka Adı <span className="text-status-danger-500">*</span></label>
+          <input id="brandName" value={fields.brandName} onChange={(e) => setFields((f) => ({ ...f, brandName: e.target.value }))} placeholder="Lassa" className={INPUT_CLS} autoFocus />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL_CLS}>Ana Sektör</label>
-            <select value={fields.mainSector} onChange={(e) => setFields((f) => ({ ...f, mainSector: e.target.value, subSector: "" }))} className={INPUT_CLS + " bg-white"}>
+            <label htmlFor="mainSector" className={LABEL_CLS}>Ana Sektör</label>
+            <select id="mainSector" value={fields.mainSector} onChange={(e) => setFields((f) => ({ ...f, mainSector: e.target.value, subSector: "" }))} className={INPUT_CLS + " bg-white"}>
               <option value="">Seçin</option>
               {sectors.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
           </div>
           <div>
-            <label className={LABEL_CLS}>Alt Sektör</label>
-            <select value={fields.subSector} onChange={(e) => setFields((f) => ({ ...f, subSector: e.target.value }))} className={INPUT_CLS + " bg-white"}>
+            <label htmlFor="subSector" className={LABEL_CLS}>Alt Sektör</label>
+            <select id="subSector" value={fields.subSector} onChange={(e) => setFields((f) => ({ ...f, subSector: e.target.value }))} className={INPUT_CLS + " bg-white"}>
               <option value="">Seçin</option>
               {subOptions.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
             </select>
@@ -225,7 +225,7 @@ function BrandForm({ initial, sectors, globalPurposes, onSave, onCancel }: {
         </div>
 
         <div>
-          <label className={LABEL_CLS}>Amaçlar (boşsa ortak Amaç havuzundan seçilir)</label>
+          <label htmlFor="customPurpose" className={LABEL_CLS}>Amaçlar (boşsa ortak Amaç havuzundan seçilir)</label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {globalPurposes.map((p) => (
               <button key={p} type="button" onClick={() => togglePurpose(p)}
@@ -242,25 +242,25 @@ function BrandForm({ initial, sectors, globalPurposes, onSave, onCancel }: {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <input value={customPurpose} onChange={(e) => setCustomPurpose(e.target.value)} placeholder="Özel amaç ekle" className={INPUT_CLS}
+            <input id="customPurpose" value={customPurpose} onChange={(e) => setCustomPurpose(e.target.value)} placeholder="Özel amaç ekle" className={INPUT_CLS}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomPurpose(); } }} />
             <button onClick={addCustomPurpose} type="button" className="px-3 py-2 rounded-xl border border-surface-200 text-[12px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer shrink-0">Ekle</button>
           </div>
         </div>
 
         <div>
-          <label className={LABEL_CLS}>Marka Özel Kuralı (boşsa ortak Paylaşılan Kural kullanılır)</label>
-          <textarea value={fields.brandRule} onChange={(e) => setFields((f) => ({ ...f, brandRule: e.target.value }))} rows={3}
+          <label htmlFor="brandRule" className={LABEL_CLS}>Marka Özel Kuralı (boşsa ortak Paylaşılan Kural kullanılır)</label>
+          <textarea id="brandRule" value={fields.brandRule} onChange={(e) => setFields((f) => ({ ...f, brandRule: e.target.value }))} rows={3}
             className="w-full px-3 py-2.5 text-[13px] font-medium border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors resize-none text-text-primary placeholder:text-surface-400" />
         </div>
 
         <div className="flex items-center justify-between pt-1">
           <p className="text-[11px] text-surface-300">* zorunlu alan</p>
           <div className="flex gap-2">
-            <button onClick={onCancel} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer">
+            <button type="button" onClick={onCancel} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer">
               <X size={13} /> İptal
             </button>
-            <button onClick={handleSave} disabled={!fields.brandName.trim() || saving}
+            <button type="button" onClick={handleSave} disabled={!fields.brandName.trim() || saving}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer">
               <Check size={13} /> {initial ? "Güncelle" : "Kaydet"}
             </button>
@@ -292,7 +292,7 @@ function BrandsTab({ pool, onSave }: { pool: SocialPool; onSave: (brands: SMBran
       ) : (
         <div className="flex items-center justify-between mb-4">
           <p className="text-[13px] font-medium text-surface-400"><span className="font-bold text-text-primary">{pool.brands.length}</span> marka</p>
-          <button onClick={() => setAdding(true)} className="flex items-center gap-2 px-4 py-2 bg-base-primary-900 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shadow-sm">
+          <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-2 px-4 py-2 bg-base-primary-900 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shadow-sm">
             <Plus size={14} /> Ekle
           </button>
         </div>
@@ -317,8 +317,8 @@ function BrandsTab({ pool, onSave }: { pool: SocialPool; onSave: (brands: SMBran
                 )}
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pt-0.5">
-                <button onClick={() => setEditing(b)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><Edit2 size={13} /></button>
-                <button onClick={() => handleDelete(b)} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer"><Trash2 size={13} /></button>
+                <button type="button" onClick={() => setEditing(b)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><Edit2 size={13} /></button>
+                <button type="button" onClick={() => handleDelete(b)} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer"><Trash2 size={13} /></button>
               </div>
             </div>
           ))
@@ -358,21 +358,21 @@ function FormatsTab({ pool, onSave }: { pool: SocialPool; onSave: (formats: SMFo
         <div className="bg-white rounded-2xl border border-surface-100 shadow-sm p-5 flex flex-col gap-3">
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={LABEL_CLS}>Boyut</label>
-              <input value={fields.dim} onChange={(e) => setFields((f) => ({ ...f, dim: e.target.value }))} placeholder="1080x1080" className={INPUT_CLS} autoFocus />
+              <label htmlFor="dim" className={LABEL_CLS}>Boyut</label>
+              <input id="dim" value={fields.dim} onChange={(e) => setFields((f) => ({ ...f, dim: e.target.value }))} placeholder="1080x1080" className={INPUT_CLS} autoFocus />
             </div>
             <div>
-              <label className={LABEL_CLS}>Tür</label>
-              <input value={fields.type} onChange={(e) => setFields((f) => ({ ...f, type: e.target.value }))} placeholder="Kare Gönderi" className={INPUT_CLS} />
+              <label htmlFor="type" className={LABEL_CLS}>Tür</label>
+              <input id="type" value={fields.type} onChange={(e) => setFields((f) => ({ ...f, type: e.target.value }))} placeholder="Kare Gönderi" className={INPUT_CLS} />
             </div>
             <div>
-              <label className={LABEL_CLS}>Platform</label>
-              <input value={fields.platform} onChange={(e) => setFields((f) => ({ ...f, platform: e.target.value }))} placeholder="Instagram" className={INPUT_CLS} />
+              <label htmlFor="platform" className={LABEL_CLS}>Platform</label>
+              <input id="platform" value={fields.platform} onChange={(e) => setFields((f) => ({ ...f, platform: e.target.value }))} placeholder="Instagram" className={INPUT_CLS} />
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button onClick={cancel} className="px-4 py-2 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer">İptal</button>
-            <button onClick={save} disabled={!fields.dim.trim() || !fields.platform.trim()} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer">
+            <button type="button" onClick={cancel} className="px-4 py-2 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 cursor-pointer">İptal</button>
+            <button type="button" onClick={save} disabled={!fields.dim.trim() || !fields.platform.trim()} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-40 cursor-pointer">
               <Check size={13} /> {editingId ? "Güncelle" : "Kaydet"}
             </button>
           </div>
@@ -382,7 +382,7 @@ function FormatsTab({ pool, onSave }: { pool: SocialPool; onSave: (formats: SMFo
       {!adding && !editingId && (
         <div className="flex items-center justify-between">
           <p className="text-[13px] font-medium text-surface-400"><span className="font-bold text-text-primary">{pool.formats.length}</span> format</p>
-          <button onClick={startAdd} className="flex items-center gap-2 px-4 py-2 bg-base-primary-900 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shadow-sm">
+          <button type="button" onClick={startAdd} className="flex items-center gap-2 px-4 py-2 bg-base-primary-900 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shadow-sm">
             <Plus size={14} /> Ekle
           </button>
         </div>
@@ -407,8 +407,8 @@ function FormatsTab({ pool, onSave }: { pool: SocialPool; onSave: (formats: SMFo
               <div className="flex-1 text-[13px] text-surface-500">{f.type || "—"}</div>
               <div className="w-32 shrink-0 text-[13px] font-semibold text-surface-600">{f.platform}</div>
               <div className="w-20 shrink-0 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => startEdit(f)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><Edit2 size={13} /></button>
-                <button onClick={() => remove(f.id)} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer"><Trash2 size={13} /></button>
+                <button type="button" onClick={() => startEdit(f)} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 cursor-pointer"><Edit2 size={13} /></button>
+                <button type="button" onClick={() => remove(f.id)} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-400 hover:text-status-danger-500 cursor-pointer"><Trash2 size={13} /></button>
               </div>
             </div>
           ))
@@ -447,7 +447,7 @@ function RuleTab({ pool, onSave }: { pool: SocialPool; onSave: (globalPurposes: 
           {pool.globalPurposes.map((p) => (
             <span key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-bold bg-surface-100 text-surface-600">
               {p}
-              <button onClick={() => removePurpose(p)} className="text-surface-400 hover:text-status-danger-500 cursor-pointer"><X size={11} /></button>
+              <button type="button" onClick={() => removePurpose(p)} className="text-surface-400 hover:text-status-danger-500 cursor-pointer"><X size={11} /></button>
             </span>
           ))}
           {pool.globalPurposes.length === 0 && <span className="text-[12.5px] text-surface-300 italic">Henüz amaç eklenmedi</span>}
@@ -455,7 +455,7 @@ function RuleTab({ pool, onSave }: { pool: SocialPool; onSave: (globalPurposes: 
         <div className="flex items-center gap-2">
           <input value={purposeDraft} onChange={(e) => setPurposeDraft(e.target.value)} placeholder="Yeni amaç ekle" className={INPUT_CLS}
             onKeyDown={(e) => { if (e.key === "Enter") addPurpose(); }} />
-          <button onClick={addPurpose} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shrink-0">
+          <button type="button" onClick={addPurpose} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 cursor-pointer shrink-0">
             <Plus size={14} /> Ekle
           </button>
         </div>
@@ -466,7 +466,7 @@ function RuleTab({ pool, onSave }: { pool: SocialPool; onSave: (globalPurposes: 
         <p className="text-[12px] text-surface-400 mb-3">Markanın özel kuralı boşsa PDF/mail&apos;de bu metin gösterilir (her satır bir madde).</p>
         <textarea value={ruleDraft} onChange={(e) => setRuleDraft(e.target.value)} rows={6} placeholder="Her satır ayrı bir madde olarak PDF'e yansır."
           className="w-full px-3 py-2.5 text-[13px] font-medium border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors resize-none text-text-primary placeholder:text-surface-400 mb-3" />
-        <button onClick={saveRule} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-50 cursor-pointer">
+        <button type="button" onClick={saveRule} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 disabled:opacity-50 cursor-pointer">
           {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Kaydet
         </button>
       </div>
@@ -548,7 +548,7 @@ export default function SocialPoolPanel() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-xl border border-surface-100 shadow-sm">
         {tabs.map((t) => (
-          <button key={t.key} onClick={() => setSubTab(t.key)}
+          <button type="button" key={t.key} onClick={() => setSubTab(t.key)}
             className={`px-4 py-2 rounded-[10px] text-[12.5px] font-bold transition-all cursor-pointer outline-none ${
               subTab === t.key ? "bg-white text-base-primary-900 shadow-sm border border-surface-100" : "text-surface-400 hover:text-surface-600 border border-transparent"
             }`}>

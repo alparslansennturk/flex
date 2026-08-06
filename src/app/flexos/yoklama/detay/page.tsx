@@ -81,7 +81,7 @@ export default function YoklamaDetayPage() {
                   listeye döner (AttendanceCore'un kendi "Yoklama Al" linki DEĞİL — bu sayfaya
                   doğrudan Yoklama Detay'dan girildiyse "Yoklama Al"a dönmek anlamsız olurdu). */}
               {showDetail && (
-                <button onClick={() => setShowDetail(false)} style={S.backBtn}>
+                <button type="button" onClick={() => setShowDetail(false)} style={S.backBtn}>
                   <ArrowLeft size={18} />
                 </button>
               )}

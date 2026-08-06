@@ -65,7 +65,7 @@ export function HeroSection({ sel, isBusyNow, nowSession, opportunityCards, dolu
             </div>
             <div style={{ display: "inline-flex", padding: 3, borderRadius: 8, background: "#EEF1F5", gap: 2 }}>
               {(["week", "month"] as const).map((k) => (
-                <button key={k} onClick={() => onDolulukViewChange(k)} style={{ padding: "3px 9px", borderRadius: 6, border: "none", fontSize: 10.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: dolulukView === k ? T.brand : "transparent", color: dolulukView === k ? "#fff" : T.text2 }}>{k === "week" ? "Hafta" : "Ay"}</button>
+                <button type="button" key={k} onClick={() => onDolulukViewChange(k)} style={{ padding: "3px 9px", borderRadius: 6, border: "none", fontSize: 10.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: dolulukView === k ? T.brand : "transparent", color: dolulukView === k ? "#fff" : T.text2 }}>{k === "week" ? "Hafta" : "Ay"}</button>
               ))}
             </div>
           </div>

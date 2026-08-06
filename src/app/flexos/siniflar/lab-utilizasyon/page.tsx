@@ -160,7 +160,7 @@ export default function LabUtilizasyonPage() {
                 <div style={{ fontSize: 13, color: T.mutedC, lineHeight: 1.6, marginBottom: 18 }}>
                   Grup açarken hangi lab&apos;ın müsait olduğunu görebilmek için önce en az bir laboratuvar ekleyin.
                 </div>
-                <button onClick={openLabModal} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 17px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
+                <button type="button" onClick={openLabModal} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 17px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
                   Laboratuvar Ekle
                 </button>
@@ -329,7 +329,7 @@ export default function LabUtilizasyonPage() {
   for (let m = AX_START; m <= AX_END - 30; m += 30) startOptions.push({ v: String(m), l: fmtTime(m) });
   const durOptions = [{ v: "90", l: "1.5 saat" }, { v: "120", l: "2 saat" }, { v: "150", l: "2.5 saat" }, { v: "180", l: "3 saat" }, { v: "240", l: "4 saat" }];
   const capOptions = [{ v: "0", l: "Farketmez" }, { v: "16", l: "16+ kişi" }, { v: "20", l: "20+ kişi" }, { v: "24", l: "24+ kişi" }, { v: "30", l: "30 kişi" }];
-  const pStart = parseInt(s.planStart), pDur = parseInt(s.planDur), pCap = parseInt(s.planCap), pEnd = pStart + pDur;
+  const pStart = Number.parseInt(s.planStart), pDur = Number.parseInt(s.planDur), pCap = Number.parseInt(s.planCap), pEnd = pStart + pDur;
   const planDateVal = s.planDate || todayISO;
   const pd = parseISO(planDateVal);
   const planSlotLabel = pd.getDate() + " " + MONTHS[pd.getMonth()] + ", " + fmtTime(pStart) + "–" + fmtTime(pEnd) + (pCap ? " · en az " + pCap + " kişi" : "");
@@ -347,7 +347,7 @@ export default function LabUtilizasyonPage() {
   });
 
   // ---- uygun seanslar modalı ----
-  const sMinV = parseInt(s.sMin);
+  const sMinV = Number.parseInt(s.sMin);
   const sDayCount = s.sRange === "2week" ? 12 : 6;
   const slotDays: { d: Date; dISO: string }[] = [];
   for (let i = 0; i < sDayCount; i++) { const dd = addDays(weekMon, i); if ((dd.getDay() + 6) % 7 === 6) continue; slotDays.push({ d: dd, dISO: isoDate(dd) }); }
@@ -373,14 +373,14 @@ export default function LabUtilizasyonPage() {
   const exportListCsv = () => {
     if (!sel || listRows.length === 0) { toast.info("Aktarılacak seans bulunmuyor."); return; }
     const header = ["Gün", "Saat", "Laboratuvar", "Grup", "Eğitmen", "Öğrenci", "Durum"];
-    const escape = (v: string) => '"' + v.replace(/"/g, '""') + '"';
+    const escape = (v: string) => '"' + v.replaceAll(/"/g, '""') + '"';
     const rows = listRows.map((r) => [r.day, r.time, r.lab, r.group, r.instructor, r.students, r.conflict ? "Çakışma" : "Rezerve"]);
     const csv = "﻿" + [header, ...rows].map((row) => row.map(escape).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `lab-utilizasyon_${sel.name.replace(/[^\p{L}\p{N}]+/gu, "-")}_${isoDate(weekMon)}.csv`;
+    a.download = `lab-utilizasyon_${sel.name.replaceAll(/[^\p{L}\p{N}]+/gu, "-")}_${isoDate(weekMon)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

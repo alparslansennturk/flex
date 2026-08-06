@@ -22,7 +22,7 @@ import {
 
 /** Grup kodundan avatar baş harfleri (örn. "DSN-101" → "DS"). */
 function groupInitials(kod: string): string {
-  const letters = kod.replace(/[^a-zA-ZğüşöçıİĞÜŞÖÇ]/g, "");
+  const letters = kod.replaceAll(/[^a-zA-ZğüşöçıİĞÜŞÖÇ]/g, "");
   return (letters || kod).slice(0, 2).toLocaleUpperCase("tr");
 }
 
@@ -208,7 +208,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
           ).map((fd) => {
             const active = groupFilter === fd.key;
             return (
-              <button key={fd.key} onClick={() => { setGroupFilter(fd.key); setPage(1); }} style={filterBtnStyle(active)}>
+              <button type="button" key={fd.key} onClick={() => { setGroupFilter(fd.key); setPage(1); }} style={filterBtnStyle(active)}>
                 {fd.dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: fd.dot, flex: "0 0 auto" }} />}
                 <span>{fd.label}</span>
                 <span style={{ fontSize: 11.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, color: active ? "#205297" : "#8E95A3", background: active ? "#DDE8F8" : "#EEF0F3" }}>{fd.count}</span>
@@ -220,7 +220,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
             zaten gizli). Varsayılan kullanıcının kendi şubesi (yukarıdaki effect). */}
         {mode === "full" && (
           <div ref={subeDDRef} style={{ position: "relative" }}>
-            <button onClick={() => setSubeDD((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 13px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
+            <button type="button" onClick={() => setSubeDD((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 13px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.mapPin }} />
               <span style={{ color: "#8E95A3", fontWeight: 500 }}>Şube:</span><span>{subeFilter}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E95A3" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -230,7 +230,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                 {subeList.map((s) => {
                   const selected = subeFilter === s;
                   return (
-                    <button key={s} onClick={() => { setSubeFilter(s); setSubeDD(false); setPage(1); }}
+                    <button type="button" key={s} onClick={() => { setSubeFilter(s); setSubeDD(false); setPage(1); }}
                       style={{ display: "block", width: "100%", padding: "9px 12px", borderRadius: 8, border: "none", background: selected ? "#DDE8F8" : "transparent", color: selected ? "#205297" : "#414B59", fontSize: 13.5, fontWeight: selected ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
                       {s}
                     </button>
@@ -243,11 +243,11 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
         {/* Core: sadece kart görünümü (canlıdaki gibi) — toggle yok. */}
         {mode === "full" && (
           <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-            <button onClick={() => setViewMode("list")} style={viewBtnStyle(viewMode === "list")}>
+            <button type="button" onClick={() => setViewMode("list")} style={viewBtnStyle(viewMode === "list")}>
               <span dangerouslySetInnerHTML={{ __html: IC.listIcon }} />
               <span>Liste</span>
             </button>
-            <button onClick={() => setViewMode("card")} style={viewBtnStyle(viewMode === "card")}>
+            <button type="button" onClick={() => setViewMode("card")} style={viewBtnStyle(viewMode === "card")}>
               <span dangerouslySetInnerHTML={{ __html: IC.gridIcon }} />
               <span>Kart</span>
             </button>
@@ -285,7 +285,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                   const endD = parseTrDate(g.bitiş);
                   const canReopen = g.status === "tamamlandı" && (endD === null || endD >= todayMidnight());
                   return (
-                    <tr key={g.id} className="gt-trow" onClick={() => onRowClick(g)} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}>
+                    <tr key={g.id} className="gt-trow" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => onRowClick(g)} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}>
                       <td style={S.tdFirst}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           {/* En soldaki nokta artık DURUM (her zaman "açılacak"=mavi, "aktif"=yeşil vb.) —
@@ -340,11 +340,11 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                           {st.label}
                         </span>
                       </td>
-                      <td style={S.tdRight} onClick={(e) => e.stopPropagation()}>
+                      <td role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} style={S.tdRight} onClick={(e) => e.stopPropagation()}>
                         {canManage ? (
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                             {g.status === "açılacak" && (
-                              <button
+                              <button type="button"
                                 disabled={!canStart}
                                 title={canStart && g.dolu === 0 ? "Önce gruba öğrenci ekleyiniz" : undefined}
                                 onClick={() => {
@@ -355,30 +355,27 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                                   setStartId(g.id);
                                 }}
                                 className="gt-start-btn" style={{ ...S.startBtn, opacity: canStart ? 1 : 0.45, cursor: canStart ? "pointer" : "not-allowed" }}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.play }} />
-                                Başlat
+                                <span dangerouslySetInnerHTML={{ __html: IC.play }} />Başlat
                               </button>
                             )}
                             {g.status === "aktif" && (
-                              <button onClick={() => setFinishId(g.id)} className="gt-start-btn" style={S.startBtn}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />
-                                Bitir
+                              <button type="button" onClick={() => setFinishId(g.id)} className="gt-start-btn" style={S.startBtn}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />Bitir
                               </button>
                             )}
                             {(g.status === "açılacak" || g.status === "aktif") && (
-                              <button onClick={() => onEdit(g)} title="Düzenle" className="gt-edit-btn" style={S.editBtnIcon}>
+                              <button type="button" onClick={() => onEdit(g)} title="Düzenle" className="gt-edit-btn" style={S.editBtnIcon}>
                                 <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
                               </button>
                             )}
                             {(g.status === "açılacak" || g.status === "aktif" || g.status === "tamamlandı" || g.status === "iptal") && (
-                              <button onClick={() => setDeleteId(g.id)} title="Sil" className="gt-del-btn" style={S.delBtn}>
+                              <button type="button" onClick={() => setDeleteId(g.id)} title="Sil" className="gt-del-btn" style={S.delBtn}>
                                 <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                               </button>
                             )}
                             {canReopen && (
-                              <button onClick={() => setReopenId(g.id)} className="gt-start-btn" style={S.startBtn}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.undo }} />
-                                Geri al
+                              <button type="button" onClick={() => setReopenId(g.id)} className="gt-start-btn" style={S.startBtn}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.undo }} />Geri al
                               </button>
                             )}
                           </div>
@@ -403,7 +400,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
             const pct = g.kontenjan > 0 ? Math.round((g.dolu / g.kontenjan) * 100) : 0;
             const barColor = g.status === "tamamlandı" || g.status === "iptal" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
             return (
-              <div key={g.id} className="gt-card-item" style={S.cardItem} onClick={() => onRowClick(g)}>
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={g.id} className="gt-card-item" style={S.cardItem} onClick={() => onRowClick(g)}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ ...S.cardAvatar, ...avatarStyle(i) }}>{groupInitials(g.kod)}</div>
@@ -423,7 +420,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                         `onEdit` prop'u zaten bağlıydı (EgitmenSiniflarPanel.tsx), sadece render
                         eksikti. Tablo satırıyla AYNI durum kuralı (açılacak/aktif) + canManage. */}
                     {canManage && (g.status === "açılacak" || g.status === "aktif") && (
-                      <button
+                      <button type="button"
                         onClick={(e) => { e.stopPropagation(); onEdit(g); }}
                         title="Düzenle"
                         className="gt-edit-btn"
@@ -504,14 +501,14 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
             <strong style={{ color: "#1E222B", fontWeight: 700 }}>{filtered.length}</strong> gruptan <strong style={{ color: "#1E222B", fontWeight: 700 }}>{startIdx + 1}&ndash;{startIdx + pageGroups.length}</strong> arası
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+            <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
               style={{ ...S.pageNav, opacity: safePage > 1 ? 1 : 0.4, cursor: safePage > 1 ? "pointer" : "not-allowed" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.chevLeftNav }} />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === safePage)}>{p}</button>
+              <button type="button" key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === safePage)}>{p}</button>
             ))}
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
               style={{ ...S.pageNav, opacity: safePage < totalPages ? 1 : 0.4, cursor: safePage < totalPages ? "pointer" : "not-allowed" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.chevRightNav }} />
             </button>
@@ -521,8 +518,8 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
 
       {/* ===== Lifecycle modals ===== */}
       {startId !== null && (
-        <div onClick={() => setStartId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setStartId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <div style={{ padding: "26px 26px 20px" }}>
               <div style={{ width: 48, height: 48, borderRadius: 13, background: "#E6F5ED", display: "flex", alignItems: "center", justifyContent: "center", color: "#007A30", marginBottom: 16 }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.playBig }} />
@@ -533,10 +530,9 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button onClick={() => setStartId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={confirmStart} style={S.confirmStartBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.playWhite }} />
-                Evet, başlat
+              <button type="button" onClick={() => setStartId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={confirmStart} style={S.confirmStartBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.playWhite }} />Evet, başlat
               </button>
             </div>
           </div>
@@ -544,8 +540,8 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
       )}
 
       {finishId !== null && (
-        <div onClick={() => setFinishId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setFinishId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <div style={{ padding: "26px 26px 20px" }}>
               <div style={{ width: 48, height: 48, borderRadius: 13, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#6F7B87", marginBottom: 16 }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.checkBig }} />
@@ -556,10 +552,9 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button onClick={() => setFinishId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={confirmFinish} style={S.confirmFinishBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />
-                Evet, bitir
+              <button type="button" onClick={() => setFinishId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={confirmFinish} style={S.confirmFinishBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />Evet, bitir
               </button>
             </div>
           </div>
@@ -567,8 +562,8 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
       )}
 
       {reopenId !== null && (
-        <div onClick={() => setReopenId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setReopenId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <div style={{ padding: "26px 26px 20px" }}>
               <div style={{ width: 48, height: 48, borderRadius: 13, background: "#DDE8F8", display: "flex", alignItems: "center", justifyContent: "center", color: "#205297", marginBottom: 16 }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.undoBig }} />
@@ -579,10 +574,9 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button onClick={() => setReopenId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={confirmReopen} style={S.confirmStartBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.undoWhite }} />
-                Evet, geri al
+              <button type="button" onClick={() => setReopenId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={confirmReopen} style={S.confirmStartBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.undoWhite }} />Evet, geri al
               </button>
             </div>
           </div>
@@ -590,8 +584,8 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
       )}
 
       {deleteId !== null && (
-        <div onClick={() => setDeleteId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setDeleteId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.modal}>
             <div style={{ padding: "26px 26px 20px" }}>
               <div style={{ width: 48, height: 48, borderRadius: 13, background: "#FFECEC", display: "flex", alignItems: "center", justifyContent: "center", color: "#D93636", marginBottom: 16 }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.trashBig }} />
@@ -602,10 +596,9 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button onClick={confirmDelete} style={S.confirmDelBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.trashWhite }} />
-                Evet, sil
+              <button type="button" onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button type="button" onClick={confirmDelete} style={S.confirmDelBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.trashWhite }} />Evet, sil
               </button>
             </div>
           </div>

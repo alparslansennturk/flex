@@ -197,7 +197,7 @@ export default function PaketYonetimiPage() {
   };
 
   const selectedTotal = selected.reduce((a, e) => a + e.listPrice, 0);
-  const parsedPrice = parseInt(formPrice.replace(/\D/g, ""), 10) || 0;
+  const parsedPrice = Number.parseInt(formPrice.replaceAll(/\D/g, ""), 10) || 0;
   const disc = discountPct(selectedTotal, parsedPrice);
   const saving2 = selectedTotal - parsedPrice;
   const priceOver = parsedPrice > 0 && selectedTotal > 0 && parsedPrice >= selectedTotal;
@@ -300,11 +300,11 @@ export default function PaketYonetimiPage() {
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Paket ara…" style={{ paddingLeft: 36, paddingRight: 14, height: 40, borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", fontSize: 13.5, fontWeight: 500, outline: "none", width: 220, fontFamily: "inherit", color: "#1E222B" }} />
               </div>
               {([["Tümü", "Tümü"], ["Aktif", "aktif"], ["Taslak", "taslak"]] as [string, string][]).map(([label, val]) => (
-                <button key={val} onClick={() => setStatusFilter(val)} className="pk-filter-btn"
+                <button type="button" key={val} onClick={() => setStatusFilter(val)} className="pk-filter-btn"
                   style={{ height: 40, padding: "0 16px", borderRadius: 11, border: "1px solid #E2E5EA", background: statusFilter === val ? "#205297" : "#fff", color: statusFilter === val ? "#fff" : "#6F7B87", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .14s" }}>{label}</button>
               ))}
             </div>
-            <button onClick={openAdd} className="pk-add-btn"
+            <button type="button" onClick={openAdd} className="pk-add-btn"
               style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 42, padding: "0 20px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
               <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Paket Oluştur
             </button>
@@ -361,10 +361,10 @@ export default function PaketYonetimiPage() {
                       </td>
                       <td style={{ padding: "16px 20px" }}>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => openEdit(b)} className="pk-icon-btn" title="Düzenle" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <button type="button" onClick={() => openEdit(b)} className="pk-icon-btn" title="Düzenle" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.edit }} />
                           </button>
-                          <button onClick={() => setDeleteId(b.id)} className="pk-icon-btn-del" title="Sil" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #FFCDD2", background: "#FFF5F5", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <button type="button" onClick={() => setDeleteId(b.id)} className="pk-icon-btn-del" title="Sil" style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid #FFCDD2", background: "#FFF5F5", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                           </button>
                         </div>
@@ -392,7 +392,7 @@ export default function PaketYonetimiPage() {
                   <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#1E222B" }}>{!editId ? "Paket Oluştur" : "Paketi Düzenle"}</h2>
                   <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8E95A3" }}>Eğitimleri seçin, fiyatı belirleyin.</p>
                 </div>
-                <button onClick={() => !saving && setShowForm(false)} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#F7F8FA", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87" }}>
+                <button type="button" onClick={() => !saving && setShowForm(false)} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#F7F8FA", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87" }}>
                   <span dangerouslySetInnerHTML={{ __html: IC.close }} />
                 </button>
               </div>
@@ -420,7 +420,7 @@ export default function PaketYonetimiPage() {
                       const isSel = !!selected.find((e) => e.educationId === edu.id);
                       const c = BRANS_COLORS[edu.brans] ?? { color: "#555", bg: "#eee" };
                       return (
-                        <div key={edu.id} onClick={() => toggleEdu(edu)} className="pk-edu-row"
+                        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} key={edu.id} onClick={() => toggleEdu(edu)} className="pk-edu-row"
                           style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, marginBottom: 6, cursor: "pointer", background: isSel ? "#EBF2FF" : "#fff", border: `1px solid ${isSel ? "#92B6E8" : "#EEF0F3"}`, transition: "all .12s" }}>
                           <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${isSel ? "#205297" : "#CDD2DA"}`, background: isSel ? "#205297" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .12s" }}>
                             {isSel && <span dangerouslySetInnerHTML={{ __html: IC.check }} style={{ color: "#fff" }} />}
@@ -459,7 +459,7 @@ export default function PaketYonetimiPage() {
                             <span style={{ fontSize: 11, fontWeight: 600, color: c.color, background: c.bg, borderRadius: 5, padding: "1px 6px" }}>{item.brans}</span>
                           </div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#6F7B87", marginRight: 4 }}>{fmt(item.listPrice)}</div>
-                          <button onClick={() => toggleEdu({ id: item.educationId, name: item.name, brans: item.brans, listPrice: item.listPrice, vatRate: item.vatRate, structure: "" })}
+                          <button type="button" onClick={() => toggleEdu({ id: item.educationId, name: item.name, brans: item.brans, listPrice: item.listPrice, vatRate: item.vatRate, structure: "" })}
                             style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid #FFCDD2", background: "#FFF5F5", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#B42318", padding: 0 }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.close }} style={{ transform: "scale(.8)" }} />
                           </button>
@@ -475,7 +475,7 @@ export default function PaketYonetimiPage() {
                       <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Paket adı…" style={{ height: 40, padding: "0 13px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#F7F8FA", fontSize: 13.5, fontFamily: "inherit", outline: "none", color: "#1E222B" }} />
                       <div style={{ display: "flex", gap: 6 }}>
                         {(["aktif", "taslak"] as const).map((v) => (
-                          <button key={v} onClick={() => setFormStatus(v)} style={{ height: 40, padding: "0 14px", borderRadius: 10, border: `1px solid ${formStatus === v ? "#205297" : "#E2E5EA"}`, background: formStatus === v ? "#EBF2FF" : "#F7F8FA", color: formStatus === v ? "#205297" : "#6F7B87", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                          <button type="button" key={v} onClick={() => setFormStatus(v)} style={{ height: 40, padding: "0 14px", borderRadius: 10, border: `1px solid ${formStatus === v ? "#205297" : "#E2E5EA"}`, background: formStatus === v ? "#EBF2FF" : "#F7F8FA", color: formStatus === v ? "#205297" : "#6F7B87", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                             {v === "aktif" ? "Aktif" : "Taslak"}
                           </button>
                         ))}
@@ -491,9 +491,9 @@ export default function PaketYonetimiPage() {
 
                       {/* Fiyat input */}
                       <div style={{ marginBottom: 14 }}>
-                        <label style={{ fontSize: 11.5, fontWeight: 700, color: priceOver ? "#D93636" : "#6F7B87", textTransform: "uppercase" as const, letterSpacing: ".05em", display: "block", marginBottom: 8 }}>Paket Fiyatı</label>
+                        <label htmlFor="formPrice" style={{ fontSize: 11.5, fontWeight: 700, color: priceOver ? "#D93636" : "#6F7B87", textTransform: "uppercase" as const, letterSpacing: ".05em", display: "block", marginBottom: 8 }}>Paket Fiyatı</label>
                         <div style={{ display: "flex", alignItems: "center", background: "#fff", borderRadius: 12, border: `2px solid ${priceOver ? "#D93636" : "#2867bd"}`, overflow: "hidden", boxShadow: `0 0 0 4px ${priceOver ? "rgba(217,54,54,.1)" : "rgba(40,103,189,.08)"}`, transition: "border-color .15s, box-shadow .15s" }}>
-                          <input value={formPrice} onChange={(e) => setFormPrice(e.target.value.replace(/\D/g, ""))} placeholder="0"
+                          <input id="formPrice" value={formPrice} onChange={(e) => setFormPrice(e.target.value.replaceAll(/\D/g, ""))} placeholder="0"
                             style={{ flex: 1, height: 52, padding: "0 16px", border: "none", background: "transparent", fontSize: 26, fontWeight: 900, fontFamily: "inherit", outline: "none", color: priceOver ? "#D93636" : "#1E222B", textAlign: "right" as const, letterSpacing: "-.5px" }} />
                           <span style={{ fontSize: 20, fontWeight: 800, color: priceOver ? "#D93636" : "#205297", padding: "0 16px 0 6px" }}>₺</span>
                         </div>
@@ -524,7 +524,7 @@ export default function PaketYonetimiPage() {
                       )}
                     </div>
 
-                    <button onClick={saveBundle} disabled={saving || priceOver} className="pk-save-btn"
+                    <button type="button" onClick={saveBundle} disabled={saving || priceOver} className="pk-save-btn"
                       style={{ width: "100%", height: 44, borderRadius: 12, border: "none", background: (saving || priceOver) ? "#CDD2DA" : "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: (saving || priceOver) ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "background .15s" }}>
                       {saving ? "Kaydediliyor…" : editId ? "Değişiklikleri Kaydet" : "Paketi Kaydet"}
                     </button>
@@ -552,8 +552,8 @@ export default function PaketYonetimiPage() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 10, padding: "0 28px 22px" }}>
-                  <button onClick={() => setDeleteId(null)} disabled={deleting} style={{ flex: 1, height: 42, borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Vazgeç</button>
-                  <button onClick={confirmDelete} disabled={deleting} style={{ flex: 1, height: 42, borderRadius: 11, border: "none", background: "#D93636", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                  <button type="button" onClick={() => setDeleteId(null)} disabled={deleting} style={{ flex: 1, height: 42, borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Vazgeç</button>
+                  <button type="button" onClick={confirmDelete} disabled={deleting} style={{ flex: 1, height: 42, borderRadius: 11, border: "none", background: "#D93636", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
                     {deleting ? "Siliniyor…" : "Evet, sil"}
                   </button>
                 </div>

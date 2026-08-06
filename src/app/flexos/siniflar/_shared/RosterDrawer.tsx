@@ -113,8 +113,8 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
 
   return (
     <>
-      <div onClick={onClose} style={S.overlay}>
-        <div onClick={(e) => e.stopPropagation()} style={S.drawer}>
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={onClose} style={S.overlay}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.drawer}>
           <div style={S.header}>
             <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
               <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.usersSmall }} />
@@ -125,7 +125,7 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
                 </p>
               </div>
             </div>
-            <button onClick={onClose} style={S.closeBtn}>
+            <button type="button" onClick={onClose} style={S.closeBtn}>
               <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
             </button>
           </div>
@@ -139,7 +139,7 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
                 <input style={S.input} placeholder="Telefon" value={rTelefon} onChange={(e) => setRTelefon(e.target.value)} />
                 <input style={S.input} placeholder="E-posta" value={rEposta} onChange={(e) => setREposta(e.target.value)} />
               </div>
-              <button style={{ ...S.saveBtn, width: "100%", marginTop: 10 }} disabled={rSaving} onClick={onAddStudent}>
+              <button type="button" style={{ ...S.saveBtn, width: "100%", marginTop: 10 }} disabled={rSaving} onClick={onAddStudent}>
                 {rSaving ? "Ekleniyor…" : "Öğrenci Ekle"}
               </button>
             </div>
@@ -171,7 +171,7 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
                       <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email || (r.phone ? formatTrPhone(r.phone) : "") || "—"}</div>
                     </div>
                     {canManage ? (
-                      <button style={S.removeBtn} onClick={() => setRemoveId(r.enrollmentId)}>Çıkar</button>
+                      <button type="button" style={S.removeBtn} onClick={() => setRemoveId(r.enrollmentId)}>Çıkar</button>
                     ) : (
                       r.assignedAt && <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtTrDate(r.assignedAt)}</span>
                     )}
@@ -184,15 +184,15 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
       </div>
 
       {removeId !== null && (
-        <div onClick={() => setRemoveId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.confirmModal}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => setRemoveId(null)} style={S.overlay}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => e.stopPropagation()} style={S.confirmModal}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi çıkar</h3>
             <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>
               Bu öğrenciyi sınıftan çıkarmak istediğinize emin misiniz?
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-              <button style={S.cancelBtn} onClick={() => setRemoveId(null)}>Vazgeç</button>
-              <button style={S.dangerBtn} onClick={confirmRemove}>Evet, çıkar</button>
+              <button type="button" style={S.cancelBtn} onClick={() => setRemoveId(null)}>Vazgeç</button>
+              <button type="button" style={S.dangerBtn} onClick={confirmRemove}>Evet, çıkar</button>
             </div>
           </div>
         </div>
