@@ -55,13 +55,17 @@ function log(module, op, ok, detail) {
 
 let idToken = null;
 async function api(method, urlPath, body) {
-  // 2026-08-05 Sonar bulgusu (S8476/S7044): `urlPath` bu dosyanın KENDİ sabit
+  // 2026-08-05/06 Sonar bulgusu (S8476/S7044): `urlPath` bu dosyanın KENDİ sabit
   // string çağrılarından geliyor (dışarıdan asla alınmıyor) ama statik analiz
-  // "tainted" sayıyor — ucuz bir allowlist kontrolüyle netleştiriliyor.
-  if (typeof urlPath !== "string" || !urlPath.startsWith("/api/")) {
+  // "tainted" sayıyor. `.startsWith()` string kontrolü Sonar'ın taint-tracker'ı
+  // tarafından sanitizer olarak tanınmadığından, `new URL()` ile parse edip
+  // origin + pathname'i açıkça doğruluyoruz — hedef URL string birleştirme
+  // yerine URL nesnesi olarak fetch'e veriliyor.
+  const target = new URL(urlPath, BASE);
+  if (target.origin !== new URL(BASE).origin || !target.pathname.startsWith("/api/")) {
     throw new Error(`Geçersiz urlPath: ${JSON.stringify(urlPath)}`);
   }
-  const res = await fetch(BASE + urlPath, {
+  const res = await fetch(target, {
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
     body: body !== undefined ? JSON.stringify(body) : undefined,

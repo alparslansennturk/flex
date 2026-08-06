@@ -96,11 +96,45 @@
     basılması veya log'a ham yazılması. **Hepsi düzeltildi** (`crypto.randomInt`,
     `escapeHtml`, path/Drive-ID allowlist doğrulaması, `JSON.stringify` ile log
     sarma) — `tsc`+`vitest` (107/107) temiz, `node --check` ile 4 script de
-    doğrulandı. Henüz push edilmedi/yeni analiz koşmadı.
-  - **Reliability D (2.2k bulgu) henüz incelenmedi** — yarın ele alınacak.
-  - **SIRADAKİ (yarın):** Bu fix'i push et → yeni Sonar analizini bekle →
-    Security rating'in gerçekten düzelip düzelmediğini doğrula → Reliability
-    D'yi aynı yöntemle (API'den gerçek bulgu listesi çekip triaj) incele.
+    doğrulandı.
+  - **2026-08-06 düzeltme + tam triaj:** Push sonrası SonarCloud Background
+    Tasks'tan (tarayıcıyla canlı kontrol) yeni analizin (23:51, push'tan 5dk
+    sonra) GERÇEKTEN çalıştığı doğrulandı — ama Security hâlâ E/99, sayı
+    neredeyse değişmemişti. Kök neden: `.startsWith()`/custom `escapeHtml()`/
+    `JSON.stringify()` gibi ELLE yazılmış kontroller Sonar'ın taint-tracker'ının
+    tanıdığı sanitizer listesinde değil — kod gerçekten güvenli ama Sonar
+    bunu bilmiyor. **99 bulgunun TAMAMI SonarCloud UI'dan tek tek çekilip
+    (Show More ile) sınıflandırıldı:**
+    - **82'si S2245 (Math.random)** — sadece **2'si gerçek** güvenlik açığıydı:
+      `UserManagement.tsx:230` (yeni kullanıcı için Firebase Auth'a yazılan
+      geçici şifre) ve `scripts/send-group-welcome.mjs:44` (Grup 598
+      öğrencilerine mailenen gerçek aktivasyon kodu) — ikisi de düzeltildi
+      (`crypto.getRandomValues`/`crypto.randomInt`). Kalan 80'i gerçek false
+      positive (oyun rastgeleliği, seed/k6 script'leri, audit-id, Firestore
+      pool-item ID, autofill-engelleme decoy input adı) — dokunulmadı.
+    - **17'si URL/escaping/log** (`crud-smoke-test/run.js`,
+      `migrate-drive-folders.mjs`, `refresh-google-token.mjs`,
+      `reset-and-send-welcome.mjs`) — Sonar'ın TANIDIĞI standart pattern'lere
+      geçirildi: `new URL()`+origin/pathname doğrulama (crud-smoke, migrate-
+      drive), `he` paketi (yeni devDependency, `escapeHtml` → `he.encode`,
+      refresh-google-token). 12 "log user-controlled data" (Low) bulgusu
+      kontrol edildi — TAMAMI zaten `JSON.stringify` ile sarılıydı (gerçek
+      CRLF-injection koruması var), Sonar'ın kuralı bunu tanımıyor — kod
+      hack'lemek yerine olduğu gibi bırakıldı, Sonar UI'da "Won't Fix"
+      önerisi verildi.
+    - **Kapsam dışı bulundu (ayrıca not edildi, dokunulmadı):**
+      `src/app/api/otp/route.ts::generateOTP()` de Math.random kullanıyor
+      (gerçek OTP) ama bu route Sonar'ın `sonar.inclusions` kapsamının
+      DIŞINDA (eski Flex Core `api/`) — frontend'den çağıran hiçbir yer
+      bulunamadı, muhtemelen bağlanmamış/ölü kod.
+    - `tsc`+`lint`+`vitest`(107/107)+`node --check`(4 script)+`npm run build`
+      hepsi temiz doğrulandı, push edildi.
+  - **Reliability D (2.2k bulgu) henüz incelenmedi** — sırada.
+  - **SIRADAKİ:** Yeni Sonar analizini bekle → Security rating'in gerçekten
+    düzelip düzelmediğini doğrula (99'dan ~78'e inmesi bekleniyor: 2 gerçek
+    Math.random fix + 3 standard-pattern dosya, log-injection'ların Sonar
+    tarafından tanınması belirsiz) → Reliability D'yi aynı yöntemle (API'den
+    gerçek bulgu listesi çekip triaj) incele.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi

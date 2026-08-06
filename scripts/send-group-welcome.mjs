@@ -1,6 +1,7 @@
 // Grup 598 öğrencilerine giriş bilgisi + aktivasyon kodu maili gönderir
 // Kullanım: node scripts/send-group-welcome.mjs [--dry-run]
 import { readFileSync } from "fs";
+import { randomInt } from "crypto";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
@@ -38,10 +39,13 @@ const db   = getFirestore();
 const auth = getAuth();
 
 // ── Yardımcılar ───────────────────────────────────────────────────────────────
+// Gerçek aktivasyon kodu üretiyor (production kullanıcılarına mailleniyor) —
+// Math.random() yerine user-validation.ts::generateActivationCode() ile aynı
+// kriptografik olarak güvenli yöntem (crypto.randomInt).
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
-  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 8; i++) code += chars[randomInt(chars.length)];
   return code;
 }
 

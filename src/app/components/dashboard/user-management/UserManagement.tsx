@@ -14,6 +14,15 @@ const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["ASSIGNMENT_MANAGE", "CLASS_MANAGE", "MANAGEMENT_PANEL"],
     instructor: [],
 };
+
+// Yeni kullanıcı için geçici Firebase Auth şifresi — Math.random() kriptografik
+// olarak öngörülebilir olduğundan Web Crypto API (getRandomValues) kullanılıyor.
+function generateSecureTempPassword(length = 8): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz23456789";
+    const bytes = new Uint32Array(length);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
 const permissionsList = [
     {
         id: "ASSIGNMENT_MANAGE",
@@ -227,7 +236,7 @@ export default function UserManagement() {
         if (editingUser) {
             await setDoc(doc(db, "users", editingUser.id), { ...finalUserData, isActivated: editingUser.isActivated || false }, { merge: true });
         } else {
-            const tempPass = Math.random().toString(36).slice(-8).toUpperCase();
+            const tempPass = generateSecureTempPassword();
             const { initializeApp, deleteApp } = await import("firebase/app");
             const { getAuth, createUserWithEmailAndPassword: createSecondaryUser } = await import("firebase/auth");
             const secondaryApp = initializeApp(auth.app.options, "Secondary");

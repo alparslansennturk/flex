@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
+import { encode as encodeHtml } from "he";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, "..", ".env.local");
@@ -24,11 +25,11 @@ if (!clientId || !clientSecret) {
 const PORT = 4000;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 
-// 2026-08-05 Sonar bulgusu: OAuth callback'ten/response'tan gelen değerler HTML'e
-// kaçırılmadan basılıyordu (yansıtılmış XSS deseni) — bu yerel, tek seferlik bir
-// dev scripti olsa da (internet'e açık değil) ucuz ve doğru olan düzeltme HTML
-// kaçışı eklemek.
-const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// 2026-08-05/06 Sonar bulgusu: OAuth callback'ten/response'tan gelen değerler
+// HTML'e kaçırılmadan basılıyordu (yansıtılmış XSS deseni). Custom regex-tabanlı
+// escape Sonar'ın taint-tracker'ı tarafından sanitizer olarak tanınmadığından,
+// bilinen/standart `he` (HTML entities) kütüphanesine geçirildi.
+const escapeHtml = (s) => encodeHtml(String(s));
 
 const authUrl =
   "https://accounts.google.com/o/oauth2/v2/auth?" +

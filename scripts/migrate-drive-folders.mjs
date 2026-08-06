@@ -125,8 +125,13 @@ async function listChildren(parentId, onlyFolders = false) {
   const token = await getToken();
   const parts = [`'${parentId}' in parents`, "trashed = false"];
   if (onlyFolders) parts.push("mimeType = 'application/vnd.google-apps.folder'");
-  const q = encodeURIComponent(parts.join(" and "));
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=200`, { headers: { Authorization: `Bearer ${token}` } });
+  // 2026-08-06 Sonar bulgusu: manuel string birleştirme yerine `new URL()` +
+  // `URLSearchParams` — host sabit literal, query encoding URL API'ye bırakılıyor.
+  const url = new URL("https://www.googleapis.com/drive/v3/files");
+  url.searchParams.set("q", parts.join(" and "));
+  url.searchParams.set("fields", "files(id,name,mimeType)");
+  url.searchParams.set("pageSize", "200");
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   return (await res.json()).files ?? [];
 }
 
