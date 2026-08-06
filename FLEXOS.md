@@ -174,13 +174,17 @@
     - Doğrulama tamamen SonarCloud'un salt-okunur `/api/issues/search` API'siyle
       yapıldı (yazma denemeleri CSRF/güvenlik korumalarına takıldı, bu doğru
       ve beklenen bir engeldi — kod/cookie hack'i denenmedi).
-  - **✅✅ Reliability D triage TAMAMLANDI (2026-08-06, PC, `1605e95`→`ab26bf2`)
-    — 2189 açık bulgudan başladı, ilk push sonrası D(4.0)→C(3.0) ve 126 kaldı,
-    ikinci commit (aşağıdaki 2 yeni boşluk) sonrası son sayı/puan HENÜZ
-    DOĞRULANMADI (oturum PC kapanmadan bitti) — Mac'te ilk iş bunu kontrol
-    etmek: `/api/measures/component?component=alparslansennturk_flex&
-    metricKeys=reliability_rating,bugs` ve `/api/issues/search?
-    impactSoftwareQualities=RELIABILITY&resolved=false`.** Security'deki AYNI
+  - **✅✅ Reliability D triage TAMAMLANDI VE DOĞRULANDI (2026-08-06, PC,
+    `1605e95`→`ab26bf2`) — D(4.0) → A(1.0), `bugs: 0`.** 2189 açık bulgudan
+    başladı: ilk push sonrası D→C (126 kaldı), ikinci commit (aşağıdaki 2
+    boşluk kapatıldı) sonrası **A, bugs:0**, kalan 79 bulgu artık hepsi
+    CODE_SMELL tipinde (BUG değil — rating'i etkilemiyor, HIGH:2/MEDIUM:45/LOW:32)
+    ve büyük çoğunluğu bilinçli bırakılan false-positive (hash`|=0` rolling
+    hash, ayrık-karakter regex'ler, ~40 buton-grubu label'ı). **Kalanlar
+    SIRADAKİ İŞ** (kullanıcı: "eksikler var, onları da hallederiz, yapmışken
+    hepsini bitiririz") — Security'de yapıldığı gibi SonarCloud UI'dan
+    "Won't Fix" triaj + gerçekten kalan birkaç gerçek bulgu varsa kodla
+    düzelt. Security'deki AYNI
     yöntem: `/api/issues/search`+`impactSoftwareQualities=RELIABILITY` ile
     gerçek liste → kural bazlı sınıflandır → gerçek riskleri kodla düzelt →
     false positive'leri gerekçeyle bırak. Kural bazlı özet:
@@ -220,10 +224,11 @@
     - **main artık flexos'la senkron** (önceki `main` referansı bu makinede
       bayattı, gerçekte main=flexos'tu — fark sadece 1 commit'ti, fast-forward
       edildi, ikisi de push edildi).
-    - **SIRADAKİ (Mac'te devam):** Yukarıdaki doğrulamayı yap, kalan bulgular
-      çoğunlukla bilinçli false-positive ise (S8786 `\s*x\s*`, S7767 `hash|=0`,
-      ~40 label) gerekirse SonarCloud UI'dan "Won't Fix" triaj yapılabilir
-      (Security'de yapıldığı gibi) — puan görsel olarak da tam A/B'ye yaklaşır.
+    - **SIRADAKİ (Mac'te devam, kullanıcı isteği: "yapmışken hepsini
+      bitiririz"):** Kalan 79 CODE_SMELL bulgusunu tek tek gözden geçir —
+      gerçekten gerçek risk çıkan varsa kodla düzelt, bilinçli false-positive
+      olanları (S8786 `\s*x\s*`, S7767 `hash|=0`, ~40 buton-grubu label'ı vb.)
+      Security'de yapıldığı gibi SonarCloud UI'dan "Won't Fix" olarak triaj et.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
