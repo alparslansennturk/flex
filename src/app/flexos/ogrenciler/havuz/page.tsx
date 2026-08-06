@@ -319,7 +319,7 @@ export default function OgrenciHavuzuPage() {
       }
       const firstSectionByEdu = new Map<string, string>();
       for (const [eduId, list] of sectionsByEdu) {
-        firstSectionByEdu.set(eduId, list.reduce((min, s) => (s.order < min.order ? s : min)).id);
+        firstSectionByEdu.set(eduId, list.reduce((min, s) => (s.order < min.order ? s : min), list[0]).id);
       }
       // archived/completed grupları çıkar — öğrenci atanamaz
       const rawGroups = ((gJson.items ?? []) as RawGroup[]).filter((g) => g.status !== "archived" && g.status !== "completed");

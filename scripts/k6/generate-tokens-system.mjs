@@ -32,7 +32,7 @@ const OUT_PATH = "scripts/k6/.tokens-system.json";
 const args = process.argv.slice(2);
 const argNum = (name, def) => {
   const a = args.find((x) => x.startsWith(`--${name}=`));
-  return a ? parseInt(a.split("=")[1], 10) : def;
+  return a ? Number.parseInt(a.split("=")[1], 10) : def;
 };
 const N_STUDENTS = argNum("students", 40);
 const BASE_URL = (args.find((x) => x.startsWith("--base-url=")) ?? "").split("=")[1] || "https://flexos-loadtest.vercel.app";

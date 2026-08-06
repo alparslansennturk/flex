@@ -34,7 +34,7 @@ if (!getApps().length) {
     credential: cert({
       projectId:   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replaceAll(/\\n/g, "\n"),
     }),
   });
 }
@@ -43,9 +43,9 @@ const db = getFirestore();
 
 function normalize(str) {
   return (str ?? "").trim().toLowerCase()
-    .replace(/İ/g, "i").replace(/I/g, "ı")
-    .replace(/Ş/g, "ş").replace(/Ğ/g, "ğ")
-    .replace(/Ü/g, "ü").replace(/Ö/g, "ö").replace(/Ç/g, "ç");
+    .replaceAll(/İ/g, "i").replaceAll(/I/g, "ı")
+    .replaceAll(/Ş/g, "ş").replaceAll(/Ğ/g, "ğ")
+    .replaceAll(/Ü/g, "ü").replaceAll(/Ö/g, "ö").replaceAll(/Ç/g, "ç");
 }
 
 (async () => {

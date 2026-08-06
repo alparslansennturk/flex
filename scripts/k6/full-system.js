@@ -25,7 +25,7 @@ import { SharedArray } from "k6/data";
 import { Rate, Trend } from "k6/metrics";
 import exec from "k6/execution";
 
-const VUS = parseInt(__ENV.VUS || "30", 10);
+const VUS = Number.parseInt(__ENV.VUS || "30", 10);
 const DURATION = __ENV.DURATION || "90s";
 
 const tokens = new SharedArray("tokens", function () {

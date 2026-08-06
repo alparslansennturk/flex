@@ -240,7 +240,7 @@ async function findOrCreateFolder(
   parentId: string,
   token:    string,
 ): Promise<string> {
-  const safeName = name.replaceAll(/'/g, "\\'");
+  const safeName = name.replaceAll("'", "\\'");
   const q = encodeURIComponent(
     `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
   );
@@ -425,7 +425,7 @@ async function searchByName(
   parentFolderId?: string,
 ): Promise<{ id: string; createdTime: string }[]> {
   const parts = [
-    `name = '${actualFileName.replaceAll(/'/g, "\\'")}'`,
+    `name = '${actualFileName.replaceAll("'", "\\'")}'`,
     ...(parentFolderId ? [`'${parentFolderId}' in parents`] : []),
     `trashed = false`,
   ];

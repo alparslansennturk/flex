@@ -25,7 +25,7 @@ function slugify(label: string): string {
   const normalized = label
     .trim()
     .toLocaleLowerCase("tr")
-    .replaceAll(/ğ/g, "g").replaceAll(/ü/g, "u").replaceAll(/ş/g, "s").replaceAll(/ı/g, "i").replaceAll(/ö/g, "o").replaceAll(/ç/g, "c")
+    .replaceAll("ğ", "g").replaceAll("ü", "u").replaceAll("ş", "s").replaceAll("ı", "i").replaceAll("ö", "o").replaceAll("ç", "c")
     .replaceAll(/[^a-z0-9]+/g, "_");
   return trimUnderscoreEdges(normalized);
 }

@@ -46,8 +46,8 @@ const TR_DAYS: Record<string, number> = {
 function parseWeekDays(label: string): number[] {
   if (!label) return [];
   const lower = label.toLowerCase()
-    .replaceAll(/ı/g, "i").replaceAll(/ş/g, "s").replaceAll(/ğ/g, "g")
-    .replaceAll(/ü/g, "u").replaceAll(/ö/g, "o");
+    .replaceAll("ı", "i").replaceAll("ş", "s").replaceAll("ğ", "g")
+    .replaceAll("ü", "u").replaceAll("ö", "o");
   const found: number[] = [];
   for (const [key, day] of Object.entries(TR_DAYS)) {
     if (lower.includes(key) && !found.includes(day)) found.push(day);

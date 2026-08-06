@@ -16,7 +16,7 @@ function getRootId(): string {
 
 async function findFolder(name: string, parentId: string, token: string): Promise<string | null> {
   const q = encodeURIComponent(
-    `name = '${name.replaceAll(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
+    `name = '${name.replaceAll("'", "\\'")}' and '${parentId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
   );
   const res  = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,

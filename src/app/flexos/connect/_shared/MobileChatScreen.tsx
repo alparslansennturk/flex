@@ -39,7 +39,7 @@ interface MobileChatScreenProps {
   messages: MessageView[];
   visibleMessages: MessageView[];
   dividerLabel: (iso: string) => string;
-  startLongPress: (m: MessageView, e: React.TouchEvent | React.MouseEvent) => void;
+  startLongPress: (m: MessageView, e: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => void;
   cancelLongPress: () => void;
   handleReact: (messageId: string, emoji: string) => Promise<void>;
   menuMsg: MessageView | null;
@@ -200,12 +200,16 @@ export function MobileChatScreen({
                       </div>
                     ) : (
                       <div
+                        role="button"
+                        tabIndex={0}
                         onTouchStart={(e) => startLongPress(m, e)}
                         onTouchEnd={cancelLongPress}
                         onTouchMove={cancelLongPress}
                         onMouseDown={(e) => startLongPress(m, e)}
                         onMouseUp={cancelLongPress}
                         onMouseLeave={cancelLongPress}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") startLongPress(m, e); }}
+                        onKeyUp={cancelLongPress}
                         style={{
                           position: "relative", background: m.isMine ? T.ownBubble : T.otherBubble, border: `1px solid ${m.isMine ? T.ownBorder : T.otherBorder}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "8px 12px 6px",
                           // iOS'un native metin-seçme/callout'unu SAĞLAM engellemek için TÜM

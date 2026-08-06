@@ -19,7 +19,7 @@ async function ensureFolderExists(
   console.log(`[drive-folder] ensureFolderExists — arıyor: "${folderName}" (parent: ${parentFolderId})`);
 
   const q = encodeURIComponent(
-    `name = '${folderName.replaceAll(/'/g, "\\'")}' and ` +
+    `name = '${folderName.replaceAll("'", "\\'")}' and ` +
     `'${parentFolderId}' in parents and ` +
     `mimeType = 'application/vnd.google-apps.folder' and ` +
     `trashed = false`,
@@ -179,7 +179,7 @@ async function findFolder(
   token:          string,
 ): Promise<string | null> {
   const q = encodeURIComponent(
-    `name = '${folderName.replaceAll(/'/g, "\\'")}' and ` +
+    `name = '${folderName.replaceAll("'", "\\'")}' and ` +
     `'${parentFolderId}' in parents and ` +
     `mimeType = 'application/vnd.google-apps.folder' and ` +
     `trashed = false`,

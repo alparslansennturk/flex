@@ -649,7 +649,7 @@ export default function FlexConnectMobile() {
    * scroll konteynerinin z-index'inin dışına taşınır, altındaki mesajların ÜZERİNDE
    * kalır). Viewport taşmasına karşı basit clamp.
    */
-  function startLongPress(m: MessageView, e: React.TouchEvent | React.MouseEvent) {
+  function startLongPress(m: MessageView, e: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) {
     if (m.deletedForEveryone || m.kind === "system") return;
     const target = e.currentTarget as HTMLElement;
     longPressTimer.current = setTimeout(() => {

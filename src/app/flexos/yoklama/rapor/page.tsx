@@ -391,11 +391,11 @@ function ReportContent() {
       // searchFrom/searchTo tarih filtresi kullanıcı tarafından boşaltılabilir (date input);
       // schedule.startDate/endDate de bazı eski gruplarda boş olabilir (bkz. yukarıdaki not).
       // İkisi de boşsa geçerli bir aralık yok — reduce() boş dizide çökeceğinden bu grubu atla.
-      const startCandidates = [searchFrom, g.schedule.startDate].filter(Boolean);
-      const endCandidates = [searchTo, g.schedule.endDate].filter(Boolean);
+      const startCandidates = [searchFrom, g.schedule.startDate].filter((x): x is string => Boolean(x));
+      const endCandidates = [searchTo, g.schedule.endDate].filter((x): x is string => Boolean(x));
       if (startCandidates.length === 0 || endCandidates.length === 0) continue;
-      const effectiveStart = startCandidates.reduce((a, b) => (a! > b! ? a : b))!;
-      const effectiveEnd = endCandidates.reduce((a, b) => (a! < b! ? a : b))!;
+      const effectiveStart = startCandidates.reduce((a, b) => (a > b ? a : b), startCandidates[0]);
+      const effectiveEnd = endCandidates.reduce((a, b) => (a < b ? a : b), endCandidates[0]);
       const planned = effectiveStart <= effectiveEnd ? countWeekdaysInRange(effectiveStart, effectiveEnd, weekDays, holidayDates) : 0;
 
       const groupRecords = records.filter((r) => r.groupId === g.id);

@@ -29,7 +29,7 @@ import exec from "k6/execution";
 
 // Varsayılan hafif tutuldu (Vercel Hobby plan, fair-use sınırı — bkz. LOAD_TEST.md).
 // Daha ağır bir koşum istenirse: k6 run -e VUS=60 -e DURATION=3m scripts/k6/loadtest.js
-const VUS = parseInt(__ENV.VUS || "20", 10);
+const VUS = Number.parseInt(__ENV.VUS || "20", 10);
 const DURATION = __ENV.DURATION || "1m";
 
 const tokens = new SharedArray("tokens", function () {

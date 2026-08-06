@@ -65,9 +65,10 @@ export function RichText({ value, onChange }: { value: string; onChange: (html: 
 
   // Float toolbar butonu (koyu arka plan, beyaz yazı)
   const fb = (label: string, title: string, run: () => void, extra?: CSSProperties) => (
-    <span key={label + title} title={title}
+    <span key={label + title} title={title} role="button" tabIndex={0}
       style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#f1f5f9", padding: "0 7px", userSelect: "none" as const, transition: "background .1s", ...extra }}
       onMouseDown={(e) => { e.preventDefault(); run(); }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,.15)"; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
     >{label}</span>
@@ -75,7 +76,7 @@ export function RichText({ value, onChange }: { value: string; onChange: (html: 
 
   // Üst statik toolbar butonu
   const btn = (label: string, title: string, run: () => void, extra?: CSSProperties) => (
-    <span className="ee-fmt" title={title} style={{ ...S.fmtBtn, ...extra }} onMouseDown={(e) => { e.preventDefault(); run(); }}>{label}</span>
+    <span className="ee-fmt" title={title} role="button" tabIndex={0} style={{ ...S.fmtBtn, ...extra }} onMouseDown={(e) => { e.preventDefault(); run(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } }}>{label}</span>
   );
 
   // `eslint-plugin-react-hooks@7`'nin yeni `react-hooks/refs` kuralı, aşağıdaki
@@ -128,13 +129,15 @@ export function RichText({ value, onChange }: { value: string; onChange: (html: 
         {btn("A", "Normal yazı", () => cmd("fontSize", "3"), { fontSize: 14, fontWeight: 700 })}
         {btn("A", "Büyük yazı", () => cmd("fontSize", "5"), { fontSize: 17, fontWeight: 700 })}
         <span style={{ width: 1, height: 18, background: "#e2e8f1", margin: "0 6px" }} />
-        <span className="ee-fmt" title="Madde listesi" style={S.fmtBtn} onMouseDown={(e) => { e.preventDefault(); cmd("insertUnorderedList"); }} dangerouslySetInnerHTML={{ __html: IC.list }} />
+        <span className="ee-fmt" title="Madde listesi" role="button" tabIndex={0} style={S.fmtBtn} onMouseDown={(e) => { e.preventDefault(); cmd("insertUnorderedList"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cmd("insertUnorderedList"); } }} dangerouslySetInnerHTML={{ __html: IC.list }} />
         {btn("Temizle", "Biçimi temizle", () => cmd("removeFormat"), { width: "auto", padding: "0 9px", fontSize: 12 })}
       </div>
       <div
         ref={ref}
         className="ee-rt"
         contentEditable
+        role="textbox"
+        aria-multiline="true"
         suppressContentEditableWarning
         data-ph="Eğitim içeriğini buraya yapıştırın — kazanımlar, müfredat başlıkları, modüller…"
         onInput={sync}

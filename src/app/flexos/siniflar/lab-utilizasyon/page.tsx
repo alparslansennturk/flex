@@ -373,7 +373,7 @@ export default function LabUtilizasyonPage() {
   const exportListCsv = () => {
     if (!sel || listRows.length === 0) { toast.info("Aktarılacak seans bulunmuyor."); return; }
     const header = ["Gün", "Saat", "Laboratuvar", "Grup", "Eğitmen", "Öğrenci", "Durum"];
-    const escape = (v: string) => '"' + v.replaceAll(/"/g, '""') + '"';
+    const escape = (v: string) => '"' + v.replaceAll("\"", '""') + '"';
     const rows = listRows.map((r) => [r.day, r.time, r.lab, r.group, r.instructor, r.students, r.conflict ? "Çakışma" : "Rezerve"]);
     const csv = "﻿" + [header, ...rows].map((row) => row.map(escape).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

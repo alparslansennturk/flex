@@ -32,7 +32,7 @@ const SEED_TAG = "seed:flexos-dashboard-demo";
 const clean = process.argv.includes("--clean");
 // --n=<sayı> ile sadece ilk N branşı seed'le (donut'un 1-2-3 branşlı davranışını test etmek için).
 const nArg = process.argv.find((a) => a.startsWith("--n="));
-const branchLimit = nArg ? parseInt(nArg.slice(4), 10) : null;
+const branchLimit = nArg ? Number.parseInt(nArg.slice(4), 10) : null;
 
 const nowTs = new Date().toISOString();
 const iso = (d) => d.toISOString().slice(0, 10);

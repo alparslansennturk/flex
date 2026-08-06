@@ -19,7 +19,7 @@ import { StudentDetailModal as FlexosStudentDetailModal } from '@/app/flexos/ogr
 // metin ve sorgu ikisi de bu fonksiyondan geçmeli ki İ/I/i/ı farkı arama için
 // önemsiz olsun.
 function trLower(s: string): string {
-  return s.toLocaleLowerCase('tr-TR').replaceAll(/ı/g, 'i');
+  return s.toLocaleLowerCase('tr-TR').replaceAll("ı", 'i');
 }
 
 // ─── Sabit Aksiyon Kataloğu ───────────────────────────────────────────────────

@@ -38,7 +38,7 @@ const OUT_PATH = "scripts/k6/.tokens.json";
 const args = process.argv.slice(2);
 const argNum = (name, def) => {
   const a = args.find((x) => x.startsWith(`--${name}=`));
-  return a ? parseInt(a.split("=")[1], 10) : def;
+  return a ? Number.parseInt(a.split("=")[1], 10) : def;
 };
 const N_TRAINERS = argNum("trainers", 10);
 const N_STUDENTS = argNum("students", 20);

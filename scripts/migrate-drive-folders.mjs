@@ -44,14 +44,14 @@ function readEnv(key) {
   return match?.[1]?.trim() ?? null;
 }
 
-const strip = v => v?.replace(/^["']|["']$/g, "");
+const strip = v => v?.replaceAll(/^["']|["']$/g, "");
 const CLIENT_ID     = strip(readEnv("GOOGLE_CLIENT_ID"));
 const CLIENT_SECRET = strip(readEnv("GOOGLE_CLIENT_SECRET"));
 const REFRESH_TOKEN = strip(readEnv("GOOGLE_REFRESH_TOKEN"));
 const ROOT_FOLDER   = strip(readEnv("GOOGLE_DRIVE_FOLDER_ID"));
 const PROJECT_ID    = readEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
 const CLIENT_EMAIL  = readEnv("FIREBASE_CLIENT_EMAIL");
-const PRIVATE_KEY   = readEnv("FIREBASE_PRIVATE_KEY")?.replace(/\\n/g, "\n").replace(/^"|"$/g, "");
+const PRIVATE_KEY   = readEnv("FIREBASE_PRIVATE_KEY")?.replaceAll(/\\n/g, "\n").replaceAll(/^"|"$/g, "");
 
 for (const [k, v] of [["CLIENT_ID", CLIENT_ID], ["CLIENT_SECRET", CLIENT_SECRET],
   ["REFRESH_TOKEN", REFRESH_TOKEN], ["ROOT_FOLDER", ROOT_FOLDER],
@@ -99,7 +99,7 @@ function assertDriveId(id) {
 async function findFolder(name, parentId) {
   assertDriveId(parentId);
   const token = await getToken();
-  const q = encodeURIComponent(`name = '${name.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const q = encodeURIComponent(`name = '${name.replaceAll(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&pageSize=1`, { headers: { Authorization: `Bearer ${token}` } });
   const data = await res.json();
   return data.files?.[0]?.id ?? null;

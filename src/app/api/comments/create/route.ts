@@ -8,11 +8,11 @@ import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 function sanitize(str: string): string {
   return str
     .replaceAll(/<[^>]*>/g, "")          // HTML tag strip
-    .replaceAll(/&/g, "&amp;")
-    .replaceAll(/</g, "&lt;")
-    .replaceAll(/>/g, "&gt;")
-    .replaceAll(/"/g, "&quot;")
-    .replaceAll(/'/g, "&#x27;")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#x27;")
     .trim();
 }
 

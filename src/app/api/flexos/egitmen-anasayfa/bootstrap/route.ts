@@ -42,7 +42,7 @@ async function fetchPendingSubmissionSummary(
       const items = await listSubmissionsForGroup(actor, g.id, { submissions: firestoreSubmissionRepo });
       const pending = items.filter((s) => s.status === "submitted" && validAssignmentIds.has(s.assignmentId));
       if (pending.length === 0) return null;
-      const latest = pending.reduce((a, b) => (a.lastSubmittedAt > b.lastSubmittedAt ? a : b));
+      const latest = pending.reduce((a, b) => (a.lastSubmittedAt > b.lastSubmittedAt ? a : b), pending[0]);
       return { groupId: g.id, groupCode: g.code, assignmentId: latest.assignmentId, submittedAt: latest.lastSubmittedAt };
     }),
   );
