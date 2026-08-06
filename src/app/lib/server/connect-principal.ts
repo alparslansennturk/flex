@@ -6,7 +6,7 @@ import { firestorePersonRepo } from "./person-repo.firestore";
 import type { ConnectPrincipal } from "../domain/services/connect-service";
 import type { ConnectRequestMeta } from "../domain/core/connect-audit";
 
-/** Audit Log için ip/user-agent — `api/otp/route.ts`'teki AYNI `x-forwarded-for` deseni. */
+/** Audit Log için ip/user-agent — rate-limit route'larındaki standart `x-forwarded-for` deseni. */
 export function extractConnectRequestMeta(req: NextRequest): ConnectRequestMeta {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const userAgent = req.headers.get("user-agent") ?? undefined;

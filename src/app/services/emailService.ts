@@ -1,7 +1,4 @@
-import React from "react";
-import { render } from "@react-email/components";
 import { sendMail, type SendResult } from "@/app/lib/email";
-import { OTPTemplate } from "@/app/components/emails/OTPTemplate";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -29,24 +26,6 @@ export async function saveMailLog(params: {
   } catch (e) {
     console.error("[emailService] mailLog kayıt hatası:", e);
   }
-}
-
-// ─── OTP / Giriş Kodu ────────────────────────────────────────────────────────
-
-export async function sendOTPEmail(
-  to: string,
-  otp: string,
-  name?: string
-): Promise<SendResult> {
-  const html = await render(React.createElement(OTPTemplate, { otp, name }));
-
-  const result = await sendMail({
-    to,
-    subject: "Giriş Kodunuz — Flex",
-    html,
-  });
-  await saveMailLog({ to, subject: "Giriş Kodunuz — Flex", type: "otp", result });
-  return result;
 }
 
 // ─── Hoş Geldiniz Maili ──────────────────────────────────────────────────────

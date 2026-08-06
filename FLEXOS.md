@@ -122,19 +122,30 @@
       CRLF-injection koruması var), Sonar'ın kuralı bunu tanımıyor — kod
       hack'lemek yerine olduğu gibi bırakıldı, Sonar UI'da "Won't Fix"
       önerisi verildi.
-    - **Kapsam dışı bulundu (ayrıca not edildi, dokunulmadı):**
-      `src/app/api/otp/route.ts::generateOTP()` de Math.random kullanıyor
-      (gerçek OTP) ama bu route Sonar'ın `sonar.inclusions` kapsamının
-      DIŞINDA (eski Flex Core `api/`) — frontend'den çağıran hiçbir yer
-      bulunamadı, muhtemelen bağlanmamış/ölü kod.
     - `tsc`+`lint`+`vitest`(107/107)+`node --check`(4 script)+`npm run build`
       hepsi temiz doğrulandı, push edildi.
+  - **✅ Sonuç doğrulandı (push sonrası yeni analiz):** Security **E → C**,
+      99 → 92 bulgu (-7). 2 BLOCKER (XSS, refresh-google-token) ve 2 HIGH
+      (tainted URL, crud-smoke+migrate-drive) TAMAMEN kapandı — `he.encode()`
+      ve `new URL()` pattern'leri Sonar tarafından gerçekten tanındı. 2 gerçek
+      Math.random fix'i (tempPass, aktivasyon kodu) de listeden düştü. Kalan
+      92 = ~80 Math.random false positive (dokunulmadı) + 12 log-injection Low
+      (JSON.stringify'a rağmen Sonar tanımıyor, "Won't Fix" önerisi verildi).
+  - **✅ `src/app/api/otp/route.ts` (generateOTP, Math.random) SİLİNDİ
+      (2026-08-06)** — Sonar kapsamı dışında bulunduktan sonra kullanıcı
+      "gerçekten ölü koda mı" diye sordu; `grep` (hiçbir `fetch("/api/otp")`
+      çağrısı yok) + `middleware.ts` (route hiç geçmiyor) + `git log --follow`
+      (hiçbir commit'te çağıran eklenmemiş) + kodun kendi TODO'su ("2FA akışı
+      kurulursa geri eklenecek" — doğrulama hiç yazılmamış, üretilen OTP
+      hiçbir yerde kontrol edilmiyordu) ile KESİN ölü kod doğrulandı. Roadmap'te
+      planlı bir 2FA işi de yok. `sendOTPEmail()` (emailService.ts, tek
+      çağıranı bu route'tu) ve `OTPTemplate.tsx` (tek kullananı sendOTPEmail'di)
+      da zincirleme silindi. `dashboard/logs/page.tsx`'teki `otp: "Giriş Kodu"`
+      TYPE_LABEL'ı KORUNDU (Firestore'daki geçmiş mailLogs kayıtlarını
+      göstermeye devam ediyor). `tsc`+`vitest`(107/107)+`build` temiz.
   - **Reliability D (2.2k bulgu) henüz incelenmedi** — sırada.
-  - **SIRADAKİ:** Yeni Sonar analizini bekle → Security rating'in gerçekten
-    düzelip düzelmediğini doğrula (99'dan ~78'e inmesi bekleniyor: 2 gerçek
-    Math.random fix + 3 standard-pattern dosya, log-injection'ların Sonar
-    tarafından tanınması belirsiz) → Reliability D'yi aynı yöntemle (API'den
-    gerçek bulgu listesi çekip triaj) incele.
+  - **SIRADAKİ:** OTP silme commit'ini push et → Reliability D'yi aynı
+    yöntemle (API'den gerçek bulgu listesi çekip triaj) incele.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
