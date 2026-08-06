@@ -174,12 +174,56 @@
     - Doğrulama tamamen SonarCloud'un salt-okunur `/api/issues/search` API'siyle
       yapıldı (yazma denemeleri CSRF/güvenlik korumalarına takıldı, bu doğru
       ve beklenen bir engeldi — kod/cookie hack'i denenmedi).
-  - **SIRADAKİ (PC'de devam):** Reliability D (2.2k bulgu) — Security'de
-    kullanılan AYNI yöntemle: API'den (`/api/issues/search`,
-    `impactSoftwareQualities=RELIABILITY`) gerçek bulgu listesini çek →
-    dosya/rule bazlı sınıflandır → gerçek bug'ları kodla düzelt → gerçek
-    false positive'leri (varsa) aynı sıkı kurallarla (önce doğrula, şüpheli
-    olanı atla, kategori başına ayrı gerekçe) triaj et.
+  - **✅✅ Reliability D triage TAMAMLANDI (2026-08-06, PC, `1605e95`→`ab26bf2`)
+    — 2189 açık bulgudan başladı, ilk push sonrası D(4.0)→C(3.0) ve 126 kaldı,
+    ikinci commit (aşağıdaki 2 yeni boşluk) sonrası son sayı/puan HENÜZ
+    DOĞRULANMADI (oturum PC kapanmadan bitti) — Mac'te ilk iş bunu kontrol
+    etmek: `/api/measures/component?component=alparslansennturk_flex&
+    metricKeys=reliability_rating,bugs` ve `/api/issues/search?
+    impactSoftwareQualities=RELIABILITY&resolved=false`.** Security'deki AYNI
+    yöntem: `/api/issues/search`+`impactSoftwareQualities=RELIABILITY` ile
+    gerçek liste → kural bazlı sınıflandır → gerçek riskleri kodla düzelt →
+    false positive'leri gerekçeyle bırak. Kural bazlı özet:
+    - **S9011 (1161, buton `type` eksik):** hepsi düzeltildi — AST codemod
+      (`ts.createSourceFile` ile `<button>` tarayıp `onClick` varsa
+      `type="button"`, `<form>` içinde onClick'siz ise `type="submit"`).
+    - **S6848+S1082 (503, klavye erişilebilirlik):** 245 element düzeltildi —
+      `role="button" tabIndex={0} onKeyDown={... e.currentTarget.click() ...}`
+      deseni (orijinal onClick handler'ı KOPYALAMAK yerine gerçek DOM click
+      tetikleniyor — ilk denemede handler'ı yeniden çağırmaya çalışırken
+      TS tip hatası zincirine girildi, bu çok daha sağlam çıktı).
+    - **S6853 (223, label ilişkisi):** 210 düzeltildi — pozisyon tabanlı
+      eşleştirme (native input/select/textarea'ya `htmlFor`/`id`, custom
+      `role="button"` kontrollere `aria-labelledby`); ~40'ı (buton grupları,
+      fieldset gerektiren yapılar) bilinçli atlandı.
+    - **S7773 (146+5), S7781 (87+66), S6772 (49), S6844 (17), S7758 (3 gerçek),
+      S8786 (3 gerçek), S6959 (4, hepsi initial-value ile), kuyruk (16/18):**
+      hepsi düzeltildi — detaylar aşağıda.
+    - **Push SONRASI gerçek analiz 2 yeni boşluk ortaya çıkardı** (ikisi de
+      ikinci commit'te kapatıldı): (1) `scripts/` klasörü HİÇBİR codemod'da
+      taranmamıştı (sadece `src/app` hedeflenmişti) — `scripts/*.js`+`*.mjs`'de
+      kalan `replace()`→`replaceAll()` ve `parseInt`→`Number.parseInt`
+      eklendi; (2) `replaceAll()`'a geçiş kendi başına YENİ bir alt-kontrolü
+      tetikledi — tek karakterlik regex (`/ü/g`) artık düz string'e
+      (`"ü"`) sadeleştirilebilir diye ayrıca flagleniyor, 45 yerde uygulandı.
+    - **Sonar'ın statik analizi guard'ları GÖRMÜYOR:** `if (arr.length===0)
+      return/continue` ile korunan `reduce()` çağrıları bile "initial value
+      yok" diye flaglenmeye devam ediyor (control-flow duyarlı değil) — asıl
+      çözüm guard'ı KORUYUP reduce'a da `arr[0]`'ı initial value vermek
+      (davranış birebir aynı, hem guard hem Sonar memnun).
+    - **Bilinçli dokunulmayanlar (gerekçeli false positive):** `hash |= 0`
+      (2 yerde, klasik 32-bit rolling hash — `Math.trunc` bu wraparound'ı
+      korumaz, grup renklerini sessizce değiştirirdi), `\s*x\s*` gibi ayrık
+      karakter kümeli regex'ler (ReDoS riski yok), 40 label (buton grubu vb.).
+    - **Doğrulama:** her kategoriden sonra + sonunda `tsc --noEmit` +
+      `vitest` (107/107) + `npm run build` + `node --check` temiz.
+    - **main artık flexos'la senkron** (önceki `main` referansı bu makinede
+      bayattı, gerçekte main=flexos'tu — fark sadece 1 commit'ti, fast-forward
+      edildi, ikisi de push edildi).
+    - **SIRADAKİ (Mac'te devam):** Yukarıdaki doğrulamayı yap, kalan bulgular
+      çoğunlukla bilinçli false-positive ise (S8786 `\s*x\s*`, S7767 `hash|=0`,
+      ~40 label) gerekirse SonarCloud UI'dan "Won't Fix" triaj yapılabilir
+      (Security'de yapıldığı gibi) — puan görsel olarak da tam A/B'ye yaklaşır.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
