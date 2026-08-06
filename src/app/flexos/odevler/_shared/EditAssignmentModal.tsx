@@ -110,7 +110,7 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
     // (`pickFiles` → `forEach`) hepsi aynı render'daki `jobs`'u görüyor, o yüzden hepsi
     // AYNI index'i yakalayıp birbirlerinin progress/hata durumunu eziyordu (stale closure).
     // Her job kendi benzersiz id'siyle eşleşir.
-    const jobId = `${file.name}-${Date.now()}-${Math.random()}`;
+    const jobId = crypto.randomUUID();
     setJobs((prev) => [...prev, { id: jobId, fileName: file.name, progress: 0, status: "uploading" }]);
     const patchJob = (patch: Partial<UploadJob>) =>
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...patch } : j)));

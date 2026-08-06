@@ -198,7 +198,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
     const url = driveLink.trim();
     if (!url) return;
     setPickedDriveLinks((prev) => [...prev, {
-      id: `drive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `drive-${crypto.randomUUID()}`,
       fileName: "Google Drive Dosyası",
       fileSize: 0,
       mimeType: "application/vnd.google-apps.drive-link",
@@ -255,7 +255,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
   }
 
   async function uploadOne(file: File) {
-    const jobId = `${file.name}-${Date.now()}-${Math.random()}`;
+    const jobId = crypto.randomUUID();
     setJobs((prev) => [...prev, { id: jobId, fileName: file.name, progress: 0, status: "uploading" }]);
     const patchJob = (patch: Partial<UploadJob>) =>
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...patch } : j)));

@@ -26,8 +26,10 @@ interface SocialPool {
 
 type SubTab = "sectors" | "brands" | "formats" | "rule";
 
+// Firestore'a persist edilen pool item ID'si — çakışma veri bütünlüğü riski
+// taşıdığından crypto.randomUUID() (128-bit) kullanılıyor.
 function generateId() {
-  return Math.random().toString(36).slice(2, 10);
+  return crypto.randomUUID();
 }
 
 

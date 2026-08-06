@@ -99,7 +99,7 @@ export function TaskAccordion({ assignment, submissions, totalStudents, groupId,
     // Google Drive "modu" canlıda da gerçek bir picker değil — sadece link yapıştırma.
     // driveFileId/fileSize/mimeType yok (gerçek yükleme değil, referans link).
     const newAttachment: AssignmentAttachment = {
-      id: `drive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `drive-${crypto.randomUUID()}`,
       fileName: driveName.trim() || "Google Drive Dosyası",
       fileSize: 0,
       mimeType: "application/vnd.google-apps.drive-link",

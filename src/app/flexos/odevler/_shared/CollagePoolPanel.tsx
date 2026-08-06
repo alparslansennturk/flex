@@ -26,8 +26,10 @@ const CAT_META: Record<Category, { icon: LucideIcon; color: string; bg: string; 
   "Obje 2": { icon: Gem, color: "#db2777", bg: "bg-pink-50", border: "border-pink-200", activeBg: "bg-pink-600" },
 };
 
+// Firestore'a persist edilen pool item ID'si — çakışma veri bütünlüğü riski
+// taşıdığından crypto.randomUUID() (128-bit) kullanılıyor.
 function generateId() {
-  return Math.random().toString(36).slice(2, 10);
+  return crypto.randomUUID();
 }
 
 

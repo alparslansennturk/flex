@@ -11,8 +11,10 @@ import type { BookPool, BookItem } from "./poolTypes";
 
 const PAGE_SIZE = 10;
 
+// Firestore'a persist edilen pool item ID'si — çakışma veri bütünlüğü riski
+// taşıdığından crypto.randomUUID() (128-bit) kullanılıyor.
 function generateId() {
-  return Math.random().toString(36).slice(2, 10);
+  return crypto.randomUUID();
 }
 
 /** "1" → "01", "12" → "12" */

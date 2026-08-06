@@ -11,7 +11,9 @@ import type { SocialMediaPool, SMBrand, SMSector, SMFormat } from "./poolTypes";
 
 type SMTab = "sectors" | "brands" | "formats" | "rule";
 
-function genId() { return Math.random().toString(36).slice(2, 10); }
+// Firestore'a persist edilen pool item ID'si — çakışma veri bütünlüğü riski
+// taşıdığından crypto.randomUUID() (128-bit) kullanılıyor.
+function genId() { return crypto.randomUUID(); }
 
 const inputCls = "h-9 px-3 text-[13px] border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors";
 const labelCls = "text-[11px] font-bold text-surface-500 uppercase tracking-wide mb-1";
