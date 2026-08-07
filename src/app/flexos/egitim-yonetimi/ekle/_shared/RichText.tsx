@@ -136,6 +136,7 @@ export function RichText({ value, onChange }: { value: string; onChange: (html: 
         ref={ref}
         className="ee-rt"
         contentEditable
+        tabIndex={0}
         role="textbox"
         aria-multiline="true"
         suppressContentEditableWarning

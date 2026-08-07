@@ -399,7 +399,7 @@ function BookResultModal({
         </div>
         <div class="right">
           <div class="micro">Arka Kapak Yazısı</div>
-          <div class="back-text">${(book.backCover ?? "").replaceAll(/\n/g, "<br>")}</div>
+          <div class="back-text">${(book.backCover ?? "").replaceAll("\n", "<br>")}</div>
         </div>
       </div>
     </body></html>`;

@@ -958,8 +958,8 @@ export default function DesignParkour({
   const ghostTasks = [...availableGhosts]
     .sort((a, b) => {
       // Basit deterministik karıştırma: id'lerin toplamından türetilen sabit sıra
-      const ha = Array.from(a.id).reduce((s, c) => s + c.charCodeAt(0), 0);
-      const hb = Array.from(b.id).reduce((s, c) => s + c.charCodeAt(0), 0);
+      const ha = Array.from(a.id).reduce((s, c) => s + (c.codePointAt(0) ?? 0), 0);
+      const hb = Array.from(b.id).reduce((s, c) => s + (c.codePointAt(0) ?? 0), 0);
       return (ha % 7) - (hb % 7);
     })
     .slice(0, ghostCount);

@@ -24,7 +24,7 @@ export function firstActiveGroupId(groups: GroupPanelItem[]): string | undefined
 export const GROUP_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#F91079"];
 export function groupColor(id: string): string {
   let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + id.charCodeAt(i);
+  for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + (id.codePointAt(i) ?? 0);
   return GROUP_COLORS[Math.abs(hash) % GROUP_COLORS.length];
 }
 

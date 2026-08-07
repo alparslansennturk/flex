@@ -31,7 +31,7 @@ const GROUP_COLORS = [
 function getGroupColor(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
-    hash = ((hash << 5) - hash) + id.charCodeAt(i);
+    hash = ((hash << 5) - hash) + (id.codePointAt(i) ?? 0);
     hash |= 0;
   }
   return GROUP_COLORS[Math.abs(hash) % GROUP_COLORS.length];

@@ -131,7 +131,7 @@ function entityOf(b: Block) { return b.grup ?? ""; }
  * gibi aritmetiğine sokabilmek için kısa/sabit bir hash gerekiyor. */
 function hashSeed(id: string): number {
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + (id.codePointAt(i) ?? 0)) >>> 0;
   return (h % 96000) + 1;
 }
 const AV_PALETTES: Array<[string, string]> = [

@@ -605,8 +605,8 @@ function OdevParkuru({ groups, templates, assignments, setAssignments, refetchAs
   const availableTemplates = templates.filter((t) => !usedTemplateIds.has(t.id));
   const ghostTemplates = [...availableTemplates]
     .sort((a, b) => {
-      const ha = Array.from(a.id).reduce((s, c) => s + c.charCodeAt(0), 0);
-      const hb = Array.from(b.id).reduce((s, c) => s + c.charCodeAt(0), 0);
+      const ha = Array.from(a.id).reduce((s, c) => s + (c.codePointAt(0) ?? 0), 0);
+      const hb = Array.from(b.id).reduce((s, c) => s + (c.codePointAt(0) ?? 0), 0);
       return (ha % 7) - (hb % 7);
     })
     .slice(0, ghostCount);

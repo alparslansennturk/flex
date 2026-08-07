@@ -28,7 +28,7 @@ export const AV_PALETTES: Array<[string, string]> = [
 
 export function avatarGradient(seed: string): [string, string] {
   let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash << 5) - hash + seed.charCodeAt(i);
+  for (let i = 0; i < seed.length; i++) hash = (hash << 5) - hash + (seed.codePointAt(i) ?? 0);
   return AV_PALETTES[Math.abs(hash) % AV_PALETTES.length];
 }
 

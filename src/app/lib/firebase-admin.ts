@@ -14,7 +14,7 @@ function getAdminApp(): App {
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       // Vercel ortamında \n literal olarak geldiği için replace gerekli
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replaceAll(/\\n/g, "\n"),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replaceAll("\\n", "\n"),
     }),
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   });

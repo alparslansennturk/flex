@@ -15,7 +15,7 @@ const AVATAR_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#
 
 function colorForUid(uid: string): string {
   let hash = 0;
-  for (let i = 0; i < uid.length; i++) hash = (hash * 31 + uid.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < uid.length; i++) hash = (hash * 31 + (uid.codePointAt(i) ?? 0)) >>> 0;
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 

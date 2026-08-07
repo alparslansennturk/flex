@@ -68,7 +68,7 @@ function StudentTableImpl({
           <tbody>
             {pageStudents.map((st) => {
               const ss = ST[st.status];
-              const idHash = st.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+              const idHash = st.id.split("").reduce((a, c) => a + (c.codePointAt(0) ?? 0), 0);
               const pal = AV_PALETTES[idHash % AV_PALETTES.length];
               const branchCount = st.branches.length;
               const activeBrans = st.branches[0] ?? "—";
