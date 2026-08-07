@@ -40,12 +40,20 @@ const EGITMEN_CORE: Grant[] = [
     "submission.status.write",
     "submission.grade",
     "assignment.comment.write",
+    // Anket (2026-08-07) — eğitmen kendi grubuna anket gönderir/sonucunu görür
+    // (assigned scope, assignment.create ile aynı desen).
+    "survey.read",
+    "survey.dispatch",
+    "survey.results.read",
   ),
   // Şablon — KİŞİSEL kütüphane (2026-07-06 kararı): her eğitmen kendi ödevini şablon
   // olarak kaydedebilir, admine özel bir yetki DEĞİL. SELF scope: yalnız KENDİ
   // şablonlarını yazar/görür (`listTemplates` filtreler) — global kütüphane (org scope,
   // Op/Admin'de) ayrı ve İLERİDE admine daraltılacak (henüz yapılmadı).
   ...at("self", "template.manage"),
+  // Anket kütüphanesi — template.manage ile AYNI mantık: her eğitmen kendi anketini
+  // oluşturur/düzenler/siler, admine özel bir yetki DEĞİL (self scope).
+  ...at("self", "survey.manage"),
   // Oyunlaştırılmış ödev havuzu (Kolaj Bahçesi vb., 2026-07-07 kararı) — her eğitmenin
   // NORMAL yetkisi (standalone-only DEĞİL, template.manage self ile aynı mantık): kendi
   // kişisel havuz kopyasını yönetir, org varsayılanına/başka eğitmene DOKUNAMAZ.
@@ -194,6 +202,11 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "submission.status.write",
     "submission.grade",
     "assignment.comment.write",
+    // Anket — org-scope: herhangi bir sınıfa gönderir/kütüphaneyi yönetir/sonuçları görür.
+    "survey.manage",
+    "survey.read",
+    "survey.dispatch",
+    "survey.results.read",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -275,6 +288,10 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "submission.status.write",
       "submission.grade",
       "assignment.comment.write",
+      "survey.manage",
+      "survey.read",
+      "survey.dispatch",
+      "survey.results.read",
       "role.manage",
       "capability.grant",
       "user.create",

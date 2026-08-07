@@ -14,7 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
 import {
   Loader2, BookOpen, ClipboardList, ChevronDown,
-  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText,
+  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText, ListChecks, Send,
 } from "lucide-react";
 import StudentSidebar from "../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
@@ -60,6 +60,11 @@ interface AnnouncementItem {
 
 type Filter = "all" | "active" | "completed";
 
+interface PendingSurvey {
+  dispatch: { id: string; surveyTitleSnapshot: string; surveyTypeSnapshot: "classic" | "quick"; groupCodeSnapshot: string; dueAt: string };
+  answered: boolean;
+}
+
 /* ── Helpers ── */
 
 function fmtDate(iso?: string): string {
@@ -92,6 +97,7 @@ const STATUS_META: Record<SubmissionStatus, { label: string; cls: string; icon: 
 
 export default function FlexosStudentDashboard() {
   const { personId } = useParams<{ personId: string }>();
+  const router = useRouter();
 
   const [me, setMe] = useState<{ name: string; groupCode?: string } | null>(null);
   const [rows, setRows] = useState<AssignmentRow[]>([]);
@@ -100,6 +106,18 @@ export default function FlexosStudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedAnn, setSelectedAnn] = useState<AnnouncementItem | null>(null);
+  // Bekleyen anket modalı (2026-08-07 kullanıcı kararı, GÜNCELLENDİ): SADECE İLK KEZ
+  // gösterilir ("Anketi Cevapla" veya "Daha Sonra" — ikisi de bir daha göstermez).
+  // Ondan sonra ısrar sidebar'daki "Anketlerim" pulse+tooltip'ine devrediliyor —
+  // modal spam olmasın diye. Cihaz bazlı localStorage flag'i (`flexos_survey_intro_seen_
+  // {personId}`) ile takip edilir — sunucu tarafında ayrı bir alan YOK, bilinçli tercih.
+  const [pendingSurveys, setPendingSurveys] = useState<PendingSurvey[]>([]);
+  const [showSurveyModal, setShowSurveyModal] = useState(false);
+  const surveyIntroSeenKey = `flexos_survey_intro_seen_${personId}`;
+  function dismissSurveyModal() {
+    setShowSurveyModal(false);
+    try { localStorage.setItem(surveyIntroSeenKey, "1"); } catch { /* localStorage kapalıysa sessiz geç */ }
+  }
 
   useEffect(() => { loadData(); }, [personId]);
 
@@ -130,6 +148,23 @@ export default function FlexosStudentDashboard() {
       if (activityRes.ok) {
         const data = await activityRes.json() as { items: ActivityFeedItem[] };
         setActivityLog(data.items);
+      }
+
+      const surveyRes = await fetch(`/api/flexos/student/surveys?personId=${personId}`, { headers });
+      if (surveyRes.ok) {
+        const data = await surveyRes.json() as { items: PendingSurvey[] };
+        const now = new Date();
+        // `!(dueAt < now)` — `dueAt` eksikse (2026-08-07 öncesi, süre alanı eklenmeden
+        // gönderilmiş eski dispatch'ler) `new Date(undefined)` "Invalid Date" olur,
+        // KARŞILAŞTIRMA HER ZAMAN false döner — bu yüzden "süresi dolmadı" (fail-open)
+        // yönünde yazıldı, `Anketlerim` sayfasındaki AYNI mantıkla tutarlı (GERÇEK BUG:
+        // ters yönde yazılmıştı, eski dispatch'ler sessizce "süresi dolmuş" sayılıp
+        // modal/bekleyen listesinden düşüyordu — canlı testte yakalandı).
+        const pending = data.items.filter((it) => !it.answered && !(new Date(it.dispatch.dueAt) < now));
+        setPendingSurveys(pending);
+        let introSeen = false;
+        try { introSeen = localStorage.getItem(`flexos_survey_intro_seen_${personId}`) === "1"; } catch { /* localStorage kapalıysa modal yine de gösterilir */ }
+        if (pending.length > 0 && !introSeen) setShowSurveyModal(true);
       }
     } catch {
       toast.error("Sayfa verileri yüklenemedi.");
@@ -278,6 +313,47 @@ export default function FlexosStudentDashboard() {
           </FlexPageContent>
         </main>
       </div>
+
+      {showSurveyModal && pendingSurveys.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg,#3A7BD5,#205297)" }}>
+                <ListChecks size={20} className="text-white" />
+              </div>
+              <div className="min-w-0">
+                <span className="inline-block text-[10.5px] font-bold text-base-primary-600 bg-base-primary-50 px-2 py-0.5 rounded-full mb-1">
+                  {pendingSurveys[0].dispatch.groupCodeSnapshot}
+                </span>
+                <h3 className="text-[19px] font-extrabold text-text-primary tracking-tight">Değerlendirme Anketi</h3>
+                <p className="mt-0.5 text-[13.5px] text-text-secondary font-medium truncate">
+                  {pendingSurveys[0].dispatch.surveyTitleSnapshot}
+                  {pendingSurveys.length > 1 && <span className="text-surface-400"> · +{pendingSurveys.length - 1} tane daha</span>}
+                </p>
+              </div>
+            </div>
+            <p className="mt-5 text-[13.5px] text-text-secondary leading-relaxed">
+              Görüşlerin bizim için değerli — birkaç dakikanı ayırıp anketi doldurabilir misin?
+            </p>
+            <div className="mt-7 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { dismissSurveyModal(); router.push(`/flexos/student/${personId}/anketler/${pendingSurveys[0].dispatch.id}`); }}
+                className="flex-1 py-3 rounded-xl bg-base-primary-600 text-white text-[14px] font-bold hover:bg-base-primary-700 transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+              >
+                <Send size={16} /> Anketi Cevapla
+              </button>
+              <button
+                type="button"
+                onClick={dismissSurveyModal}
+                className="px-6 py-3 rounded-xl border border-surface-200 text-[14px] font-semibold text-text-secondary hover:bg-surface-50 transition-colors cursor-pointer"
+              >
+                Daha Sonra
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedAnn && (
         <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelectedAnn(null)}>

@@ -470,7 +470,9 @@ export default function FlexConnectMobile() {
         });
         return changed ? next : prev;
       });
-    });
+      // `!!studentPersonId` = excludeStaff (2026-08-07 gerçek bug fix — bkz.
+      // connectClient.ts::subscribeToReceipts yorumu, bu sayfa staff/student ortak).
+    }, !!studentPersonId);
     return unsub;
   }, [selectedId, screen, studentPersonId]);
 

@@ -253,6 +253,7 @@ export default function StudentConnectPage() {
   useEffect(() => {
     if (!selectedId) return;
     const myUid = auth.currentUser?.uid;
+    // `true` = excludeStaff (2026-08-07 gerçek bug fix — bkz. connectClient.ts::subscribeToReceipts yorumu).
     const unsub = subscribeToReceipts(selectedId, (receipts) => {
       const others = receipts.filter((r) => r.uid !== myUid);
       const otherDeliveredAts = others.map((r) => r.lastDeliveredAt).filter((t): t is string => !!t);
@@ -274,7 +275,7 @@ export default function StudentConnectPage() {
         });
         return changed ? next : prev;
       });
-    });
+    }, true);
     return unsub;
   }, [selectedId]);
 

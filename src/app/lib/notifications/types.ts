@@ -32,7 +32,7 @@ export interface INotificationService {
 
 export interface NotificationPayload {
   id: string // deterministic: notif_${announcementId}_${studentId}
-  type: 'message' | 'announcement' | 'assignment' | 'system'
+  type: 'message' | 'announcement' | 'assignment' | 'system' | 'survey'
   entityId: string
   senderId: string
   title: string

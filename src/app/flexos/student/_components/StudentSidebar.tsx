@@ -10,7 +10,7 @@
  * KULLANMAMALI (FlexSidebar'ın kullanıldığı sayfalarla aynı desen).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
@@ -19,10 +19,35 @@ import { Item, S, IC, css } from "../../_components/FlexSidebar";
 import { useInstallPrompt } from "../../_shared/useInstallPrompt";
 import InstallAppModal from "../../_shared/InstallAppModal";
 import SafariInstallBanner from "../../_shared/SafariInstallBanner";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 export default function StudentSidebar({ personId }: { personId: string }) {
   const router = useRouter();
   const pathname = usePathname();
+
+  // Anketlerim bildirimi (2026-08-07) — bekleyen (cevaplanmamış + süresi dolmamış)
+  // anket varsa "•" pulse + hover tooltip. Cevaplanınca/süre dolunca sunucu artık bu
+  // dispatch'i "answered"/expired döndürür, bir sonraki sidebar mount'unda otomatik söner
+  // (ayrı bir "okundu" state'i YOK — kaynak zaten `answered` + `dueAt`).
+  const [hasPendingSurvey, setHasPendingSurvey] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/flexos/student/surveys?personId=${personId}`, { headers, cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const data = await res.json() as { items: { dispatch: { dueAt: string }; answered: boolean }[] };
+        // `!(dueAt < now)` — bkz. `student/[personId]/page.tsx`'teki AYNI fail-open
+        // düzeltmesi (eski dueAt'siz dispatch'ler "süresi dolmuş" sayılmasın).
+        const pending = data.items.some((it) => !it.answered && !(new Date(it.dispatch.dueAt) < new Date()));
+        if (!cancelled) setHasPendingSurvey(pending);
+      } catch {
+        // sessiz — sidebar bildirimi kritik değil, sayfa yine çalışır
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [personId, pathname]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -36,6 +61,8 @@ export default function StudentSidebar({ personId }: { personId: string }) {
 
   const isHome = pathname === `/flexos/student/${personId}`;
   const homeHref = `/flexos/student/${personId}`;
+  const anketlerHref = `/flexos/student/${personId}/anketler`;
+  const isAnketler = pathname?.startsWith(anketlerHref) ?? false;
   const connectHref = `/flexos/student/${personId}/connect`;
   const isConnect = pathname === connectHref;
   const ayarlarHref = `/flexos/student/${personId}/ayarlar`;
@@ -53,6 +80,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.book} label="Ödevlerim" active={isHome} onClick={() => router.push(homeHref)} />
+        <Item icon={IC.barChart} label="Anketlerim" active={isAnketler} onClick={() => router.push(anketlerHref)} pulse={hasPendingSurvey} tooltip={hasPendingSurvey ? "Yeni anketiniz var" : undefined} />
         <Item icon={IC.chat} label="Flex Connect" active={isConnect} onClick={() => router.push(connectHref)} />
       </nav>
 

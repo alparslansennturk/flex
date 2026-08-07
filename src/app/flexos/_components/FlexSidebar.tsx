@@ -59,6 +59,7 @@ export type FlexNavKey =
   | "egitmen-takvimi"
   | "odev-yonetimi"
   | "odev-teslimi"
+  | "anket-liste"
   | "egitmenler"
   | "kullanicilar"
   | "kullanici-ayarlari"
@@ -545,6 +546,12 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
+        {/* Anketler — tek sayfa (kütüphane + satır/kart bazlı "Anket Yap" modalı, 2026-08-07
+            kararı: ayrı "Anket Yap" sayfası kaldırıldı, akordiyona gerek kalmadı). */}
+        {canSee("survey.read", true) && (
+          <Item icon={IC.barChart} label="Anketler" active={active === "anket-liste"} onClick={go("/flexos/anketler")} />
+        )}
+
         {/* Yoklamalar — akordiyon: Yoklama Al + Yoklama Detay (attendance.write, eğitmen
             dahil Core'da da her zaman) + Yoklama Raporu (attendance.report.read, SADECE
             Op/Finans/Admin — eğitmende BİLEREK YOK, 2026-07-02 kararı). SADECE Yoklama Al
@@ -678,12 +685,34 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
 /** Öğrenci sidebar'ı da (StudentSidebar.tsx) BİREBİR aynı görsel dili kullanır — 2026-07-13
  *  kullanıcı kararı: "öğrencide eğitmendeki gibi olacak" (gradient, genişlik, Item stili). */
-export function Item({ icon, label, onClick, active }: { icon: string; label: string; onClick: () => void; active?: boolean }) {
+/**
+ * `pulse`/`tooltip` (2026-08-07, Anketlerim bildirimi) — `egitmen-anasayfa/page.tsx`'teki
+ * "ödev notu bekliyor" göstergesiyle AYNI desen (`animate-ping` yeşil nokta), sidebar
+ * item'ına genel bir yetenek olarak taşındı ki başka bildirimler de (mesaj, duyuru vb.)
+ * aynı deseni tekrar yazmadan kullanabilsin.
+ */
+export function Item({ icon, label, onClick, active, pulse, tooltip }: { icon: string; label: string; onClick: () => void; active?: boolean; pulse?: boolean; tooltip?: string }) {
+  const [hover, setHover] = useState(false);
   return (
-    <button type="button" className="fs-navlink" style={active ? S.itemActive : S.navItem} onClick={onClick}>
-      <span style={{ display: "inline-flex", color: active ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: icon }} />
-      <span style={{ flex: 1 }}>{label}</span>
-    </button>
+    <div style={{ position: "relative" }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button type="button" className="fs-navlink" style={active ? S.itemActive : S.navItem} onClick={onClick}>
+        <span style={{ position: "relative", display: "inline-flex", color: active ? "#fb923c" : "currentColor" }}>
+          <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: icon }} />
+          {pulse && (
+            <span style={{ position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} className="animate-ping" />
+          )}
+          {pulse && (
+            <span style={{ position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
+          )}
+        </span>
+        <span style={{ flex: 1 }}>{label}</span>
+      </button>
+      {tooltip && hover && (
+        <div style={{ position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)", zIndex: 50, background: "#0b2244", color: "#fff", fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 9, whiteSpace: "nowrap", boxShadow: "0 8px 20px -4px rgba(0,0,0,.35)", pointerEvents: "none" }}>
+          {tooltip}
+        </div>
+      )}
+    </div>
   );
 }
 

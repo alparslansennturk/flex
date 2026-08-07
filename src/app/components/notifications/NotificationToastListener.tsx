@@ -15,6 +15,7 @@ const TYPE_ICON: Record<NotificationPayload['type'], string> = {
   announcement: '📢',
   assignment:   '📋',
   system:       '🔔',
+  survey:       '📊',
 };
 
 export default function NotificationToastListener() {

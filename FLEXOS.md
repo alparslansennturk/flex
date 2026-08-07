@@ -273,15 +273,32 @@
   temel çekirdeğe hiç dokunulmayacak. **Henüz tasarım/kod yok** — TTL (kalıcı
   silme) mi export (taşıyarak sakla) mı seçileceği kullanıcı kararı bekliyor.
   Sıradaki iş değil, ileride Connect'e sıra gelince gündeme alınacak.
-- **🔜 SIRADAKİ ÖNCELİK: Anket Modülü (Finans modülünden önce, 2026-08-07
-  kullanıcı kararı).** İki tür: (1) **Anket oluşturma/düzenleme sayfası** —
-  soru ekle/çıkar, kaydet+isimlendir (ör. "Memnuniyet"), sonradan düzenlenebilir;
-  (2) **Popup/A-B test tipi hızlı anket** — kullanıcının karşısına çıkar, 2 şık,
-  birini seçip gönder, biter (öğrenci/çalışan hızlı geri bildirimi için).
-  Kullanıcıda taslak bir çizim var ama **henüz tamamlanmadı/paylaşılmadı** —
-  hazır olunca Claude Code'a gösterilecek, eksikler birlikte netleştirilip
-  ondan sonra koda geçilecek. Finans modülü tasarımı da beklemede
-  ([[flexos_bekleyen_tasarimlar]]) ama Anket ondan önce geliyor.
+- ~~Anket Modülü~~ — **✅ UÇTAN UCA İLK SÜRÜM TAMAMLANDI (2026-08-07).** Kullanıcı
+  Claude Design taslağını (`Anket Yönetimi Desktop.dc.html`, `DesignSync` ile okundu)
+  getirdi + akışı netleştirdi: anketler **kütüphanede create-once/reuse-many**
+  saklanır (Klasik Anket = çok sorulu serbest düzenlenebilir, Hızlı Anket = tek
+  soru 2 şıklı popup); taslaktaki 4 adımlı MODAL sihirbaz **TAM SAYFAYA** çevrildi
+  (Tür→İçerik→Gizlilik, 3 adım) ve **Hedef Grup adımı oluşturmadan tamamen çıkarılıp
+  ayrı bir "Anket Yap" ekranına taşındı** — kütüphaneden anket seç → sistem hedef
+  sınıf adaylarını OTOMATİK listeler (Klasik → `groupDisplay.ts::mapStatus`'un
+  "tamamlandı" kuralıyla birebir aynı mantıkla eğitim sonuna gelmiş sınıflar, Hızlı
+  → hâlâ aktif sınıflar) → seç+Gönder → o sınıfın aktif kayıtlı öğrencilerine gider,
+  aynı anket farklı zamanlarda/sınıflara tekrar tekrar gönderilebilir (her gönderim
+  ayrı `SurveyDispatch`+ayrı sonuç kümesi). **Öğrenci tarafı taslakta hiç yoktu,
+  sıfırdan tasarlandı**: gönderim mevcut `NotificationBell` sistemine (`type:"survey"`
+  eklendi) bildirim düşürür, "Anketlerim" listesi (`StudentSidebar`'a link) + doldurma
+  sayfası (soru tipine göre input: 1-5 ölçek/Evet-Hayır/tek seçim/açık uçlu),
+  tekrar-doldurma backend'de deterministik id (`${dispatchId}_${personId}`) ile
+  engelleniyor. Sonuç/analiz ekranı (katılım halkası+soru bar grafikleri+öğrenci
+  tablosu, anonimde isim gizli/durum görünür) taslaktan birebir taşındı, ayrı route.
+  **Mimari**: 3 yeni Firestore koleksiyonu (`flexos_surveys`/`flexos_survey_dispatches`/
+  `flexos_survey_responses`, composite index'ler eklendi), 4 yeni capability
+  (`survey.manage/read/dispatch/results.read`, eğitmende assigned+self, Op/Admin'de
+  org — `assignment.create`/`template.manage` ile aynı desen), 9 API route
+  (`assignment-templates` route deseni birebir), 6 UI sayfası (admin: dashboard/
+  oluştur/anket-yap/sonuç, öğrenci: liste/doldur) + `FlexSidebar`/`StudentSidebar`
+  nav eklemeleri. `tsc`+`vitest`(107/107)+`eslint`+`npm run build` temiz doğrulandı
+  — **kullanıcı tarafından canlıda henüz test edilmedi, commit/push edilmedi.**
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi

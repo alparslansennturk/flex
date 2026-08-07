@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell, BellOff, Megaphone,
-  ClipboardList, AlertCircle, MessageSquare, ChevronRight, Check,
+  ClipboardList, AlertCircle, MessageSquare, ChevronRight, Check, ListChecks,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
@@ -58,6 +58,12 @@ const TYPE_CONFIG: Record<NotifType, {
     Icon: MessageSquare,
     bg: "bg-base-secondary-50",
     color: "text-base-secondary-600",
+    titleColor: "text-text-primary",
+  },
+  survey: {
+    Icon: ListChecks,
+    bg: "bg-status-success-50",
+    color: "text-status-success-600",
     titleColor: "text-text-primary",
   },
 };

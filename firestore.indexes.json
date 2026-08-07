@@ -106,6 +106,30 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" },
         { "fieldPath": "__name__",  "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "flexos_survey_dispatches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "surveyId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flexos_survey_dispatches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId",         "order": "ASCENDING" },
+        { "fieldPath": "rosterPersonIds",  "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "flexos_survey_responses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId",   "order": "ASCENDING" },
+        { "fieldPath": "dispatchId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

@@ -123,6 +123,17 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   // Öğrencinin kendi thread'ine yazması/düzenlemesi/silmesi capability DIŞINDA (sahiplik: authorUid).
   { key: "assignment.comment.write", domain: "assignment", label: "Ödev Yorumu / Duyuru Yaz", sensitivity: "green", write: true, scopable: true, audited: false },
 
+  // ── survey (Anket Modülü — kütüphane + gönderim + sonuç, 2026-08-07) ──
+  // `survey.manage` template.manage ile AYNI mantık: self scope → kişisel kütüphane
+  // (kaydı oluşturan sahibi), org scope (Op/Admin) → tümü. `survey.dispatch`/
+  // `survey.results.read` assignment.create ile aynı desen — hedef sınıfın
+  // `Group.trainerId` sahiplik kontrolüyle (assigned scope, eğitmen sadece kendi grubuna
+  // gönderir/sonuç görür).
+  { key: "survey.manage", domain: "survey", label: "Anket Oluştur/Düzenle/Sil (Kütüphane)", sensitivity: "green", write: true, scopable: true, audited: false },
+  { key: "survey.read", domain: "survey", label: "Anket Kütüphanesini Gör", sensitivity: "green", write: false, scopable: true, audited: false },
+  { key: "survey.dispatch", domain: "survey", label: "Anket Gönder (Anket Yap)", sensitivity: "green", write: true, scopable: true, audited: true },
+  { key: "survey.results.read", domain: "survey", label: "Anket Sonuçlarını Gör", sensitivity: "green", write: false, scopable: true, audited: false },
+
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },

@@ -614,8 +614,24 @@ export interface MemberReceipt { uid: string; lastReadAt?: string; lastDelivered
  * çözelim"); bu şekilde sadece karşı tarafın dokümanı GERÇEKTEN değişince (okudu/
  * teslim oldu) 1 doküman okuması olur, mesaj İÇERİĞİ hiç yeniden çekilmez.
  */
-export function subscribeToReceipts(conversationId: string, onChange: (receipts: MemberReceipt[]) => void): () => void {
-  const q = collection(db, "connect_conversations", conversationId, "members");
+/**
+ * `excludeStaff` (2026-08-07 GERÇEK BUG — GRP-784 canlı testinde yakalandı): bu
+ * sorgu filtresiz TÜM `members` alt-koleksiyonunu dinliyordu. Firestore, sonucu
+ * `resource.data`'ya göre değişen (kind bazlı) bir rule'a göre filtresiz bir
+ * collection sorgusunu GÜVENLE değerlendiremez — konuşmada TEK bir "staff"
+ * üye dokümanı bile varsa (normal bir sınıf sohbetinde HER ZAMAN vardır: eğitmen),
+ * öğrenci `onSnapshot`'ı `permission-denied` ile TAMAMEN reddediliyordu (kısmi
+ * sonuç yok). `firestore.rules::members` kuralı `resource.data.kind != "staff"`
+ * dalını içerdiği için, sorguya AYNI `where("kind","!=","staff")` eklenince
+ * Firestore artık sonucun TAMAMININ kuralı geçtiğini ispatlayabiliyor — okundu-
+ * tiki zaten öğrenciden staff'ı gizliyordu, bu filtre davranışı DEĞİŞTİRMİYOR,
+ * sadece sorguyu rules'un kanıtlayabileceği şekle getiriyor. Staff çağıranlar
+ * (`connect/page.tsx`) bu parametreyi vermez — zaten hem staff hem student
+ * dokümanını okuyabiliyor, filtresiz sorgu onlar için sorunsuz.
+ */
+export function subscribeToReceipts(conversationId: string, onChange: (receipts: MemberReceipt[]) => void, excludeStaff?: boolean): () => void {
+  const base = collection(db, "connect_conversations", conversationId, "members");
+  const q = excludeStaff ? query(base, where("kind", "!=", "staff")) : base;
   return onSnapshot(
     q,
     (snap) => onChange(snap.docs.map((d) => ({ uid: d.id, ...(d.data() as { lastReadAt?: string; lastDeliveredAt?: string }) }))),

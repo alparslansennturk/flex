@@ -11,7 +11,7 @@ import { FieldValue } from "firebase-admin/firestore";
 export async function notifyUser(
   uid: string,
   input: {
-    type: "message" | "announcement" | "assignment" | "system";
+    type: "message" | "announcement" | "assignment" | "system" | "survey";
     entityId: string;
     senderId: string;
     title: string;
