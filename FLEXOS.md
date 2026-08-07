@@ -224,11 +224,64 @@
     - **main artık flexos'la senkron** (önceki `main` referansı bu makinede
       bayattı, gerçekte main=flexos'tu — fark sadece 1 commit'ti, fast-forward
       edildi, ikisi de push edildi).
-    - **SIRADAKİ (Mac'te devam, kullanıcı isteği: "yapmışken hepsini
-      bitiririz"):** Kalan 79 CODE_SMELL bulgusunu tek tek gözden geçir —
-      gerçekten gerçek risk çıkan varsa kodla düzelt, bilinçli false-positive
-      olanları (S8786 `\s*x\s*`, S7767 `hash|=0`, ~40 buton-grubu label'ı vb.)
-      Security'de yapıldığı gibi SonarCloud UI'dan "Won't Fix" olarak triaj et.
+    - **✅✅ Kalan 79 CODE_SMELL triaj TAMAMLANDI (2026-08-07, Mac, `387ee21`).**
+      Kural bazlı tek tek incelendi: **36'sı gerçek düzeltme** — S6852(1)
+      `RichText.tsx` contentEditable'a açık `tabIndex={0}`; S7781(21) `scripts/`+2
+      src'de tek-karakterlik regex→düz string (`replaceAll` zaten string
+      argümanla tüm eşleşmeleri değiştiriyor, davranış aynı); S7758(11) ID'den
+      renk/hash üreten fonksiyonlarda `charCodeAt`→`codePointAt` (ID'ler ASCII,
+      davranış değişmiyor); S6853'ün 3'ü `StudentForm.tsx`'te (Cinsiyet/Şube/Grup)
+      özel dropdown'lara hiç bağlanmamış `aria-labelledby` eklendi (gerçek a11y
+      eksikliği — `GroupForm.tsx`/`UserForm.tsx`'teki desenle aynı). **Kalan 43
+      false positive** (dokunulmadı): S6853×37 buton-grubu/özel-bileşen label'ı
+      (tek native kontrol yok, `htmlFor` bağlanacak yer yok — 6'sı zaten doğru
+      `aria-labelledby` ile bağlı ama Sonar bu ters-referans tekniğini
+      tanımıyor, araç sınırlaması), S8786×4 basit regex (ReDoS riski yok),
+      S7767×2 `hash|=0` (kasıtlı wraparound). Push sonrası doğrulandı: rating
+      A(1.0)/bugs:0 korundu, 79→46 (33'ü tamamen kapandı, S6853 40 olarak
+      kalıyor çünkü 3 fix Sonar tarafından tanınmıyor). `tsc`+`vitest`(107/107)+
+      `build`+`eslint` temiz.
+    - **✅ Duplications temizliği (2026-08-07, `1ea482a`).** Sonar'ın
+      Duplications sekmesi incelendi (%7.9, 10.098 satır, 545 blok, 172 dosya).
+      Baskın kök neden: FlexOS'un Kitap/Kolaj/Sosyal ("çekiliş") 3 modülü
+      kopyala-yapıştırla kurulmuş — `usePickingEngine.ts` (Kitap↔Sosyal
+      byte-birebir, Kitap↔Kolaj sadece yorumda farklı) ve `StudentPanel.tsx`
+      (tek fark hiç kullanılmayan bir `accentColor` varsayılanı — her çağıran
+      zaten kendi `ACCENT`'ini geçiyordu) fonksiyonel olarak %100 aynıydı.
+      `flexos/_shared/`'a generic tip parametreleriyle taşındı, 6 dosya
+      silindi. **`page.tsx` (3×258 satır, %90 dup, ~9 satır gerçek fark) ve
+      `GameScreen.tsx` (532-602 satır, normalize edilse bile 800+ satır gerçek
+      fark) kullanıcı kararıyla dokunulmadı** — route-level/mimari birleştirme
+      "sırf metrik için" yapılmayacak, v1.1 sonrasına ertelendi (bkz.
+      [[flexos_duplication_refactor_risk_appetite]] hafıza kaydı).
+      `generateKitapPdf.tsx`/`generateKolajPdf.tsx` incelendi, tamamen farklı
+      PDF şablonları olduğu doğrulandı — gerçek duplicate değil, dokunulmadı.
+      `tsc`+`vitest`(107/107)+`build`+`eslint` temiz.
+- **💡 FİKİR AŞAMASINDA — Data Lifecycle & Archive (2026-08-07, kod yazılmadı):**
+  Kullanıcı uzun vadede (yoklama/mesaj/log gibi) veri birikiminin performansı
+  etkilemesinden endişeli. Uzun tartışma sonucu iş modeli netleşti: **her
+  müşteriye anahtar teslim** — 1-2 hafta çalışılıp sıfır-veri bir kopya + DB
+  şifreleri teslim ediliyor, teslim sonrası müdahale şansı yok. Bu yüzden
+  gerekirse çekirdeğe ŞİMDİ (satıştan önce) konulmalı, sonradan yama
+  şansı olmayacak. Ama kapsam netleşti: **temel çekirdek** (yoklama/not/ödev)
+  tek-kurum ölçeğinde (max ~1500 öğrenci) 10 yılda bile küçük kalıyor
+  (~1.8M kayıt, ~500MB) — Firestore için sorun değil, dokunmaya gerek yok.
+  **Flex Connect ayrı/opsiyonel ek ücretli bir ürün olarak satılacak** — asıl
+  büyüme riski (mesaj/bildirim/okundu-bilgisi) sadece orada, bu yüzden bir
+  "kur-unut" mekanizması (TTL native silme ya da zamanlanmış Cloud
+  Function+BigQuery export ile taşıma) SADECE Connect'e özgü tasarlanacak,
+  temel çekirdeğe hiç dokunulmayacak. **Henüz tasarım/kod yok** — TTL (kalıcı
+  silme) mi export (taşıyarak sakla) mı seçileceği kullanıcı kararı bekliyor.
+  Sıradaki iş değil, ileride Connect'e sıra gelince gündeme alınacak.
+- **🔜 SIRADAKİ ÖNCELİK: Anket Modülü (Finans modülünden önce, 2026-08-07
+  kullanıcı kararı).** İki tür: (1) **Anket oluşturma/düzenleme sayfası** —
+  soru ekle/çıkar, kaydet+isimlendir (ör. "Memnuniyet"), sonradan düzenlenebilir;
+  (2) **Popup/A-B test tipi hızlı anket** — kullanıcının karşısına çıkar, 2 şık,
+  birini seçip gönder, biter (öğrenci/çalışan hızlı geri bildirimi için).
+  Kullanıcıda taslak bir çizim var ama **henüz tamamlanmadı/paylaşılmadı** —
+  hazır olunca Claude Code'a gösterilecek, eksikler birlikte netleştirilip
+  ondan sonra koda geçilecek. Finans modülü tasarımı da beklemede
+  ([[flexos_bekleyen_tasarimlar]]) ama Anket ondan önce geliyor.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
