@@ -297,8 +297,30 @@
   org — `assignment.create`/`template.manage` ile aynı desen), 9 API route
   (`assignment-templates` route deseni birebir), 6 UI sayfası (admin: dashboard/
   oluştur/anket-yap/sonuç, öğrenci: liste/doldur) + `FlexSidebar`/`StudentSidebar`
-  nav eklemeleri. `tsc`+`vitest`(107/107)+`eslint`+`npm run build` temiz doğrulandı
-  — **kullanıcı tarafından canlıda henüz test edilmedi, commit/push edilmedi.**
+  nav eklemeleri. `tsc`+`vitest`(107/107)+`eslint`+`npm run build` temiz doğrulandı.
+  **Commit+push edildi (`0b42cc0`).** Aynı gün ikinci leg'de eklenenler (kullanıcı
+  canlıda test edip geri bildirim verdi): (1) Sonuç Detay'da **bireysel cevap
+  görünümü** — öğrenci satırı tıklanınca tüm soru/cevapları açılır, olumsuz
+  cevaplar (scale5 1-2, yesno "Hayır") kırmızı vurgulanır + "Dikkat" rozeti
+  ("10 kişiden 9'u iyi dese bile 1 kişi ciddi sorun" kullanıcı prensibi);
+  soru bazında da aynı mantık (soru geneli %50+ olumsuzsa başlıkta "Dikkat" +
+  kırmızı bar) — ilk halde deneme amaçlı renk paleti (soru başına farklı renk)
+  eklendi ama kullanıcı "çok renk kafa karıştırıyor" dedi, **tek nötr mavi +
+  sadece kötü sonuçta kırmızı**'ya sadeleştirildi; (2) `allowComment` — soru
+  oluştururken opsiyonel yorum kutusu eklenebiliyor ("Eğitmenini değerlendir"
+  altına yorum alanı), `SURVEY_COMMENT_SUFFIX` ile ayrı cevap satırı olarak
+  saklanıyor, sonuç ekranında alıntı olarak gösteriliyor; (3) `open` tipi
+  sorular Grafiksel Özet'te artık bar yerine alıntı listesi; (4) **Kütüphane'den
+  Sonuç sayfasına giden yol yoktu** (kullanıcı bulamadı) — satır/kart'a
+  "Sonuçlar" ikonu eklendi (tek gönderim varsa direkt gider, 2+ ise Gönderimler
+  sekmesini o anketle filtreler); (5) sonuç sayfası `framer-motion` ile
+  kayarak-gelen geçiş + geri butonu `router.back()` + sekme/filtre durumu artık
+  `useState` değil **URL query'de** (`?tab=&surveyId=`) — `router.back()`
+  sayfayı yeniden mount ettiğinde state kaybolup her zaman Kütüphane'ye
+  dönüyordu, kullanıcı fark etti ("aynı sayfaya kayarak dönsün"). Tüm bu
+  eklemeler gerçek GRP-784/GRP-550 verisiyle tarayıcıda görsel doğrulandı
+  (geçici seed script'lerle test edilip veri temizlendi). `tsc`+`eslint`+
+  `vitest`(107/107) temiz, commit+push edildi.
 - ~~Connect okundu-tikini rol bazlı gizleme~~ — **✅ TAMAMLANDI (2026-08-04,
   `bac010c`→`662c4da`).** Kullanıcı kararı: öğrenci hiçbir koşulda (saatten bağımsız)
   personelin "okundu" (yeşil tik) bilgisini görmesin, sadece Gönderildi/Teslim Edildi
