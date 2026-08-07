@@ -1,11 +1,21 @@
 "use client";
 
 import { Check, FileText } from "lucide-react";
-import type { Student, StudentDraw } from "./types";
 
-interface Props {
-  students: Student[];
-  draws: StudentDraw[];
+interface StudentLike {
+  id: string;
+  name: string;
+  lastName: string;
+}
+
+interface DrawLike {
+  studentId: string;
+  draws: unknown[];
+}
+
+interface Props<S extends StudentLike, D extends DrawLike> {
+  students: S[];
+  draws: D[];
   catCount: number;
   taskLabel: string;
   onViewResult: (studentId: string) => void;
@@ -14,14 +24,14 @@ interface Props {
   accentColor?: string;
 }
 
-export default function StudentPanel({
+export default function StudentPanel<S extends StudentLike, D extends DrawLike>({
   students, draws, catCount, taskLabel,
   onViewResult, pickHighlightId, drawingStudentId,
-  accentColor = "#a855f7",
-}: Props) {
+  accentColor = "#60a5fa",
+}: Props<S, D>) {
   const accentRgb = accentColor.startsWith("#")
     ? `${Number.parseInt(accentColor.slice(1, 3), 16)},${Number.parseInt(accentColor.slice(3, 5), 16)},${Number.parseInt(accentColor.slice(5, 7), 16)}`
-    : "168,85,247";
+    : "96,165,250";
   return (
     <div className="w-72 flex flex-col shrink-0" style={{ background: "#060D1A", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>

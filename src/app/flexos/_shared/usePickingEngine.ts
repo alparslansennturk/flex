@@ -1,17 +1,13 @@
-// Canlıdaki `shared/usePickingEngine.ts` ile birebir port — sadece Student importu
-// yerel `./types`'a bağlı. Kolaj için baştan doğru kullanılıyor (canlıda Kolaj bunu
-// kullanmıyor, kendi kopyasını elle yazmıştı — burada tekrar yaratılmadı).
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { Student } from "./types";
 
-interface Options {
-  remainingStudents: Student[];
-  onStudentReady: (student: Student) => void;
+interface Options<S extends { id: string }> {
+  remainingStudents: S[];
+  onStudentReady: (student: S) => void;
 }
 
 export type PickingPhase = "idle" | "picking" | "ready";
 
-export function usePickingEngine({ remainingStudents, onStudentReady }: Options) {
+export function usePickingEngine<S extends { id: string }>({ remainingStudents, onStudentReady }: Options<S>) {
   const [phase, setPhase] = useState<PickingPhase>("idle");
   const [pickHighlightId, setPickHighlightId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -42,7 +38,7 @@ export function usePickingEngine({ remainingStudents, onStudentReady }: Options)
 
     const t0 = setTimeout(() => {
       if (remainingStudents.length > 1) {
-        let shuffled: Student[] = [];
+        let shuffled: S[] = [];
         let shuffleIdx = 0;
         const reshuffle = () => {
           shuffled = [...remainingStudents].sort(() => Math.random() - 0.5);
